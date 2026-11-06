@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>archgraph – mockup</title>
+<style>
+  :root {
+    --bg: #18191c; --grid: #2a2c31; --panel: #222327; --panel-2: #2b2d32; --border: #3a3c42;
+    --text: #e6e6e8; --muted: #9a9ca3; --accent: #7aa2ff;
+    --t-prim: #8aa4c8; --t-dto: #4cc38a; --t-entity: #f0913a; --t-coll: #b083f0;
+    --t-http: #4aa8ff; --t-contract: #e8c547; --t-unknown: #7a7a7a;
+    --r-route: #4aa8ff; --r-controller: #5b8def; --r-service: #4cc38a; --r-repository: #f0913a;
+    --r-interface: #e8c547; --r-factory: #c27cf0; --r-entity: #f06a6a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.35 Inter, system-ui, -apple-system, Segoe UI, sans-serif; overflow: hidden; }
+  code, .mono { font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; }
+
+  header { height: 48px; display: flex; align-items: center; gap: 14px; padding: 0 16px; background: var(--panel); border-bottom: 1px solid var(--border); }
+  .logo { font-weight: 700; letter-spacing: .3px; }
+  .logo b { color: var(--accent); }
+  .proj { color: var(--muted); }
+  .chips { display: flex; gap: 6px; margin-left: 12px; flex-wrap: wrap; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); cursor: pointer; user-select: none; font-size: 12px; }
+  .chip i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .chip.off { opacity: .4; }
+  .spacer { flex: 1; }
+  .seg { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .seg button { background: none; border: 0; color: var(--muted); padding: 6px 12px; cursor: pointer; font: inherit; }
+  .seg button.on { background: var(--panel-2); color: var(--text); }
+
+  #stage { position: absolute; top: 48px; left: 0; right: 320px; bottom: 0; overflow: hidden; cursor: grab;
+           background-color: var(--bg); background-image: radial-gradient(var(--grid) 1px, transparent 1px); background-size: 22px 22px; }
+  #stage.drag { cursor: grabbing; }
+  #world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  svg#wires { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+  svg#wires path { fill: none; stroke-width: 2.2; opacity: .85; transition: opacity .15s; }
+  svg#wires path.dashed { stroke-dasharray: 6 5; }
+  svg#wires path.dim { opacity: .08; }
+
+  .node { position: absolute; width: 290px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.35); transition: opacity .15s, box-shadow .15s; }
+  .node.iface { border-style: dashed; border-color: var(--r-interface); }
+  .node.ghost { opacity: .5; border-style: dashed; }
+  .node.dim { opacity: .18; }
+  .node.sel { box-shadow: 0 0 0 2px var(--accent), 0 6px 20px rgba(0,0,0,.35); }
+  .node .hd { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--border); border-radius: 10px 10px 0 0; position: relative; cursor: pointer; }
+  .node .hd .role { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; padding: 1px 6px; border-radius: 4px; color: #111; font-weight: 700; }
+  .node .hd .nm { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .node .hd .fw { margin-left: auto; color: var(--muted); font-size: 11px; }
+  .sec { padding: 4px 0 6px; }
+  .sec + .sec { border-top: 1px solid var(--border); }
+  .sec .t { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .6px; padding: 4px 12px 2px; }
+  .m { padding: 3px 12px; }
+  .m .mn { font-weight: 600; font-size: 12.5px; }
+  .m .mn small { color: var(--muted); font-weight: 400; }
+  .row { position: relative; display: flex; align-items: center; min-height: 20px; font-size: 12px; }
+  .row.in { padding-left: 4px; }
+  .row.out { justify-content: flex-end; padding-right: 4px; }
+  .row .ty { color: var(--muted); margin-left: 6px; }
+  .row.out .ty { margin-left: 0; margin-right: 6px; }
+  .dot { position: absolute; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--bg); top: 50%; transform: translateY(-50%); }
+  .row.in .dot { left: -18px; }
+  .row.out .dot { right: -18px; }
+  .hd .dot.l { left: -6px; }
+  .hd .dot.r { right: -6px; }
+  .pt { position: absolute; width: 1px; height: 1px; }
+  .pt.top { top: -1px; left: 50%; }
+  .pt.bottom { bottom: -1px; left: 50%; }
+  .caret { cursor: pointer; color: var(--muted); margin-left: 4px; user-select: none; }
+  .fields { margin: 2px 0 2px 14px; padding-left: 8px; border-left: 1px solid var(--border); display: none; }
+  .fields.open { display: block; }
+  .fields .row { font-size: 11.5px; min-height: 18px; }
+  .unknown { border-style: dashed !important; }
+  .warn { color: #ff7a7a; }
+
+  aside { position: absolute; top: 48px; right: 0; width: 320px; bottom: 0; background: var(--panel); border-left: 1px solid var(--border); display: flex; flex-direction: column; }
+  aside h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); padding: 14px 16px 8px; }
+  .insp { padding: 0 16px 12px; border-bottom: 1px solid var(--border); }
+  .insp .big { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .insp .loc { color: var(--accent); font-size: 12px; }
+  .btns { display: flex; gap: 8px; margin-top: 10px; }
+  .btn { flex: 1; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 7px 8px; cursor: pointer; font: inherit; font-size: 12px; }
+  .btn.pri { background: var(--accent); border-color: var(--accent); color: #0b1020; font-weight: 600; }
+  .plan { flex: 1; overflow: auto; padding: 0 16px 16px; }
+  .plan pre { white-space: pre-wrap; background: #141518; border: 1px solid var(--border); border-radius: 8px; padding: 10px; font-size: 11.5px; color: #cfd2d8; margin: 0; }
+  .legend { padding: 10px 16px 14px; border-top: 1px solid var(--border); display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; font-size: 11.5px; color: var(--muted); }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .hint { position: absolute; left: 12px; bottom: 10px; color: var(--muted); font-size: 11.5px; background: rgba(34,35,39,.85); padding: 5px 9px; border-radius: 6px; border: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">arch<b>graph</b></div>
+  <div class="proj">demo-shop · PHP · Mezzio</div>
+  <div class="chips" id="chips"></div>
+  <div class="spacer"></div>
+  <div class="seg"><button class="on">Карта</button><button>Процес</button><button>Нарушения</button></div>
+</header>
+
+<div id="stage">
+  <div id="world">
+    <svg id="wires"></svg>
+  </div>
+  <div class="hint">влачи = местене · колелце = zoom · клик върху нод = фокус и план · ▸ = разгъни тип</div>
+</div>
+
+<aside>
+  <h3>Нод</h3>
+  <div class="insp" id="insp"><div class="big">Избери нод</div><div class="loc">Клик върху заглавие на нод</div></div>
+  <h3>План за AI <span id="cnt"></span></h3>
+  <div class="plan"><pre id="plan">Маркирай нодове (клик), за да се събере план.</pre></div>
+  <div class="legend">
+    <span><i style="background:var(--t-prim)"></i>примитив</span>
+    <span><i style="background:var(--t-dto)"></i>DTO</span>
+    <span><i style="background:var(--t-entity)"></i>entity</span>
+    <span><i style="background:var(--t-coll)"></i>колекция</span>
+    <span><i style="background:var(--t-http)"></i>HTTP</span>
+    <span><i style="background:var(--t-contract)"></i>договор</span>
+  </div>
+</aside>
+
+<script>
+const T = { prim: '--t-prim', dto: '--t-dto', entity: '--t-entity', coll: '--t-coll', http: '--t-http', contract: '--t-contract', unknown: '--t-unknown' };
+const R = { route: '--r-route', controller: '--r-controller', service: '--r-service', repository: '--r-repository', interface: '--r-interface', factory: '--r-factory', entity: '--r-entity' };
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+const SHAPES = {
+  PlaceOrderDto: [['customerId', 'int', 'prim'], ['items', 'OrderItemDto[]', 'coll', 'OrderItemDto'], ['note', '?string', 'prim']],
+  OrderItemDto: [['sku', 'string', 'prim'], ['qty', 'int', 'prim']],
+  Order: [['id', 'int', 'prim'], ['customerId', 'int', 'prim'], ['items', 'Collection<OrderItem>', 'coll'], ['total', 'Money', 'dto'], ['status', 'OrderStatus', 'prim']],
+};
+
+// x, y in world coordinates
+const NODES = [
+  { id: 'route', x: 40, y: 70, role: 'route', name: 'POST /orders', file: 'config/routes.php', line: 14,
+    secs: [{ members: [{ outs: [['request', 'ServerRequestInterface', 'http', 'req']] }] }] },
+  { id: 'factory', x: 40, y: 470, role: 'factory', name: 'OrderServiceFactory', file: 'src/Order/Service/OrderServiceFactory.php', line: 9,
+    secs: [{ members: [{ name: '__invoke', ins: [['container', 'ContainerInterface', 'contract']], outs: [['', 'OrderService', 'contract', 'creates']] }] }] },
+  { id: 'handler', x: 360, y: 50, role: 'controller', name: 'PlaceOrderHandler', file: 'src/Order/Handler/PlaceOrderHandler.php', line: 18,
+    secs: [
+      { members: [{ name: 'handle', ins: [['request', 'ServerRequestInterface', 'http', 'req']], outs: [['', 'ResponseInterface', 'http']] }] },
+      { title: 'зависимости', members: [{ outs: [['service', 'OrderServiceInterface', 'contract', 'dep-svc']] }] },
+    ] },
+  { id: 'osi', x: 720, y: 30, role: 'interface', iface: true, name: 'OrderServiceInterface', file: 'src/Order/Service/OrderServiceInterface.php', line: 7,
+    secs: [{ members: [
+      { name: 'place', ins: [['dto', 'PlaceOrderDto', 'dto', null, 'PlaceOrderDto']], outs: [['', 'Order', 'entity', 'place-out']] },
+      { name: 'find', ins: [['id', 'int', 'prim']], outs: [['', '?Order', 'entity']] },
+    ] }] },
+  { id: 'svc', x: 720, y: 360, role: 'service', name: 'OrderService', file: 'src/Order/Service/OrderService.php', line: 15, impl: 'osi',
+    secs: [
+      { members: [
+        { name: 'place', ins: [['dto', 'PlaceOrderDto', 'dto']], outs: [['', 'Order', 'entity']] },
+        { name: 'find', ins: [['id', 'int', 'prim']], outs: [['', '?Order', 'entity']] },
+      ] },
+      { title: 'зависимости', members: [{ outs: [
+        ['repository', 'OrderRepositoryInterface', 'contract', 'dep-repo'],
+        ['events', 'EventDispatcherInterface', 'contract'],
+        ['discount', 'DiscountPolicyInterface', 'contract', 'dep-disc'],
+      ] }] },
+    ] },
+  { id: 'disc', x: 1110, y: 800, role: 'interface', iface: true, ghost: true, name: 'DiscountPolicyInterface', file: '(план) src/Order/Discount/DiscountPolicyInterface.php', line: 1,
+    secs: [{ members: [{ name: 'apply', ins: [['order', 'Order', 'entity']], outs: [['', 'Money', 'dto']] }] }] },
+  { id: 'ori', x: 1110, y: 300, role: 'interface', iface: true, name: 'OrderRepositoryInterface', file: 'src/Order/Repository/OrderRepositoryInterface.php', line: 6,
+    secs: [{ members: [
+      { name: 'save', ins: [['order', 'Order', 'entity']], outs: [['', 'void', 'prim']] },
+      { name: 'byId', ins: [['id', 'int', 'prim']], outs: [['', '?Order', 'entity']] },
+    ] }] },
+  { id: 'repo', x: 1110, y: 560, role: 'repository', name: 'DoctrineOrderRepository', file: 'src/Order/Repository/DoctrineOrderRepository.php', line: 12, impl: 'ori',
+    secs: [{ members: [
+      { name: 'save', ins: [['order', 'Order', 'entity']], outs: [['', 'void', 'prim']] },
+      { name: 'byId', ins: [['id', '$id', 'unknown']], outs: [['', '?Order', 'entity']], warn: 'параметърът няма тип - не спазва договора (int)' },
+    ] }] },
+  { id: 'order', x: 1440, y: 30, role: 'entity', name: 'Order', file: 'src/Order/Entity/Order.php', line: 11,
+    secs: [{ title: 'полета', fields: 'Order' }] },
+];
+
+const EDGES = [
+  ['route:req', 'handler:req', 'http'],
+  ['handler:dep-svc', 'osi:in', 'contract'],
+  ['osi:bottom', 'svc:top', 'contract', true],
+  ['svc:dep-repo', 'ori:in', 'contract'],
+  ['svc:dep-disc', 'disc:in', 'contract', true],
+  ['ori:bottom', 'repo:top', 'contract', true],
+  ['osi:place-out', 'order:in', 'entity'],
+  ['factory:creates', 'svc:in', 'contract'],
+];
+
+const world = document.getElementById('world');
+const svg = document.getElementById('wires');
+
+function fieldsHtml(type) {
+  const f = SHAPES[type];
+  if (!f) return '';
+  return `<div class="fields">${f.map(([n, t, k, sub]) => `
+    <div class="row in"><span>${n}</span><span class="ty mono" style="color:${css(T[k])}">${t}</span>${sub ? `<span class="caret">▸</span>` : ''}</div>${sub ? fieldsHtml(sub) : ''}`).join('')}</div>`;
+}
+
+function row(dir, nodeId, [name, type, kind, port, shape]) {
+  const c = css(T[kind]);
+  const dot = `<span class="dot ${kind === 'unknown' ? 'unknown' : ''}" style="background:${c}" ${port ? `data-port="${nodeId}:${port}" data-dir="${dir}"` : ''}></span>`;
+  const label = `<span>${name}</span>`;
+  const ty = `<span class="ty mono" style="color:${c}">${type}</span>`;
+  const caret = SHAPES[shape] ? `<span class="caret">▸</span>` : '';
+  return dir === 'in'
+    ? `<div class="row in">${dot}${label}${ty}${caret}</div>${caret ? fieldsHtml(shape) : ''}`
+    : `<div class="row out">${caret}${ty}${label}${dot}</div>${caret ? fieldsHtml(shape) : ''}`;
+}
+
+for (const n of NODES) {
+  const el = document.createElement('div');
+  el.className = 'node' + (n.iface ? ' iface' : '') + (n.ghost ? ' ghost' : '');
+  el.dataset.id = n.id; el.dataset.role = n.role;
+  el.style.left = n.x + 'px'; el.style.top = n.y + 'px';
+  const rc = css(R[n.role]);
+  el.innerHTML = `
+    <div class="hd" style="background:linear-gradient(90deg, ${rc}22, transparent)">
+      <span class="dot l" style="background:${rc}" data-port="${n.id}:in" data-dir="in"></span>
+      <span class="role" style="background:${rc}">${n.iface ? 'interface' : n.role}</span>
+      <span class="nm">${n.name}</span>
+      ${n.ghost ? '<span class="fw">план</span>' : ''}
+    </div>
+    <span class="pt top" data-port="${n.id}:top" data-dir="top"></span>
+    <span class="pt bottom" data-port="${n.id}:bottom" data-dir="bottom"></span>
+    ${n.secs.map(s => `<div class="sec">${s.title ? `<div class="t">${s.title}</div>` : ''}${s.fields ? `<div class="m">${fieldsHtml(s.fields).replace('class="fields"', 'class="fields open" style="margin-left:0;border:0;padding:0"')}</div>` : ''}${(s.members || []).map(m => `
+      <div class="m">
+        ${m.name ? `<div class="mn">${m.name}<small>()</small>${m.warn ? ` <span class="warn" title="${m.warn}">⚠</span>` : ''}</div>` : ''}
+        ${(m.ins || []).map(p => row('in', n.id, p)).join('')}
+        ${(m.outs || []).map(p => row('out', n.id, p)).join('')}
+      </div>`).join('')}</div>`).join('')}`;
+  world.appendChild(el);
+}
+
+let scale = 0.76, tx = 20, ty = 10;
+function applyView() { world.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`; }
+
+function portPos(key) {
+  const el = world.querySelector(`[data-port="${key}"]`);
+  const r = el.getBoundingClientRect(), w = world.getBoundingClientRect();
+  return { x: (r.left + r.width / 2 - w.left) / scale, y: (r.top + r.height / 2 - w.top) / scale, dir: el.dataset.dir };
+}
+
+function draw() {
+  svg.innerHTML = '';
+  for (const [a, b, kind, dashed] of EDGES) {
+    const p = portPos(a), q = portPos(b);
+    const k = Math.max(60, Math.abs(q.x - p.x) * 0.45);
+    let c1, c2;
+    if (p.dir === 'bottom') { c1 = [p.x, p.y + 50]; c2 = [q.x, q.y - 50]; }
+    else { c1 = [p.x + k, p.y]; c2 = [q.x - k, q.y]; }
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M${p.x},${p.y} C${c1} ${c2} ${q.x},${q.y}`);
+    path.setAttribute('stroke', css(T[kind]));
+    path.dataset.a = a.split(':')[0]; path.dataset.b = b.split(':')[0];
+    if (dashed) path.classList.add('dashed');
+    svg.appendChild(path);
+  }
+  applyFocus();
+}
+
+// roles filter chips
+const chips = document.getElementById('chips');
+const hidden = new Set();
+for (const [role, v] of Object.entries(R)) {
+  const c = document.createElement('span');
+  c.className = 'chip'; c.innerHTML = `<i style="background:${css(v)}"></i>${role}`;
+  c.onclick = () => { hidden.has(role) ? hidden.delete(role) : hidden.add(role); c.classList.toggle('off'); applyFocus(); };
+  chips.appendChild(c);
+}
+
+// selection → focus + AI plan
+const selected = new Set();
+function neighbours(id) {
+  const s = new Set([id]);
+  for (const [a, b] of EDGES) { const x = a.split(':')[0], y = b.split(':')[0]; if (x === id) s.add(y); if (y === id) s.add(x); }
+  return s;
+}
+function applyFocus() {
+  let visible = null;
+  for (const id of selected) { const nb = neighbours(id); visible = visible ? new Set([...visible, ...nb]) : nb; }
+  world.querySelectorAll('.node').forEach(el => {
+    const off = hidden.has(el.dataset.role) || (visible && !visible.has(el.dataset.id));
+    el.classList.toggle('dim', off);
+    el.classList.toggle('sel', selected.has(el.dataset.id));
+  });
+  svg.querySelectorAll('path').forEach(p => {
+    const off = (visible && !(visible.has(p.dataset.a) && visible.has(p.dataset.b)))
+      || [p.dataset.a, p.dataset.b].some(id => hidden.has(NODES.find(n => n.id === id).role));
+    p.classList.toggle('dim', off);
+  });
+}
+
+function renderPanel(last) {
+  const n = NODES.find(x => x.id === last);
+  document.getElementById('insp').innerHTML = n ? `
+    <div class="big">${n.name}</div>
+    <div class="loc mono">${n.file}:${n.line}</div>
+    <div style="color:var(--muted);margin-top:4px">роля: ${n.iface ? 'interface' : n.role}${n.impl ? ` · implements ${NODES.find(x => x.id === n.impl).name}` : ''}</div>
+    <div class="btns"><button class="btn">Отвори в редактора</button><button class="btn pri">Копирай плана</button></div>`
+    : '<div class="big">Избери нод</div><div class="loc">Клик върху заглавие на нод</div>';
+  const sel = NODES.filter(x => selected.has(x.id));
+  document.getElementById('cnt').textContent = sel.length ? `(${sel.length})` : '';
+  document.getElementById('plan').textContent = sel.length ? [
+    '# Задача: <опиши промяната>',
+    '',
+    '## Засегнати',
+    ...sel.map(x => `- ${x.name} (${x.iface ? 'interface' : x.role}) – ${x.file}:${x.line}`),
+    '',
+    '## Връзки',
+    ...EDGES.filter(([a, b]) => selected.has(a.split(':')[0]) || selected.has(b.split(':')[0]))
+      .map(([a, b]) => `- ${NODES.find(x => x.id === a.split(':')[0]).name} → ${NODES.find(x => x.id === b.split(':')[0]).name}`),
+    '',
+    '## Правила (mezzio)',
+    '- handler вика само интерфейси на сървиси, не репозиторита',
+    '- нов сървис = интерфейс + имплементация + Factory',
+    '- регистрация в ConfigProvider::getDependencies()[factories]',
+    '- DTO са readonly, без логика',
+  ].join('\n') : 'Маркирай нодове (клик), за да се събере план.';
+}
+
+world.addEventListener('click', e => {
+  const caret = e.target.closest('.caret');
+  if (caret) {
+    let f = caret.parentElement.nextElementSibling;
+    if (f?.classList.contains('fields')) { f.classList.toggle('open'); caret.textContent = f.classList.contains('open') ? '▾' : '▸'; draw(); }
+    return;
+  }
+  const hd = e.target.closest('.hd');
+  if (hd) {
+    const id = hd.parentElement.dataset.id;
+    if (e.shiftKey || e.ctrlKey || e.metaKey) selected.has(id) ? selected.delete(id) : selected.add(id);
+    else if (selected.size === 1 && selected.has(id)) selected.clear();
+    else { selected.clear(); selected.add(id); }
+    applyFocus(); renderPanel(selected.has(id) ? id : null);
+  }
+});
+
+// pan & zoom
+const stage = document.getElementById('stage');
+let drag = null;
+stage.addEventListener('mousedown', e => { if (e.target.closest('.hd, .caret')) return; drag = { x: e.clientX - tx, y: e.clientY - ty }; stage.classList.add('drag'); });
+addEventListener('mousemove', e => { if (drag) { tx = e.clientX - drag.x; ty = e.clientY - drag.y; applyView(); } });
+addEventListener('mouseup', () => { drag = null; stage.classList.remove('drag'); });
+stage.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = stage.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  const ns = Math.min(2, Math.max(0.3, scale * (e.deltaY < 0 ? 1.1 : 0.9)));
+  tx = mx - (mx - tx) * ns / scale; ty = my - (my - ty) * ns / scale; scale = ns; applyView();
+}, { passive: false });
+
+applyView();
+document.querySelector('[data-id="osi"] .caret').click();
+draw();
+</script>
+</body>
+</html>
