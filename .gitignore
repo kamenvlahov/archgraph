@@ -2,3 +2,4 @@ node_modules/
 dist/
 .archgraph/
 .tasks
+__pycache__/

@@ -1,0 +1,1238 @@
+{
+  "version": 1,
+  "root": ".",
+  "nodes": [
+    {
+      "id": "python:app.orders.models.BaseEntity",
+      "kind": "class",
+      "name": "BaseEntity",
+      "language": "python",
+      "framework": "fastapi",
+      "location": {
+        "file": "app/orders/models.py",
+        "line": 4,
+        "endLine": 9
+      },
+      "members": [
+        {
+          "name": "get_id",
+          "visibility": "public",
+          "inputs": [],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "union",
+              "of": [
+                {
+                  "kind": "primitive",
+                  "name": "int"
+                },
+                {
+                  "kind": "primitive",
+                  "name": "None"
+                }
+              ]
+            }
+          },
+          "location": {
+            "file": "app/orders/models.py",
+            "line": 8,
+            "endLine": 9
+          }
+        }
+      ]
+    },
+    {
+      "id": "python:app.orders.models.OrderItem",
+      "kind": "class",
+      "name": "OrderItem",
+      "language": "python",
+      "role": "entity",
+      "framework": "fastapi",
+      "location": {
+        "file": "app/orders/models.py",
+        "line": 12,
+        "endLine": 19
+      },
+      "members": [
+        {
+          "name": "subtotal",
+          "visibility": "public",
+          "inputs": [],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "primitive",
+              "name": "float"
+            }
+          },
+          "location": {
+            "file": "app/orders/models.py",
+            "line": 18,
+            "endLine": 19
+          }
+        }
+      ]
+    },
+    {
+      "id": "python:app.orders.models.Order",
+      "kind": "class",
+      "name": "Order",
+      "language": "python",
+      "role": "entity",
+      "framework": "fastapi",
+      "location": {
+        "file": "app/orders/models.py",
+        "line": 22,
+        "endLine": 32
+      },
+      "members": [
+        {
+          "name": "add_item",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "item",
+              "type": {
+                "kind": "named",
+                "id": "python:app.orders.models.OrderItem"
+              }
+            }
+          ],
+          "location": {
+            "file": "app/orders/models.py",
+            "line": 28,
+            "endLine": 29
+          }
+        },
+        {
+          "name": "total",
+          "visibility": "public",
+          "inputs": [],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "primitive",
+              "name": "float"
+            }
+          },
+          "location": {
+            "file": "app/orders/models.py",
+            "line": 31,
+            "endLine": 32
+          }
+        }
+      ]
+    },
+    {
+      "id": "python:app.orders.schemas.OrderItemIn",
+      "kind": "class",
+      "name": "OrderItemIn",
+      "language": "python",
+      "role": "schema",
+      "framework": "fastapi",
+      "location": {
+        "file": "app/orders/schemas.py",
+        "line": 4,
+        "endLine": 7
+      },
+      "members": []
+    },
+    {
+      "id": "python:app.orders.schemas.PlaceOrderIn",
+      "kind": "class",
+      "name": "PlaceOrderIn",
+      "language": "python",
+      "role": "schema",
+      "framework": "fastapi",
+      "location": {
+        "file": "app/orders/schemas.py",
+        "line": 10,
+        "endLine": 13
+      },
+      "members": []
+    },
+    {
+      "id": "python:app.orders.schemas.OrderOut",
+      "kind": "class",
+      "name": "OrderOut",
+      "language": "python",
+      "role": "schema",
+      "framework": "fastapi",
+      "location": {
+        "file": "app/orders/schemas.py",
+        "line": 16,
+        "endLine": 19
+      },
+      "members": []
+    },
+    {
+      "id": "python:app.orders.repository.OrderRepository",
+      "kind": "interface",
+      "name": "OrderRepository",
+      "language": "python",
+      "role": "repository",
+      "framework": "fastapi",
+      "location": {
+        "file": "app/orders/repository.py",
+        "line": 6,
+        "endLine": 9
+      },
+      "members": [
+        {
+          "name": "find",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "order_id",
+              "type": {
+                "kind": "primitive",
+                "name": "int"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "union",
+              "of": [
+                {
+                  "kind": "named",
+                  "id": "python:app.orders.models.Order"
+                },
+                {
+                  "kind": "primitive",
+                  "name": "None"
+                }
+              ]
+            }
+          },
+          "location": {
+            "file": "app/orders/repository.py",
+            "line": 7,
+            "endLine": 7
+          }
+        },
+        {
+          "name": "save",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "order",
+              "type": {
+                "kind": "named",
+                "id": "python:app.orders.models.Order"
+              }
+            }
+          ],
+          "location": {
+            "file": "app/orders/repository.py",
+            "line": 9,
+            "endLine": 9
+          }
+        }
+      ]
+    },
+    {
+      "id": "python:app.orders.repository.InMemoryOrderRepository",
+      "kind": "class",
+      "name": "InMemoryOrderRepository",
+      "language": "python",
+      "role": "repository",
+      "framework": "fastapi",
+      "location": {
+        "file": "app/orders/repository.py",
+        "line": 12,
+        "endLine": 22
+      },
+      "members": [
+        {
+          "name": "__init__",
+          "visibility": "public",
+          "inputs": [],
+          "location": {
+            "file": "app/orders/repository.py",
+            "line": 13,
+            "endLine": 14
+          }
+        },
+        {
+          "name": "find",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "order_id",
+              "type": {
+                "kind": "primitive",
+                "name": "int"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "union",
+              "of": [
+                {
+                  "kind": "named",
+                  "id": "python:app.orders.models.Order"
+                },
+                {
+                  "kind": "primitive",
+                  "name": "None"
+                }
+              ]
+            }
+          },
+          "location": {
+            "file": "app/orders/repository.py",
+            "line": 16,
+            "endLine": 17
+          }
+        },
+        {
+          "name": "save",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "order",
+              "type": {
+                "kind": "named",
+                "id": "python:app.orders.models.Order"
+              }
+            }
+          ],
+          "location": {
+            "file": "app/orders/repository.py",
+            "line": 19,
+            "endLine": 22
+          }
+        }
+      ]
+    },
+    {
+      "id": "python:app.orders.pricing.apply_discount",
+      "kind": "function",
+      "name": "apply_discount",
+      "language": "python",
+      "framework": "fastapi",
+      "location": {
+        "file": "app/orders/pricing.py",
+        "line": 1,
+        "endLine": 5
+      },
+      "members": [
+        {
+          "name": "apply_discount",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "total",
+              "type": {
+                "kind": "unknown"
+              }
+            },
+            {
+              "name": "code",
+              "type": {
+                "kind": "unknown"
+              },
+              "optional": true,
+              "default": "None"
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "unknown"
+            }
+          },
+          "location": {
+            "file": "app/orders/pricing.py",
+            "line": 1,
+            "endLine": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "python:app.orders.service.OrderService",
+      "kind": "class",
+      "name": "OrderService",
+      "language": "python",
+      "role": "service",
+      "framework": "fastapi",
+      "location": {
+        "file": "app/orders/service.py",
+        "line": 9,
+        "endLine": 24
+      },
+      "members": [
+        {
+          "name": "__init__",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "repo",
+              "type": {
+                "kind": "named",
+                "id": "python:app.orders.repository.OrderRepository"
+              }
+            }
+          ],
+          "location": {
+            "file": "app/orders/service.py",
+            "line": 10,
+            "endLine": 11
+          }
+        },
+        {
+          "name": "place",
+          "visibility": "public",
+          "async": true,
+          "inputs": [
+            {
+              "name": "data",
+              "type": {
+                "kind": "named",
+                "id": "python:app.orders.schemas.PlaceOrderIn"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "python:app.orders.models.Order"
+            }
+          },
+          "location": {
+            "file": "app/orders/service.py",
+            "line": 13,
+            "endLine": 18
+          }
+        },
+        {
+          "name": "get",
+          "visibility": "public",
+          "async": true,
+          "inputs": [
+            {
+              "name": "order_id",
+              "type": {
+                "kind": "primitive",
+                "name": "int"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "python:app.orders.models.Order"
+            }
+          },
+          "location": {
+            "file": "app/orders/service.py",
+            "line": 20,
+            "endLine": 24
+          }
+        }
+      ]
+    },
+    {
+      "id": "python:app.orders.dependencies.get_repository",
+      "kind": "function",
+      "name": "get_repository",
+      "language": "python",
+      "role": "dependency",
+      "framework": "fastapi",
+      "location": {
+        "file": "app/orders/dependencies.py",
+        "line": 9,
+        "endLine": 11
+      },
+      "members": [
+        {
+          "name": "get_repository",
+          "visibility": "public",
+          "inputs": [],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "python:app.orders.repository.OrderRepository"
+            }
+          },
+          "location": {
+            "file": "app/orders/dependencies.py",
+            "line": 9,
+            "endLine": 11
+          }
+        }
+      ]
+    },
+    {
+      "id": "python:app.orders.dependencies.get_service",
+      "kind": "function",
+      "name": "get_service",
+      "language": "python",
+      "role": "dependency",
+      "framework": "fastapi",
+      "location": {
+        "file": "app/orders/dependencies.py",
+        "line": 14,
+        "endLine": 15
+      },
+      "members": [
+        {
+          "name": "get_service",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "repo",
+              "type": {
+                "kind": "named",
+                "id": "python:app.orders.repository.OrderRepository"
+              },
+              "optional": true,
+              "default": "Depends(get_repository)"
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "python:app.orders.service.OrderService"
+            }
+          },
+          "location": {
+            "file": "app/orders/dependencies.py",
+            "line": 14,
+            "endLine": 15
+          }
+        }
+      ]
+    },
+    {
+      "id": "python:app.orders.router.place_order",
+      "kind": "function",
+      "name": "place_order",
+      "language": "python",
+      "role": "endpoint",
+      "framework": "fastapi",
+      "location": {
+        "file": "app/orders/router.py",
+        "line": 11,
+        "endLine": 13
+      },
+      "members": [
+        {
+          "name": "place_order",
+          "visibility": "public",
+          "async": true,
+          "inputs": [
+            {
+              "name": "body",
+              "type": {
+                "kind": "named",
+                "id": "python:app.orders.schemas.PlaceOrderIn"
+              }
+            },
+            {
+              "name": "service",
+              "type": {
+                "kind": "named",
+                "id": "python:app.orders.service.OrderService"
+              },
+              "optional": true,
+              "default": "Depends(get_service)"
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "python:app.orders.schemas.OrderOut"
+            }
+          },
+          "location": {
+            "file": "app/orders/router.py",
+            "line": 11,
+            "endLine": 13
+          }
+        }
+      ]
+    },
+    {
+      "id": "python:app.orders.router.get_order",
+      "kind": "function",
+      "name": "get_order",
+      "language": "python",
+      "role": "endpoint",
+      "framework": "fastapi",
+      "location": {
+        "file": "app/orders/router.py",
+        "line": 16,
+        "endLine": 18
+      },
+      "members": [
+        {
+          "name": "get_order",
+          "visibility": "public",
+          "async": true,
+          "inputs": [
+            {
+              "name": "order_id",
+              "type": {
+                "kind": "primitive",
+                "name": "int"
+              }
+            },
+            {
+              "name": "service",
+              "type": {
+                "kind": "named",
+                "id": "python:app.orders.service.OrderService"
+              },
+              "optional": true,
+              "default": "Depends(get_service)"
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "python:app.orders.schemas.OrderOut"
+            }
+          },
+          "location": {
+            "file": "app/orders/router.py",
+            "line": 16,
+            "endLine": 18
+          }
+        }
+      ]
+    },
+    {
+      "id": "python:app.orders.router.to_out",
+      "kind": "function",
+      "name": "to_out",
+      "language": "python",
+      "framework": "fastapi",
+      "location": {
+        "file": "app/orders/router.py",
+        "line": 21,
+        "endLine": 22
+      },
+      "members": [
+        {
+          "name": "to_out",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "order",
+              "type": {
+                "kind": "named",
+                "id": "python:app.orders.models.Order"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "unknown"
+            }
+          },
+          "location": {
+            "file": "app/orders/router.py",
+            "line": 21,
+            "endLine": 22
+          }
+        }
+      ]
+    },
+    {
+      "id": "python:app.main.create_app",
+      "kind": "function",
+      "name": "create_app",
+      "language": "python",
+      "framework": "fastapi",
+      "location": {
+        "file": "app/main.py",
+        "line": 6,
+        "endLine": 9
+      },
+      "members": [
+        {
+          "name": "create_app",
+          "visibility": "public",
+          "inputs": [],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "python:fastapi.FastAPI"
+            }
+          },
+          "location": {
+            "file": "app/main.py",
+            "line": 6,
+            "endLine": 9
+          }
+        }
+      ]
+    },
+    {
+      "id": "python:route:POST /orders",
+      "kind": "route",
+      "name": "POST /orders",
+      "language": "python",
+      "role": "route",
+      "framework": "fastapi",
+      "location": {
+        "file": "app/orders/router.py",
+        "line": 11,
+        "endLine": 11
+      },
+      "members": []
+    },
+    {
+      "id": "python:route:GET /orders/{order_id}",
+      "kind": "route",
+      "name": "GET /orders/{order_id}",
+      "language": "python",
+      "role": "route",
+      "framework": "fastapi",
+      "location": {
+        "file": "app/orders/router.py",
+        "line": 16,
+        "endLine": 16
+      },
+      "members": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "extends:python:app.orders.models.OrderItem->python:app.orders.models.BaseEntity",
+      "kind": "extends",
+      "from": {
+        "node": "python:app.orders.models.OrderItem"
+      },
+      "to": {
+        "node": "python:app.orders.models.BaseEntity"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "extends:python:app.orders.models.Order->python:app.orders.models.BaseEntity",
+      "kind": "extends",
+      "from": {
+        "node": "python:app.orders.models.Order"
+      },
+      "to": {
+        "node": "python:app.orders.models.BaseEntity"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "implements:python:app.orders.repository.InMemoryOrderRepository->python:app.orders.repository.OrderRepository",
+      "kind": "implements",
+      "from": {
+        "node": "python:app.orders.repository.InMemoryOrderRepository"
+      },
+      "to": {
+        "node": "python:app.orders.repository.OrderRepository"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "injects:python:app.orders.repository.OrderRepository->python:app.orders.service.OrderService#__init__.repo",
+      "kind": "injects",
+      "from": {
+        "node": "python:app.orders.repository.OrderRepository"
+      },
+      "to": {
+        "node": "python:app.orders.service.OrderService",
+        "member": "__init__",
+        "port": "repo"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "injects:python:app.orders.dependencies.get_repository->python:app.orders.dependencies.get_service#get_service.repo",
+      "kind": "injects",
+      "from": {
+        "node": "python:app.orders.dependencies.get_repository"
+      },
+      "to": {
+        "node": "python:app.orders.dependencies.get_service",
+        "member": "get_service",
+        "port": "repo"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "injects:python:app.orders.dependencies.get_service->python:app.orders.router.place_order#place_order.service",
+      "kind": "injects",
+      "from": {
+        "node": "python:app.orders.dependencies.get_service"
+      },
+      "to": {
+        "node": "python:app.orders.router.place_order",
+        "member": "place_order",
+        "port": "service"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "injects:python:app.orders.dependencies.get_service->python:app.orders.router.get_order#get_order.service",
+      "kind": "injects",
+      "from": {
+        "node": "python:app.orders.dependencies.get_service"
+      },
+      "to": {
+        "node": "python:app.orders.router.get_order",
+        "member": "get_order",
+        "port": "service"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:python:app.orders.dependencies.get_repository#get_repository->python:app.orders.repository.InMemoryOrderRepository",
+      "kind": "creates",
+      "from": {
+        "node": "python:app.orders.dependencies.get_repository",
+        "member": "get_repository"
+      },
+      "to": {
+        "node": "python:app.orders.repository.InMemoryOrderRepository"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:python:app.orders.dependencies.get_service#get_service->python:app.orders.service.OrderService",
+      "kind": "creates",
+      "from": {
+        "node": "python:app.orders.dependencies.get_service",
+        "member": "get_service"
+      },
+      "to": {
+        "node": "python:app.orders.service.OrderService"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:python:app.orders.service.OrderService#place->python:app.orders.models.Order",
+      "kind": "creates",
+      "from": {
+        "node": "python:app.orders.service.OrderService",
+        "member": "place"
+      },
+      "to": {
+        "node": "python:app.orders.models.Order"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:python:app.orders.service.OrderService#place->python:app.orders.models.OrderItem",
+      "kind": "creates",
+      "from": {
+        "node": "python:app.orders.service.OrderService",
+        "member": "place"
+      },
+      "to": {
+        "node": "python:app.orders.models.OrderItem"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:python:app.orders.router.to_out#to_out->python:app.orders.schemas.OrderOut",
+      "kind": "creates",
+      "from": {
+        "node": "python:app.orders.router.to_out",
+        "member": "to_out"
+      },
+      "to": {
+        "node": "python:app.orders.schemas.OrderOut"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:python:app.orders.models.Order#total->python:app.orders.models.OrderItem#subtotal",
+      "kind": "calls",
+      "from": {
+        "node": "python:app.orders.models.Order",
+        "member": "total"
+      },
+      "to": {
+        "node": "python:app.orders.models.OrderItem",
+        "member": "subtotal"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:python:app.orders.service.OrderService#place->python:app.orders.models.Order#add_item",
+      "kind": "calls",
+      "from": {
+        "node": "python:app.orders.service.OrderService",
+        "member": "place"
+      },
+      "to": {
+        "node": "python:app.orders.models.Order",
+        "member": "add_item"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:python:app.orders.service.OrderService#place->python:app.orders.pricing.apply_discount#apply_discount",
+      "kind": "calls",
+      "from": {
+        "node": "python:app.orders.service.OrderService",
+        "member": "place"
+      },
+      "to": {
+        "node": "python:app.orders.pricing.apply_discount",
+        "member": "apply_discount"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:python:app.orders.service.OrderService#place->python:app.orders.repository.OrderRepository#save",
+      "kind": "calls",
+      "from": {
+        "node": "python:app.orders.service.OrderService",
+        "member": "place"
+      },
+      "to": {
+        "node": "python:app.orders.repository.OrderRepository",
+        "member": "save"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:python:app.orders.service.OrderService#get->python:app.orders.repository.OrderRepository#find",
+      "kind": "calls",
+      "from": {
+        "node": "python:app.orders.service.OrderService",
+        "member": "get"
+      },
+      "to": {
+        "node": "python:app.orders.repository.OrderRepository",
+        "member": "find"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:python:app.orders.router.place_order#place_order->python:app.orders.service.OrderService#place",
+      "kind": "calls",
+      "from": {
+        "node": "python:app.orders.router.place_order",
+        "member": "place_order"
+      },
+      "to": {
+        "node": "python:app.orders.service.OrderService",
+        "member": "place"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:python:app.orders.router.place_order#place_order->python:app.orders.router.to_out#to_out",
+      "kind": "calls",
+      "from": {
+        "node": "python:app.orders.router.place_order",
+        "member": "place_order"
+      },
+      "to": {
+        "node": "python:app.orders.router.to_out",
+        "member": "to_out"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:python:app.orders.router.get_order#get_order->python:app.orders.service.OrderService#get",
+      "kind": "calls",
+      "from": {
+        "node": "python:app.orders.router.get_order",
+        "member": "get_order"
+      },
+      "to": {
+        "node": "python:app.orders.service.OrderService",
+        "member": "get"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:python:app.orders.router.get_order#get_order->python:app.orders.router.to_out#to_out",
+      "kind": "calls",
+      "from": {
+        "node": "python:app.orders.router.get_order",
+        "member": "get_order"
+      },
+      "to": {
+        "node": "python:app.orders.router.to_out",
+        "member": "to_out"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:python:app.orders.router.to_out#to_out->python:app.orders.models.BaseEntity#get_id",
+      "kind": "calls",
+      "from": {
+        "node": "python:app.orders.router.to_out",
+        "member": "to_out"
+      },
+      "to": {
+        "node": "python:app.orders.models.BaseEntity",
+        "member": "get_id"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:python:app.orders.router.to_out#to_out->python:app.orders.models.Order#total",
+      "kind": "calls",
+      "from": {
+        "node": "python:app.orders.router.to_out",
+        "member": "to_out"
+      },
+      "to": {
+        "node": "python:app.orders.models.Order",
+        "member": "total"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "routes-to:python:route:POST /orders->python:app.orders.router.place_order#place_order",
+      "kind": "routes-to",
+      "from": {
+        "node": "python:route:POST /orders"
+      },
+      "to": {
+        "node": "python:app.orders.router.place_order",
+        "member": "place_order"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "routes-to:python:route:GET /orders/{order_id}->python:app.orders.router.get_order#get_order",
+      "kind": "routes-to",
+      "from": {
+        "node": "python:route:GET /orders/{order_id}"
+      },
+      "to": {
+        "node": "python:app.orders.router.get_order",
+        "member": "get_order"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "binds:python:app.orders.repository.OrderRepository->python:app.orders.repository.InMemoryOrderRepository",
+      "kind": "binds",
+      "from": {
+        "node": "python:app.orders.repository.OrderRepository"
+      },
+      "to": {
+        "node": "python:app.orders.repository.InMemoryOrderRepository"
+      },
+      "confidence": "exact",
+      "location": {
+        "file": "app/orders/dependencies.py",
+        "line": 11,
+        "endLine": 11
+      }
+    }
+  ],
+  "types": {
+    "python:app.orders.models.BaseEntity": {
+      "id": "python:app.orders.models.BaseEntity",
+      "name": "BaseEntity",
+      "nodeId": "python:app.orders.models.BaseEntity",
+      "fields": [
+        {
+          "name": "id",
+          "type": {
+            "kind": "union",
+            "of": [
+              {
+                "kind": "primitive",
+                "name": "int"
+              },
+              {
+                "kind": "primitive",
+                "name": "None"
+              }
+            ]
+          },
+          "optional": true
+        }
+      ]
+    },
+    "python:app.orders.models.OrderItem": {
+      "id": "python:app.orders.models.OrderItem",
+      "name": "OrderItem",
+      "nodeId": "python:app.orders.models.OrderItem",
+      "fields": [
+        {
+          "name": "sku",
+          "type": {
+            "kind": "primitive",
+            "name": "str"
+          }
+        },
+        {
+          "name": "quantity",
+          "type": {
+            "kind": "primitive",
+            "name": "int"
+          }
+        },
+        {
+          "name": "price",
+          "type": {
+            "kind": "primitive",
+            "name": "float"
+          }
+        }
+      ]
+    },
+    "python:app.orders.models.Order": {
+      "id": "python:app.orders.models.Order",
+      "name": "Order",
+      "nodeId": "python:app.orders.models.Order",
+      "fields": [
+        {
+          "name": "customer_id",
+          "type": {
+            "kind": "primitive",
+            "name": "int"
+          }
+        },
+        {
+          "name": "status",
+          "type": {
+            "kind": "primitive",
+            "name": "str"
+          },
+          "optional": true
+        },
+        {
+          "name": "items",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "named",
+              "id": "python:app.orders.models.OrderItem"
+            }
+          },
+          "optional": true
+        }
+      ]
+    },
+    "python:app.orders.schemas.OrderItemIn": {
+      "id": "python:app.orders.schemas.OrderItemIn",
+      "name": "OrderItemIn",
+      "nodeId": "python:app.orders.schemas.OrderItemIn",
+      "fields": [
+        {
+          "name": "sku",
+          "type": {
+            "kind": "primitive",
+            "name": "str"
+          }
+        },
+        {
+          "name": "quantity",
+          "type": {
+            "kind": "primitive",
+            "name": "int"
+          }
+        },
+        {
+          "name": "price",
+          "type": {
+            "kind": "primitive",
+            "name": "float"
+          }
+        }
+      ]
+    },
+    "python:app.orders.schemas.PlaceOrderIn": {
+      "id": "python:app.orders.schemas.PlaceOrderIn",
+      "name": "PlaceOrderIn",
+      "nodeId": "python:app.orders.schemas.PlaceOrderIn",
+      "fields": [
+        {
+          "name": "customer_id",
+          "type": {
+            "kind": "primitive",
+            "name": "int"
+          }
+        },
+        {
+          "name": "items",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "named",
+              "id": "python:app.orders.schemas.OrderItemIn"
+            }
+          }
+        },
+        {
+          "name": "note",
+          "type": {
+            "kind": "union",
+            "of": [
+              {
+                "kind": "primitive",
+                "name": "str"
+              },
+              {
+                "kind": "primitive",
+                "name": "None"
+              }
+            ]
+          },
+          "optional": true
+        }
+      ]
+    },
+    "python:app.orders.schemas.OrderOut": {
+      "id": "python:app.orders.schemas.OrderOut",
+      "name": "OrderOut",
+      "nodeId": "python:app.orders.schemas.OrderOut",
+      "fields": [
+        {
+          "name": "id",
+          "type": {
+            "kind": "union",
+            "of": [
+              {
+                "kind": "primitive",
+                "name": "int"
+              },
+              {
+                "kind": "primitive",
+                "name": "None"
+              }
+            ]
+          }
+        },
+        {
+          "name": "total",
+          "type": {
+            "kind": "primitive",
+            "name": "float"
+          }
+        },
+        {
+          "name": "items",
+          "type": {
+            "kind": "primitive",
+            "name": "int"
+          }
+        }
+      ]
+    }
+  }
+}

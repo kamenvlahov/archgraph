@@ -6,7 +6,7 @@
 
 ---
 
-## Етап 0 – Основа 🟨
+## Етап 0 – Основа ✅
 
 - Монорепо: pnpm workspaces, TypeScript, Vitest, ESLint, Prettier.
 - Пакет `model`: типовете от [ARCHITECTURE.md](ARCHITECTURE.md#общ-модел) и JSON schema за валидация.
@@ -15,7 +15,7 @@
 
 **Готово когато:** `pnpm test` минава и fixture проектите се пускат.
 
-## Етап 1 – Четене на структура (tree-sitter) ⬜
+## Етап 1 – Четене на структура (tree-sitter) 🟨
 
 - `web-tree-sitter` с граматики за PHP, TypeScript/JavaScript и Python.
 - Адаптерите `lang-php`, `lang-node` и `lang-python` извличат класове, интерфейси, функции, методи и сигнатури (параметри, типове, връщан тип), полета и импорти.

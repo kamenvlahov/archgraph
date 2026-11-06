@@ -1,0 +1,12 @@
+{
+  "name": "archgraph-fixture-node-nestjs",
+  "private": true,
+  "dependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/typeorm": "^11.0.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "typeorm": "^0.3.20"
+  }
+}

@@ -1,0 +1,1253 @@
+{
+  "version": 1,
+  "root": ".",
+  "nodes": [
+    {
+      "id": "node:src/orders/entities/abstract.entity.ts#AbstractEntity",
+      "kind": "class",
+      "name": "AbstractEntity",
+      "language": "node",
+      "framework": "nestjs",
+      "location": {
+        "file": "src/orders/entities/abstract.entity.ts",
+        "line": 3,
+        "endLine": 10
+      },
+      "members": [
+        {
+          "name": "getId",
+          "visibility": "public",
+          "inputs": [],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "union",
+              "of": [
+                {
+                  "kind": "primitive",
+                  "name": "number"
+                },
+                {
+                  "kind": "primitive",
+                  "name": "undefined"
+                }
+              ]
+            }
+          },
+          "location": {
+            "file": "src/orders/entities/abstract.entity.ts",
+            "line": 7,
+            "endLine": 9
+          }
+        }
+      ],
+      "tags": [
+        "abstract"
+      ]
+    },
+    {
+      "id": "node:src/orders/entities/order-item.entity.ts#OrderItem",
+      "kind": "class",
+      "name": "OrderItem",
+      "language": "node",
+      "role": "entity",
+      "framework": "nestjs",
+      "location": {
+        "file": "src/orders/entities/order-item.entity.ts",
+        "line": 4,
+        "endLine": 24
+      },
+      "members": [
+        {
+          "name": "subtotal",
+          "visibility": "public",
+          "inputs": [],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "primitive",
+              "name": "number"
+            }
+          },
+          "location": {
+            "file": "src/orders/entities/order-item.entity.ts",
+            "line": 15,
+            "endLine": 17
+          }
+        },
+        {
+          "name": "of",
+          "visibility": "public",
+          "static": true,
+          "inputs": [
+            {
+              "name": "sku",
+              "type": {
+                "kind": "primitive",
+                "name": "string"
+              }
+            },
+            {
+              "name": "quantity",
+              "type": {
+                "kind": "primitive",
+                "name": "number"
+              }
+            },
+            {
+              "name": "price",
+              "type": {
+                "kind": "primitive",
+                "name": "number"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "node:src/orders/entities/order-item.entity.ts#OrderItem"
+            }
+          },
+          "location": {
+            "file": "src/orders/entities/order-item.entity.ts",
+            "line": 19,
+            "endLine": 23
+          }
+        }
+      ]
+    },
+    {
+      "id": "node:src/orders/entities/order.entity.ts#Order",
+      "kind": "class",
+      "name": "Order",
+      "language": "node",
+      "role": "entity",
+      "framework": "nestjs",
+      "location": {
+        "file": "src/orders/entities/order.entity.ts",
+        "line": 5,
+        "endLine": 29
+      },
+      "members": [
+        {
+          "name": "create",
+          "visibility": "public",
+          "static": true,
+          "inputs": [
+            {
+              "name": "customerId",
+              "type": {
+                "kind": "primitive",
+                "name": "number"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "node:src/orders/entities/order.entity.ts#Order"
+            }
+          },
+          "location": {
+            "file": "src/orders/entities/order.entity.ts",
+            "line": 16,
+            "endLine": 20
+          }
+        },
+        {
+          "name": "addItem",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "item",
+              "type": {
+                "kind": "named",
+                "id": "node:src/orders/entities/order-item.entity.ts#OrderItem"
+              }
+            }
+          ],
+          "location": {
+            "file": "src/orders/entities/order.entity.ts",
+            "line": 22,
+            "endLine": 24
+          }
+        },
+        {
+          "name": "total",
+          "visibility": "public",
+          "inputs": [],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "primitive",
+              "name": "number"
+            }
+          },
+          "location": {
+            "file": "src/orders/entities/order.entity.ts",
+            "line": 26,
+            "endLine": 28
+          }
+        }
+      ]
+    },
+    {
+      "id": "node:src/orders/dto/place-order.dto.ts#OrderItemInput",
+      "kind": "class",
+      "name": "OrderItemInput",
+      "language": "node",
+      "framework": "nestjs",
+      "location": {
+        "file": "src/orders/dto/place-order.dto.ts",
+        "line": 4,
+        "endLine": 12
+      },
+      "members": []
+    },
+    {
+      "id": "node:src/orders/dto/place-order.dto.ts#PlaceOrderDto",
+      "kind": "class",
+      "name": "PlaceOrderDto",
+      "language": "node",
+      "role": "dto",
+      "framework": "nestjs",
+      "location": {
+        "file": "src/orders/dto/place-order.dto.ts",
+        "line": 14,
+        "endLine": 25
+      },
+      "members": []
+    },
+    {
+      "id": "node:src/orders/dto/order-view.ts#OrderView",
+      "kind": "interface",
+      "name": "OrderView",
+      "language": "node",
+      "framework": "nestjs",
+      "location": {
+        "file": "src/orders/dto/order-view.ts",
+        "line": 1,
+        "endLine": 5
+      },
+      "members": []
+    },
+    {
+      "id": "node:src/orders/order.repository.ts#OrderRepository",
+      "kind": "interface",
+      "name": "OrderRepository",
+      "language": "node",
+      "role": "repository",
+      "framework": "nestjs",
+      "location": {
+        "file": "src/orders/order.repository.ts",
+        "line": 5,
+        "endLine": 8
+      },
+      "members": [
+        {
+          "name": "find",
+          "visibility": "public",
+          "async": true,
+          "inputs": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "primitive",
+                "name": "number"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "union",
+              "of": [
+                {
+                  "kind": "named",
+                  "id": "node:src/orders/entities/order.entity.ts#Order"
+                },
+                {
+                  "kind": "primitive",
+                  "name": "null"
+                }
+              ]
+            }
+          },
+          "location": {
+            "file": "src/orders/order.repository.ts",
+            "line": 6,
+            "endLine": 6
+          }
+        },
+        {
+          "name": "save",
+          "visibility": "public",
+          "async": true,
+          "inputs": [
+            {
+              "name": "order",
+              "type": {
+                "kind": "named",
+                "id": "node:src/orders/entities/order.entity.ts#Order"
+              }
+            }
+          ],
+          "location": {
+            "file": "src/orders/order.repository.ts",
+            "line": 7,
+            "endLine": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "node:src/orders/typeorm-order.repository.ts#TypeOrmOrderRepository",
+      "kind": "class",
+      "name": "TypeOrmOrderRepository",
+      "language": "node",
+      "role": "repository",
+      "framework": "nestjs",
+      "location": {
+        "file": "src/orders/typeorm-order.repository.ts",
+        "line": 7,
+        "endLine": 18
+      },
+      "members": [
+        {
+          "name": "constructor",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "orders",
+              "type": {
+                "kind": "named",
+                "id": "node:typeorm#Repository",
+                "args": [
+                  {
+                    "kind": "named",
+                    "id": "node:src/orders/entities/order.entity.ts#Order"
+                  }
+                ]
+              }
+            }
+          ],
+          "location": {
+            "file": "src/orders/typeorm-order.repository.ts",
+            "line": 9,
+            "endLine": 9
+          }
+        },
+        {
+          "name": "find",
+          "visibility": "public",
+          "async": true,
+          "inputs": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "primitive",
+                "name": "number"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "union",
+              "of": [
+                {
+                  "kind": "named",
+                  "id": "node:src/orders/entities/order.entity.ts#Order"
+                },
+                {
+                  "kind": "primitive",
+                  "name": "null"
+                }
+              ]
+            }
+          },
+          "location": {
+            "file": "src/orders/typeorm-order.repository.ts",
+            "line": 11,
+            "endLine": 13
+          }
+        },
+        {
+          "name": "save",
+          "visibility": "public",
+          "async": true,
+          "inputs": [
+            {
+              "name": "order",
+              "type": {
+                "kind": "named",
+                "id": "node:src/orders/entities/order.entity.ts#Order"
+              }
+            }
+          ],
+          "location": {
+            "file": "src/orders/typeorm-order.repository.ts",
+            "line": 15,
+            "endLine": 17
+          }
+        }
+      ]
+    },
+    {
+      "id": "node:src/orders/price-calculator.js#PriceCalculator",
+      "kind": "class",
+      "name": "PriceCalculator",
+      "language": "node",
+      "role": "service",
+      "framework": "nestjs",
+      "location": {
+        "file": "src/orders/price-calculator.js",
+        "line": 4,
+        "endLine": 13
+      },
+      "members": [
+        {
+          "name": "applyDiscount",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "total",
+              "type": {
+                "kind": "primitive",
+                "name": "number"
+              }
+            },
+            {
+              "name": "code",
+              "type": {
+                "kind": "primitive",
+                "name": "string"
+              },
+              "optional": true
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "primitive",
+              "name": "number"
+            }
+          },
+          "location": {
+            "file": "src/orders/price-calculator.js",
+            "line": 10,
+            "endLine": 12
+          }
+        }
+      ]
+    },
+    {
+      "id": "node:src/orders/price-calculator.js#roundPrice",
+      "kind": "function",
+      "name": "roundPrice",
+      "language": "node",
+      "framework": "nestjs",
+      "location": {
+        "file": "src/orders/price-calculator.js",
+        "line": 15,
+        "endLine": 17
+      },
+      "members": [
+        {
+          "name": "roundPrice",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "value",
+              "type": {
+                "kind": "unknown"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "unknown"
+            }
+          },
+          "location": {
+            "file": "src/orders/price-calculator.js",
+            "line": 15,
+            "endLine": 17
+          }
+        }
+      ]
+    },
+    {
+      "id": "node:src/orders/orders.service.ts#OrdersService",
+      "kind": "class",
+      "name": "OrdersService",
+      "language": "node",
+      "role": "service",
+      "framework": "nestjs",
+      "location": {
+        "file": "src/orders/orders.service.ts",
+        "line": 8,
+        "endLine": 31
+      },
+      "members": [
+        {
+          "name": "constructor",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "orders",
+              "type": {
+                "kind": "named",
+                "id": "node:src/orders/order.repository.ts#OrderRepository"
+              }
+            },
+            {
+              "name": "prices",
+              "type": {
+                "kind": "named",
+                "id": "node:src/orders/price-calculator.js#PriceCalculator"
+              }
+            }
+          ],
+          "location": {
+            "file": "src/orders/orders.service.ts",
+            "line": 10,
+            "endLine": 13
+          }
+        },
+        {
+          "name": "place",
+          "visibility": "public",
+          "async": true,
+          "inputs": [
+            {
+              "name": "dto",
+              "type": {
+                "kind": "named",
+                "id": "node:src/orders/dto/place-order.dto.ts#PlaceOrderDto"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "node:src/orders/entities/order.entity.ts#Order"
+            }
+          },
+          "location": {
+            "file": "src/orders/orders.service.ts",
+            "line": 15,
+            "endLine": 22
+          }
+        },
+        {
+          "name": "get",
+          "visibility": "public",
+          "async": true,
+          "inputs": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "primitive",
+                "name": "number"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "node:src/orders/entities/order.entity.ts#Order"
+            }
+          },
+          "location": {
+            "file": "src/orders/orders.service.ts",
+            "line": 24,
+            "endLine": 30
+          }
+        }
+      ]
+    },
+    {
+      "id": "node:src/orders/orders.controller.ts#OrdersController",
+      "kind": "class",
+      "name": "OrdersController",
+      "language": "node",
+      "role": "controller",
+      "framework": "nestjs",
+      "location": {
+        "file": "src/orders/orders.controller.ts",
+        "line": 7,
+        "endLine": 24
+      },
+      "members": [
+        {
+          "name": "constructor",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "orders",
+              "type": {
+                "kind": "named",
+                "id": "node:src/orders/orders.service.ts#OrdersService"
+              }
+            }
+          ],
+          "location": {
+            "file": "src/orders/orders.controller.ts",
+            "line": 9,
+            "endLine": 9
+          }
+        },
+        {
+          "name": "place",
+          "visibility": "public",
+          "async": true,
+          "inputs": [
+            {
+              "name": "dto",
+              "type": {
+                "kind": "named",
+                "id": "node:src/orders/dto/place-order.dto.ts#PlaceOrderDto"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "node:src/orders/dto/order-view.ts#OrderView"
+            }
+          },
+          "location": {
+            "file": "src/orders/orders.controller.ts",
+            "line": 11,
+            "endLine": 14
+          }
+        },
+        {
+          "name": "get",
+          "visibility": "public",
+          "async": true,
+          "inputs": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "primitive",
+                "name": "number"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "node:src/orders/dto/order-view.ts#OrderView"
+            }
+          },
+          "location": {
+            "file": "src/orders/orders.controller.ts",
+            "line": 16,
+            "endLine": 19
+          }
+        },
+        {
+          "name": "toView",
+          "visibility": "private",
+          "inputs": [
+            {
+              "name": "order",
+              "type": {
+                "kind": "named",
+                "id": "node:src/orders/entities/order.entity.ts#Order"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "node:src/orders/dto/order-view.ts#OrderView"
+            }
+          },
+          "location": {
+            "file": "src/orders/orders.controller.ts",
+            "line": 21,
+            "endLine": 23
+          }
+        }
+      ]
+    },
+    {
+      "id": "node:src/orders/orders.module.ts#OrdersModule",
+      "kind": "class",
+      "name": "OrdersModule",
+      "language": "node",
+      "role": "module",
+      "framework": "nestjs",
+      "location": {
+        "file": "src/orders/orders.module.ts",
+        "line": 11,
+        "endLine": 16
+      },
+      "members": []
+    },
+    {
+      "id": "node:src/app.module.ts#AppModule",
+      "kind": "class",
+      "name": "AppModule",
+      "language": "node",
+      "role": "module",
+      "framework": "nestjs",
+      "location": {
+        "file": "src/app.module.ts",
+        "line": 5,
+        "endLine": 8
+      },
+      "members": []
+    },
+    {
+      "id": "node:src/main.ts#bootstrap",
+      "kind": "function",
+      "name": "bootstrap",
+      "language": "node",
+      "framework": "nestjs",
+      "location": {
+        "file": "src/main.ts",
+        "line": 5,
+        "endLine": 9
+      },
+      "members": [
+        {
+          "name": "bootstrap",
+          "visibility": "public",
+          "async": true,
+          "inputs": [],
+          "location": {
+            "file": "src/main.ts",
+            "line": 5,
+            "endLine": 9
+          }
+        }
+      ]
+    },
+    {
+      "id": "node:route:POST /orders",
+      "kind": "route",
+      "name": "POST /orders",
+      "language": "node",
+      "role": "route",
+      "framework": "nestjs",
+      "location": {
+        "file": "src/orders/orders.controller.ts",
+        "line": 11,
+        "endLine": 11
+      },
+      "members": []
+    },
+    {
+      "id": "node:route:GET /orders/:id",
+      "kind": "route",
+      "name": "GET /orders/:id",
+      "language": "node",
+      "role": "route",
+      "framework": "nestjs",
+      "location": {
+        "file": "src/orders/orders.controller.ts",
+        "line": 16,
+        "endLine": 16
+      },
+      "members": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "extends:node:src/orders/entities/order.entity.ts#Order->node:src/orders/entities/abstract.entity.ts#AbstractEntity",
+      "kind": "extends",
+      "from": {
+        "node": "node:src/orders/entities/order.entity.ts#Order"
+      },
+      "to": {
+        "node": "node:src/orders/entities/abstract.entity.ts#AbstractEntity"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "extends:node:src/orders/entities/order-item.entity.ts#OrderItem->node:src/orders/entities/abstract.entity.ts#AbstractEntity",
+      "kind": "extends",
+      "from": {
+        "node": "node:src/orders/entities/order-item.entity.ts#OrderItem"
+      },
+      "to": {
+        "node": "node:src/orders/entities/abstract.entity.ts#AbstractEntity"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "implements:node:src/orders/typeorm-order.repository.ts#TypeOrmOrderRepository->node:src/orders/order.repository.ts#OrderRepository",
+      "kind": "implements",
+      "from": {
+        "node": "node:src/orders/typeorm-order.repository.ts#TypeOrmOrderRepository"
+      },
+      "to": {
+        "node": "node:src/orders/order.repository.ts#OrderRepository"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "injects:node:src/orders/order.repository.ts#OrderRepository->node:src/orders/orders.service.ts#OrdersService#constructor.orders",
+      "kind": "injects",
+      "from": {
+        "node": "node:src/orders/order.repository.ts#OrderRepository"
+      },
+      "to": {
+        "node": "node:src/orders/orders.service.ts#OrdersService",
+        "member": "constructor",
+        "port": "orders"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "injects:node:src/orders/price-calculator.js#PriceCalculator->node:src/orders/orders.service.ts#OrdersService#constructor.prices",
+      "kind": "injects",
+      "from": {
+        "node": "node:src/orders/price-calculator.js#PriceCalculator"
+      },
+      "to": {
+        "node": "node:src/orders/orders.service.ts#OrdersService",
+        "member": "constructor",
+        "port": "prices"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "injects:node:src/orders/orders.service.ts#OrdersService->node:src/orders/orders.controller.ts#OrdersController#constructor.orders",
+      "kind": "injects",
+      "from": {
+        "node": "node:src/orders/orders.service.ts#OrdersService"
+      },
+      "to": {
+        "node": "node:src/orders/orders.controller.ts#OrdersController",
+        "member": "constructor",
+        "port": "orders"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:node:src/orders/entities/order-item.entity.ts#OrderItem#of->node:src/orders/entities/order-item.entity.ts#OrderItem",
+      "kind": "creates",
+      "from": {
+        "node": "node:src/orders/entities/order-item.entity.ts#OrderItem",
+        "member": "of"
+      },
+      "to": {
+        "node": "node:src/orders/entities/order-item.entity.ts#OrderItem"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:node:src/orders/entities/order.entity.ts#Order#create->node:src/orders/entities/order.entity.ts#Order",
+      "kind": "creates",
+      "from": {
+        "node": "node:src/orders/entities/order.entity.ts#Order",
+        "member": "create"
+      },
+      "to": {
+        "node": "node:src/orders/entities/order.entity.ts#Order"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:node:src/orders/entities/order.entity.ts#Order#total->node:src/orders/entities/order-item.entity.ts#OrderItem#subtotal",
+      "kind": "calls",
+      "from": {
+        "node": "node:src/orders/entities/order.entity.ts#Order",
+        "member": "total"
+      },
+      "to": {
+        "node": "node:src/orders/entities/order-item.entity.ts#OrderItem",
+        "member": "subtotal"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:node:src/orders/price-calculator.js#PriceCalculator#applyDiscount->node:src/orders/price-calculator.js#roundPrice#roundPrice",
+      "kind": "calls",
+      "from": {
+        "node": "node:src/orders/price-calculator.js#PriceCalculator",
+        "member": "applyDiscount"
+      },
+      "to": {
+        "node": "node:src/orders/price-calculator.js#roundPrice",
+        "member": "roundPrice"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:node:src/orders/orders.service.ts#OrdersService#place->node:src/orders/entities/order.entity.ts#Order#create",
+      "kind": "calls",
+      "from": {
+        "node": "node:src/orders/orders.service.ts#OrdersService",
+        "member": "place"
+      },
+      "to": {
+        "node": "node:src/orders/entities/order.entity.ts#Order",
+        "member": "create"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:node:src/orders/orders.service.ts#OrdersService#place->node:src/orders/entities/order.entity.ts#Order#addItem",
+      "kind": "calls",
+      "from": {
+        "node": "node:src/orders/orders.service.ts#OrdersService",
+        "member": "place"
+      },
+      "to": {
+        "node": "node:src/orders/entities/order.entity.ts#Order",
+        "member": "addItem"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:node:src/orders/orders.service.ts#OrdersService#place->node:src/orders/entities/order-item.entity.ts#OrderItem#of",
+      "kind": "calls",
+      "from": {
+        "node": "node:src/orders/orders.service.ts#OrdersService",
+        "member": "place"
+      },
+      "to": {
+        "node": "node:src/orders/entities/order-item.entity.ts#OrderItem",
+        "member": "of"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:node:src/orders/orders.service.ts#OrdersService#place->node:src/orders/price-calculator.js#PriceCalculator#applyDiscount",
+      "kind": "calls",
+      "from": {
+        "node": "node:src/orders/orders.service.ts#OrdersService",
+        "member": "place"
+      },
+      "to": {
+        "node": "node:src/orders/price-calculator.js#PriceCalculator",
+        "member": "applyDiscount"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:node:src/orders/orders.service.ts#OrdersService#place->node:src/orders/order.repository.ts#OrderRepository#save",
+      "kind": "calls",
+      "from": {
+        "node": "node:src/orders/orders.service.ts#OrdersService",
+        "member": "place"
+      },
+      "to": {
+        "node": "node:src/orders/order.repository.ts#OrderRepository",
+        "member": "save"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:node:src/orders/orders.service.ts#OrdersService#get->node:src/orders/order.repository.ts#OrderRepository#find",
+      "kind": "calls",
+      "from": {
+        "node": "node:src/orders/orders.service.ts#OrdersService",
+        "member": "get"
+      },
+      "to": {
+        "node": "node:src/orders/order.repository.ts#OrderRepository",
+        "member": "find"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:node:src/orders/orders.controller.ts#OrdersController#place->node:src/orders/orders.service.ts#OrdersService#place",
+      "kind": "calls",
+      "from": {
+        "node": "node:src/orders/orders.controller.ts#OrdersController",
+        "member": "place"
+      },
+      "to": {
+        "node": "node:src/orders/orders.service.ts#OrdersService",
+        "member": "place"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:node:src/orders/orders.controller.ts#OrdersController#place->node:src/orders/orders.controller.ts#OrdersController#toView",
+      "kind": "calls",
+      "from": {
+        "node": "node:src/orders/orders.controller.ts#OrdersController",
+        "member": "place"
+      },
+      "to": {
+        "node": "node:src/orders/orders.controller.ts#OrdersController",
+        "member": "toView"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:node:src/orders/orders.controller.ts#OrdersController#get->node:src/orders/orders.service.ts#OrdersService#get",
+      "kind": "calls",
+      "from": {
+        "node": "node:src/orders/orders.controller.ts#OrdersController",
+        "member": "get"
+      },
+      "to": {
+        "node": "node:src/orders/orders.service.ts#OrdersService",
+        "member": "get"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:node:src/orders/orders.controller.ts#OrdersController#get->node:src/orders/orders.controller.ts#OrdersController#toView",
+      "kind": "calls",
+      "from": {
+        "node": "node:src/orders/orders.controller.ts#OrdersController",
+        "member": "get"
+      },
+      "to": {
+        "node": "node:src/orders/orders.controller.ts#OrdersController",
+        "member": "toView"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:node:src/orders/orders.controller.ts#OrdersController#toView->node:src/orders/entities/abstract.entity.ts#AbstractEntity#getId",
+      "kind": "calls",
+      "from": {
+        "node": "node:src/orders/orders.controller.ts#OrdersController",
+        "member": "toView"
+      },
+      "to": {
+        "node": "node:src/orders/entities/abstract.entity.ts#AbstractEntity",
+        "member": "getId"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:node:src/orders/orders.controller.ts#OrdersController#toView->node:src/orders/entities/order.entity.ts#Order#total",
+      "kind": "calls",
+      "from": {
+        "node": "node:src/orders/orders.controller.ts#OrdersController",
+        "member": "toView"
+      },
+      "to": {
+        "node": "node:src/orders/entities/order.entity.ts#Order",
+        "member": "total"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "routes-to:node:route:POST /orders->node:src/orders/orders.controller.ts#OrdersController#place",
+      "kind": "routes-to",
+      "from": {
+        "node": "node:route:POST /orders"
+      },
+      "to": {
+        "node": "node:src/orders/orders.controller.ts#OrdersController",
+        "member": "place"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "routes-to:node:route:GET /orders/:id->node:src/orders/orders.controller.ts#OrdersController#get",
+      "kind": "routes-to",
+      "from": {
+        "node": "node:route:GET /orders/:id"
+      },
+      "to": {
+        "node": "node:src/orders/orders.controller.ts#OrdersController",
+        "member": "get"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "binds:node:src/orders/order.repository.ts#OrderRepository->node:src/orders/typeorm-order.repository.ts#TypeOrmOrderRepository",
+      "kind": "binds",
+      "from": {
+        "node": "node:src/orders/order.repository.ts#OrderRepository"
+      },
+      "to": {
+        "node": "node:src/orders/typeorm-order.repository.ts#TypeOrmOrderRepository"
+      },
+      "confidence": "exact",
+      "location": {
+        "file": "src/orders/orders.module.ts",
+        "line": 14,
+        "endLine": 14
+      }
+    }
+  ],
+  "types": {
+    "node:src/orders/entities/abstract.entity.ts#AbstractEntity": {
+      "id": "node:src/orders/entities/abstract.entity.ts#AbstractEntity",
+      "name": "AbstractEntity",
+      "nodeId": "node:src/orders/entities/abstract.entity.ts#AbstractEntity",
+      "fields": [
+        {
+          "name": "id",
+          "type": {
+            "kind": "primitive",
+            "name": "number"
+          },
+          "optional": true
+        }
+      ]
+    },
+    "node:src/orders/entities/order-item.entity.ts#OrderItem": {
+      "id": "node:src/orders/entities/order-item.entity.ts#OrderItem",
+      "name": "OrderItem",
+      "nodeId": "node:src/orders/entities/order-item.entity.ts#OrderItem",
+      "fields": [
+        {
+          "name": "sku",
+          "type": {
+            "kind": "primitive",
+            "name": "string"
+          }
+        },
+        {
+          "name": "quantity",
+          "type": {
+            "kind": "primitive",
+            "name": "number"
+          }
+        },
+        {
+          "name": "price",
+          "type": {
+            "kind": "primitive",
+            "name": "number"
+          }
+        }
+      ]
+    },
+    "node:src/orders/entities/order.entity.ts#Order": {
+      "id": "node:src/orders/entities/order.entity.ts#Order",
+      "name": "Order",
+      "nodeId": "node:src/orders/entities/order.entity.ts#Order",
+      "fields": [
+        {
+          "name": "customerId",
+          "type": {
+            "kind": "primitive",
+            "name": "number"
+          }
+        },
+        {
+          "name": "status",
+          "type": {
+            "kind": "primitive",
+            "name": "string"
+          },
+          "optional": true
+        },
+        {
+          "name": "items",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "named",
+              "id": "node:src/orders/entities/order-item.entity.ts#OrderItem"
+            }
+          },
+          "optional": true
+        }
+      ]
+    },
+    "node:src/orders/dto/place-order.dto.ts#OrderItemInput": {
+      "id": "node:src/orders/dto/place-order.dto.ts#OrderItemInput",
+      "name": "OrderItemInput",
+      "nodeId": "node:src/orders/dto/place-order.dto.ts#OrderItemInput",
+      "fields": [
+        {
+          "name": "sku",
+          "type": {
+            "kind": "primitive",
+            "name": "string"
+          }
+        },
+        {
+          "name": "quantity",
+          "type": {
+            "kind": "primitive",
+            "name": "number"
+          }
+        },
+        {
+          "name": "price",
+          "type": {
+            "kind": "primitive",
+            "name": "number"
+          }
+        }
+      ]
+    },
+    "node:src/orders/dto/place-order.dto.ts#PlaceOrderDto": {
+      "id": "node:src/orders/dto/place-order.dto.ts#PlaceOrderDto",
+      "name": "PlaceOrderDto",
+      "nodeId": "node:src/orders/dto/place-order.dto.ts#PlaceOrderDto",
+      "fields": [
+        {
+          "name": "customerId",
+          "type": {
+            "kind": "primitive",
+            "name": "number"
+          }
+        },
+        {
+          "name": "items",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "named",
+              "id": "node:src/orders/dto/place-order.dto.ts#OrderItemInput"
+            }
+          }
+        },
+        {
+          "name": "note",
+          "type": {
+            "kind": "primitive",
+            "name": "string"
+          },
+          "optional": true
+        }
+      ]
+    },
+    "node:src/orders/dto/order-view.ts#OrderView": {
+      "id": "node:src/orders/dto/order-view.ts#OrderView",
+      "name": "OrderView",
+      "nodeId": "node:src/orders/dto/order-view.ts#OrderView",
+      "fields": [
+        {
+          "name": "id",
+          "type": {
+            "kind": "primitive",
+            "name": "number"
+          }
+        },
+        {
+          "name": "total",
+          "type": {
+            "kind": "primitive",
+            "name": "number"
+          }
+        },
+        {
+          "name": "items",
+          "type": {
+            "kind": "primitive",
+            "name": "number"
+          }
+        }
+      ]
+    }
+  }
+}

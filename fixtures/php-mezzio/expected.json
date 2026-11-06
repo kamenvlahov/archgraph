@@ -1,0 +1,1677 @@
+{
+  "version": 1,
+  "root": ".",
+  "nodes": [
+    {
+      "id": "php:App\\Order\\Entity\\AbstractEntity",
+      "kind": "class",
+      "name": "AbstractEntity",
+      "language": "php",
+      "framework": "mezzio",
+      "location": {
+        "file": "src/Order/Entity/AbstractEntity.php",
+        "line": 7,
+        "endLine": 15
+      },
+      "members": [
+        {
+          "name": "getId",
+          "visibility": "public",
+          "inputs": [],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "union",
+              "of": [
+                {
+                  "kind": "primitive",
+                  "name": "int"
+                },
+                {
+                  "kind": "primitive",
+                  "name": "null"
+                }
+              ]
+            }
+          },
+          "location": {
+            "file": "src/Order/Entity/AbstractEntity.php",
+            "line": 11,
+            "endLine": 14
+          }
+        }
+      ],
+      "tags": [
+        "abstract"
+      ]
+    },
+    {
+      "id": "php:App\\Order\\Entity\\Order",
+      "kind": "class",
+      "name": "Order",
+      "language": "php",
+      "role": "entity",
+      "framework": "mezzio",
+      "location": {
+        "file": "src/Order/Entity/Order.php",
+        "line": 9,
+        "endLine": 39
+      },
+      "members": [
+        {
+          "name": "__construct",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "customerId",
+              "type": {
+                "kind": "primitive",
+                "name": "int"
+              }
+            },
+            {
+              "name": "status",
+              "type": {
+                "kind": "primitive",
+                "name": "string"
+              },
+              "optional": true,
+              "default": "'new'"
+            }
+          ],
+          "location": {
+            "file": "src/Order/Entity/Order.php",
+            "line": 16,
+            "endLine": 22
+          }
+        },
+        {
+          "name": "addItem",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "item",
+              "type": {
+                "kind": "named",
+                "id": "php:App\\Order\\Entity\\OrderItem"
+              }
+            }
+          ],
+          "location": {
+            "file": "src/Order/Entity/Order.php",
+            "line": 24,
+            "endLine": 27
+          }
+        },
+        {
+          "name": "getItems",
+          "visibility": "public",
+          "inputs": [],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "array",
+              "of": {
+                "kind": "named",
+                "id": "php:App\\Order\\Entity\\OrderItem"
+              }
+            }
+          },
+          "location": {
+            "file": "src/Order/Entity/Order.php",
+            "line": 30,
+            "endLine": 33
+          }
+        },
+        {
+          "name": "total",
+          "visibility": "public",
+          "inputs": [],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "primitive",
+              "name": "float"
+            }
+          },
+          "location": {
+            "file": "src/Order/Entity/Order.php",
+            "line": 35,
+            "endLine": 38
+          }
+        }
+      ]
+    },
+    {
+      "id": "php:App\\Order\\Entity\\OrderItem",
+      "kind": "class",
+      "name": "OrderItem",
+      "language": "php",
+      "role": "entity",
+      "framework": "mezzio",
+      "location": {
+        "file": "src/Order/Entity/OrderItem.php",
+        "line": 9,
+        "endLine": 26
+      },
+      "members": [
+        {
+          "name": "__construct",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "sku",
+              "type": {
+                "kind": "primitive",
+                "name": "string"
+              }
+            },
+            {
+              "name": "quantity",
+              "type": {
+                "kind": "primitive",
+                "name": "int"
+              }
+            },
+            {
+              "name": "price",
+              "type": {
+                "kind": "primitive",
+                "name": "float"
+              }
+            }
+          ],
+          "location": {
+            "file": "src/Order/Entity/OrderItem.php",
+            "line": 12,
+            "endLine": 20
+          }
+        },
+        {
+          "name": "subtotal",
+          "visibility": "public",
+          "inputs": [],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "primitive",
+              "name": "float"
+            }
+          },
+          "location": {
+            "file": "src/Order/Entity/OrderItem.php",
+            "line": 22,
+            "endLine": 25
+          }
+        }
+      ]
+    },
+    {
+      "id": "php:App\\Order\\Dto\\PlaceOrderDto",
+      "kind": "class",
+      "name": "PlaceOrderDto",
+      "language": "php",
+      "role": "dto",
+      "framework": "mezzio",
+      "location": {
+        "file": "src/Order/Dto/PlaceOrderDto.php",
+        "line": 7,
+        "endLine": 24
+      },
+      "members": [
+        {
+          "name": "__construct",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "customerId",
+              "type": {
+                "kind": "primitive",
+                "name": "int"
+              }
+            },
+            {
+              "name": "items",
+              "type": {
+                "kind": "array",
+                "of": {
+                  "kind": "shape",
+                  "fields": [
+                    {
+                      "name": "sku",
+                      "type": {
+                        "kind": "primitive",
+                        "name": "string"
+                      }
+                    },
+                    {
+                      "name": "quantity",
+                      "type": {
+                        "kind": "primitive",
+                        "name": "int"
+                      }
+                    },
+                    {
+                      "name": "price",
+                      "type": {
+                        "kind": "primitive",
+                        "name": "float"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "note",
+              "type": {
+                "kind": "union",
+                "of": [
+                  {
+                    "kind": "primitive",
+                    "name": "string"
+                  },
+                  {
+                    "kind": "primitive",
+                    "name": "null"
+                  }
+                ]
+              },
+              "optional": true,
+              "default": "null"
+            }
+          ],
+          "location": {
+            "file": "src/Order/Dto/PlaceOrderDto.php",
+            "line": 12,
+            "endLine": 17
+          }
+        },
+        {
+          "name": "fromArray",
+          "visibility": "public",
+          "static": true,
+          "inputs": [
+            {
+              "name": "data",
+              "type": {
+                "kind": "map",
+                "key": {
+                  "kind": "primitive",
+                  "name": "string"
+                },
+                "value": {
+                  "kind": "primitive",
+                  "name": "mixed"
+                }
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "php:App\\Order\\Dto\\PlaceOrderDto"
+            }
+          },
+          "location": {
+            "file": "src/Order/Dto/PlaceOrderDto.php",
+            "line": 20,
+            "endLine": 23
+          }
+        }
+      ],
+      "tags": [
+        "final",
+        "readonly"
+      ]
+    },
+    {
+      "id": "php:App\\Order\\Repository\\OrderRepositoryInterface",
+      "kind": "interface",
+      "name": "OrderRepositoryInterface",
+      "language": "php",
+      "role": "repository",
+      "framework": "mezzio",
+      "location": {
+        "file": "src/Order/Repository/OrderRepositoryInterface.php",
+        "line": 9,
+        "endLine": 14
+      },
+      "members": [
+        {
+          "name": "find",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "primitive",
+                "name": "int"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "union",
+              "of": [
+                {
+                  "kind": "named",
+                  "id": "php:App\\Order\\Entity\\Order"
+                },
+                {
+                  "kind": "primitive",
+                  "name": "null"
+                }
+              ]
+            }
+          },
+          "location": {
+            "file": "src/Order/Repository/OrderRepositoryInterface.php",
+            "line": 11,
+            "endLine": 11
+          }
+        },
+        {
+          "name": "save",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "order",
+              "type": {
+                "kind": "named",
+                "id": "php:App\\Order\\Entity\\Order"
+              }
+            }
+          ],
+          "location": {
+            "file": "src/Order/Repository/OrderRepositoryInterface.php",
+            "line": 13,
+            "endLine": 13
+          }
+        }
+      ]
+    },
+    {
+      "id": "php:App\\Order\\Repository\\DoctrineOrderRepository",
+      "kind": "class",
+      "name": "DoctrineOrderRepository",
+      "language": "php",
+      "role": "repository",
+      "framework": "mezzio",
+      "location": {
+        "file": "src/Order/Repository/DoctrineOrderRepository.php",
+        "line": 10,
+        "endLine": 26
+      },
+      "members": [
+        {
+          "name": "__construct",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "em",
+              "type": {
+                "kind": "named",
+                "id": "php:Doctrine\\ORM\\EntityManagerInterface"
+              }
+            }
+          ],
+          "location": {
+            "file": "src/Order/Repository/DoctrineOrderRepository.php",
+            "line": 12,
+            "endLine": 14
+          }
+        },
+        {
+          "name": "find",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "primitive",
+                "name": "int"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "union",
+              "of": [
+                {
+                  "kind": "named",
+                  "id": "php:App\\Order\\Entity\\Order"
+                },
+                {
+                  "kind": "primitive",
+                  "name": "null"
+                }
+              ]
+            }
+          },
+          "location": {
+            "file": "src/Order/Repository/DoctrineOrderRepository.php",
+            "line": 16,
+            "endLine": 19
+          }
+        },
+        {
+          "name": "save",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "order",
+              "type": {
+                "kind": "named",
+                "id": "php:App\\Order\\Entity\\Order"
+              }
+            }
+          ],
+          "location": {
+            "file": "src/Order/Repository/DoctrineOrderRepository.php",
+            "line": 21,
+            "endLine": 25
+          }
+        }
+      ],
+      "tags": [
+        "final"
+      ]
+    },
+    {
+      "id": "php:App\\Order\\Repository\\DoctrineOrderRepositoryFactory",
+      "kind": "class",
+      "name": "DoctrineOrderRepositoryFactory",
+      "language": "php",
+      "role": "factory",
+      "framework": "mezzio",
+      "location": {
+        "file": "src/Order/Repository/DoctrineOrderRepositoryFactory.php",
+        "line": 10,
+        "endLine": 16
+      },
+      "members": [
+        {
+          "name": "__invoke",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "container",
+              "type": {
+                "kind": "named",
+                "id": "php:Psr\\Container\\ContainerInterface"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "php:App\\Order\\Repository\\DoctrineOrderRepository"
+            }
+          },
+          "location": {
+            "file": "src/Order/Repository/DoctrineOrderRepositoryFactory.php",
+            "line": 12,
+            "endLine": 15
+          }
+        }
+      ],
+      "tags": [
+        "final"
+      ]
+    },
+    {
+      "id": "php:App\\Order\\Service\\OrderServiceInterface",
+      "kind": "interface",
+      "name": "OrderServiceInterface",
+      "language": "php",
+      "role": "service",
+      "framework": "mezzio",
+      "location": {
+        "file": "src/Order/Service/OrderServiceInterface.php",
+        "line": 10,
+        "endLine": 15
+      },
+      "members": [
+        {
+          "name": "place",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "dto",
+              "type": {
+                "kind": "named",
+                "id": "php:App\\Order\\Dto\\PlaceOrderDto"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "php:App\\Order\\Entity\\Order"
+            }
+          },
+          "location": {
+            "file": "src/Order/Service/OrderServiceInterface.php",
+            "line": 12,
+            "endLine": 12
+          }
+        },
+        {
+          "name": "get",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "primitive",
+                "name": "int"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "union",
+              "of": [
+                {
+                  "kind": "named",
+                  "id": "php:App\\Order\\Entity\\Order"
+                },
+                {
+                  "kind": "primitive",
+                  "name": "null"
+                }
+              ]
+            }
+          },
+          "location": {
+            "file": "src/Order/Service/OrderServiceInterface.php",
+            "line": 14,
+            "endLine": 14
+          }
+        }
+      ]
+    },
+    {
+      "id": "php:App\\Order\\Service\\PriceCalculator",
+      "kind": "class",
+      "name": "PriceCalculator",
+      "language": "php",
+      "role": "service",
+      "framework": "mezzio",
+      "location": {
+        "file": "src/Order/Service/PriceCalculator.php",
+        "line": 7,
+        "endLine": 20
+      },
+      "members": [
+        {
+          "name": "applyDiscount",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "total",
+              "type": {
+                "kind": "unknown"
+              }
+            },
+            {
+              "name": "code",
+              "type": {
+                "kind": "unknown"
+              },
+              "optional": true,
+              "default": "null"
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "unknown"
+            }
+          },
+          "location": {
+            "file": "src/Order/Service/PriceCalculator.php",
+            "line": 12,
+            "endLine": 19
+          }
+        }
+      ]
+    },
+    {
+      "id": "php:App\\Order\\Service\\OrderService",
+      "kind": "class",
+      "name": "OrderService",
+      "language": "php",
+      "role": "service",
+      "framework": "mezzio",
+      "location": {
+        "file": "src/Order/Service/OrderService.php",
+        "line": 12,
+        "endLine": 35
+      },
+      "members": [
+        {
+          "name": "__construct",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "orders",
+              "type": {
+                "kind": "named",
+                "id": "php:App\\Order\\Repository\\OrderRepositoryInterface"
+              }
+            },
+            {
+              "name": "prices",
+              "type": {
+                "kind": "named",
+                "id": "php:App\\Order\\Service\\PriceCalculator"
+              }
+            }
+          ],
+          "location": {
+            "file": "src/Order/Service/OrderService.php",
+            "line": 14,
+            "endLine": 18
+          }
+        },
+        {
+          "name": "place",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "dto",
+              "type": {
+                "kind": "named",
+                "id": "php:App\\Order\\Dto\\PlaceOrderDto"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "php:App\\Order\\Entity\\Order"
+            }
+          },
+          "location": {
+            "file": "src/Order/Service/OrderService.php",
+            "line": 20,
+            "endLine": 29
+          }
+        },
+        {
+          "name": "get",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "primitive",
+                "name": "int"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "union",
+              "of": [
+                {
+                  "kind": "named",
+                  "id": "php:App\\Order\\Entity\\Order"
+                },
+                {
+                  "kind": "primitive",
+                  "name": "null"
+                }
+              ]
+            }
+          },
+          "location": {
+            "file": "src/Order/Service/OrderService.php",
+            "line": 31,
+            "endLine": 34
+          }
+        }
+      ],
+      "tags": [
+        "final"
+      ]
+    },
+    {
+      "id": "php:App\\Order\\Service\\OrderServiceFactory",
+      "kind": "class",
+      "name": "OrderServiceFactory",
+      "language": "php",
+      "role": "factory",
+      "framework": "mezzio",
+      "location": {
+        "file": "src/Order/Service/OrderServiceFactory.php",
+        "line": 10,
+        "endLine": 19
+      },
+      "members": [
+        {
+          "name": "__invoke",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "container",
+              "type": {
+                "kind": "named",
+                "id": "php:Psr\\Container\\ContainerInterface"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "php:App\\Order\\Service\\OrderService"
+            }
+          },
+          "location": {
+            "file": "src/Order/Service/OrderServiceFactory.php",
+            "line": 12,
+            "endLine": 18
+          }
+        }
+      ],
+      "tags": [
+        "final"
+      ]
+    },
+    {
+      "id": "php:App\\Order\\Handler\\PlaceOrderHandler",
+      "kind": "class",
+      "name": "PlaceOrderHandler",
+      "language": "php",
+      "role": "controller",
+      "framework": "mezzio",
+      "location": {
+        "file": "src/Order/Handler/PlaceOrderHandler.php",
+        "line": 14,
+        "endLine": 28
+      },
+      "members": [
+        {
+          "name": "__construct",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "orders",
+              "type": {
+                "kind": "named",
+                "id": "php:App\\Order\\Service\\OrderServiceInterface"
+              }
+            }
+          ],
+          "location": {
+            "file": "src/Order/Handler/PlaceOrderHandler.php",
+            "line": 16,
+            "endLine": 18
+          }
+        },
+        {
+          "name": "handle",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "request",
+              "type": {
+                "kind": "named",
+                "id": "php:Psr\\Http\\Message\\ServerRequestInterface"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "php:Psr\\Http\\Message\\ResponseInterface"
+            }
+          },
+          "location": {
+            "file": "src/Order/Handler/PlaceOrderHandler.php",
+            "line": 20,
+            "endLine": 27
+          }
+        }
+      ],
+      "tags": [
+        "final"
+      ]
+    },
+    {
+      "id": "php:App\\Order\\Handler\\GetOrderHandler",
+      "kind": "class",
+      "name": "GetOrderHandler",
+      "language": "php",
+      "role": "controller",
+      "framework": "mezzio",
+      "location": {
+        "file": "src/Order/Handler/GetOrderHandler.php",
+        "line": 14,
+        "endLine": 29
+      },
+      "members": [
+        {
+          "name": "__construct",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "orders",
+              "type": {
+                "kind": "named",
+                "id": "php:App\\Order\\Service\\OrderServiceInterface"
+              }
+            }
+          ],
+          "location": {
+            "file": "src/Order/Handler/GetOrderHandler.php",
+            "line": 16,
+            "endLine": 18
+          }
+        },
+        {
+          "name": "handle",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "request",
+              "type": {
+                "kind": "named",
+                "id": "php:Psr\\Http\\Message\\ServerRequestInterface"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "php:Psr\\Http\\Message\\ResponseInterface"
+            }
+          },
+          "location": {
+            "file": "src/Order/Handler/GetOrderHandler.php",
+            "line": 20,
+            "endLine": 28
+          }
+        }
+      ],
+      "tags": [
+        "final"
+      ]
+    },
+    {
+      "id": "php:App\\Order\\Handler\\PlaceOrderHandlerFactory",
+      "kind": "class",
+      "name": "PlaceOrderHandlerFactory",
+      "language": "php",
+      "role": "factory",
+      "framework": "mezzio",
+      "location": {
+        "file": "src/Order/Handler/PlaceOrderHandlerFactory.php",
+        "line": 10,
+        "endLine": 16
+      },
+      "members": [
+        {
+          "name": "__invoke",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "container",
+              "type": {
+                "kind": "named",
+                "id": "php:Psr\\Container\\ContainerInterface"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "php:App\\Order\\Handler\\PlaceOrderHandler"
+            }
+          },
+          "location": {
+            "file": "src/Order/Handler/PlaceOrderHandlerFactory.php",
+            "line": 12,
+            "endLine": 15
+          }
+        }
+      ],
+      "tags": [
+        "final"
+      ]
+    },
+    {
+      "id": "php:App\\Order\\Handler\\GetOrderHandlerFactory",
+      "kind": "class",
+      "name": "GetOrderHandlerFactory",
+      "language": "php",
+      "role": "factory",
+      "framework": "mezzio",
+      "location": {
+        "file": "src/Order/Handler/GetOrderHandlerFactory.php",
+        "line": 10,
+        "endLine": 16
+      },
+      "members": [
+        {
+          "name": "__invoke",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "container",
+              "type": {
+                "kind": "named",
+                "id": "php:Psr\\Container\\ContainerInterface"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "php:App\\Order\\Handler\\GetOrderHandler"
+            }
+          },
+          "location": {
+            "file": "src/Order/Handler/GetOrderHandlerFactory.php",
+            "line": 12,
+            "endLine": 15
+          }
+        }
+      ],
+      "tags": [
+        "final"
+      ]
+    },
+    {
+      "id": "php:App\\ConfigProvider",
+      "kind": "class",
+      "name": "ConfigProvider",
+      "language": "php",
+      "framework": "mezzio",
+      "location": {
+        "file": "src/ConfigProvider.php",
+        "line": 11,
+        "endLine": 37
+      },
+      "members": [
+        {
+          "name": "__invoke",
+          "visibility": "public",
+          "inputs": [],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "map",
+              "key": {
+                "kind": "primitive",
+                "name": "string"
+              },
+              "value": {
+                "kind": "primitive",
+                "name": "mixed"
+              }
+            }
+          },
+          "location": {
+            "file": "src/ConfigProvider.php",
+            "line": 14,
+            "endLine": 19
+          }
+        },
+        {
+          "name": "getDependencies",
+          "visibility": "public",
+          "inputs": [],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "map",
+              "key": {
+                "kind": "primitive",
+                "name": "string"
+              },
+              "value": {
+                "kind": "map",
+                "key": {
+                  "kind": "primitive",
+                  "name": "string"
+                },
+                "value": {
+                  "kind": "primitive",
+                  "name": "string"
+                }
+              }
+            }
+          },
+          "location": {
+            "file": "src/ConfigProvider.php",
+            "line": 22,
+            "endLine": 36
+          }
+        }
+      ],
+      "tags": [
+        "final"
+      ]
+    },
+    {
+      "id": "php:route:POST /orders",
+      "kind": "route",
+      "name": "POST /orders",
+      "language": "php",
+      "role": "route",
+      "framework": "mezzio",
+      "location": {
+        "file": "config/routes.php",
+        "line": 10,
+        "endLine": 10
+      },
+      "members": []
+    },
+    {
+      "id": "php:route:GET /orders/{id:\\d+}",
+      "kind": "route",
+      "name": "GET /orders/{id:\\d+}",
+      "language": "php",
+      "role": "route",
+      "framework": "mezzio",
+      "location": {
+        "file": "config/routes.php",
+        "line": 11,
+        "endLine": 11
+      },
+      "members": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "extends:php:App\\Order\\Entity\\Order->php:App\\Order\\Entity\\AbstractEntity",
+      "kind": "extends",
+      "from": {
+        "node": "php:App\\Order\\Entity\\Order"
+      },
+      "to": {
+        "node": "php:App\\Order\\Entity\\AbstractEntity"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "extends:php:App\\Order\\Entity\\OrderItem->php:App\\Order\\Entity\\AbstractEntity",
+      "kind": "extends",
+      "from": {
+        "node": "php:App\\Order\\Entity\\OrderItem"
+      },
+      "to": {
+        "node": "php:App\\Order\\Entity\\AbstractEntity"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "implements:php:App\\Order\\Repository\\DoctrineOrderRepository->php:App\\Order\\Repository\\OrderRepositoryInterface",
+      "kind": "implements",
+      "from": {
+        "node": "php:App\\Order\\Repository\\DoctrineOrderRepository"
+      },
+      "to": {
+        "node": "php:App\\Order\\Repository\\OrderRepositoryInterface"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "implements:php:App\\Order\\Service\\OrderService->php:App\\Order\\Service\\OrderServiceInterface",
+      "kind": "implements",
+      "from": {
+        "node": "php:App\\Order\\Service\\OrderService"
+      },
+      "to": {
+        "node": "php:App\\Order\\Service\\OrderServiceInterface"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "injects:php:App\\Order\\Repository\\OrderRepositoryInterface->php:App\\Order\\Service\\OrderService#__construct.orders",
+      "kind": "injects",
+      "from": {
+        "node": "php:App\\Order\\Repository\\OrderRepositoryInterface"
+      },
+      "to": {
+        "node": "php:App\\Order\\Service\\OrderService",
+        "member": "__construct",
+        "port": "orders"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "injects:php:App\\Order\\Service\\PriceCalculator->php:App\\Order\\Service\\OrderService#__construct.prices",
+      "kind": "injects",
+      "from": {
+        "node": "php:App\\Order\\Service\\PriceCalculator"
+      },
+      "to": {
+        "node": "php:App\\Order\\Service\\OrderService",
+        "member": "__construct",
+        "port": "prices"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "injects:php:App\\Order\\Service\\OrderServiceInterface->php:App\\Order\\Handler\\PlaceOrderHandler#__construct.orders",
+      "kind": "injects",
+      "from": {
+        "node": "php:App\\Order\\Service\\OrderServiceInterface"
+      },
+      "to": {
+        "node": "php:App\\Order\\Handler\\PlaceOrderHandler",
+        "member": "__construct",
+        "port": "orders"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "injects:php:App\\Order\\Service\\OrderServiceInterface->php:App\\Order\\Handler\\GetOrderHandler#__construct.orders",
+      "kind": "injects",
+      "from": {
+        "node": "php:App\\Order\\Service\\OrderServiceInterface"
+      },
+      "to": {
+        "node": "php:App\\Order\\Handler\\GetOrderHandler",
+        "member": "__construct",
+        "port": "orders"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:php:App\\Order\\Dto\\PlaceOrderDto#fromArray->php:App\\Order\\Dto\\PlaceOrderDto",
+      "kind": "creates",
+      "from": {
+        "node": "php:App\\Order\\Dto\\PlaceOrderDto",
+        "member": "fromArray"
+      },
+      "to": {
+        "node": "php:App\\Order\\Dto\\PlaceOrderDto"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:php:App\\Order\\Service\\OrderService#place->php:App\\Order\\Entity\\Order",
+      "kind": "creates",
+      "from": {
+        "node": "php:App\\Order\\Service\\OrderService",
+        "member": "place"
+      },
+      "to": {
+        "node": "php:App\\Order\\Entity\\Order"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:php:App\\Order\\Service\\OrderService#place->php:App\\Order\\Entity\\OrderItem",
+      "kind": "creates",
+      "from": {
+        "node": "php:App\\Order\\Service\\OrderService",
+        "member": "place"
+      },
+      "to": {
+        "node": "php:App\\Order\\Entity\\OrderItem"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:php:App\\Order\\Repository\\DoctrineOrderRepositoryFactory#__invoke->php:App\\Order\\Repository\\DoctrineOrderRepository",
+      "kind": "creates",
+      "from": {
+        "node": "php:App\\Order\\Repository\\DoctrineOrderRepositoryFactory",
+        "member": "__invoke"
+      },
+      "to": {
+        "node": "php:App\\Order\\Repository\\DoctrineOrderRepository"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:php:App\\Order\\Service\\OrderServiceFactory#__invoke->php:App\\Order\\Service\\OrderService",
+      "kind": "creates",
+      "from": {
+        "node": "php:App\\Order\\Service\\OrderServiceFactory",
+        "member": "__invoke"
+      },
+      "to": {
+        "node": "php:App\\Order\\Service\\OrderService"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:php:App\\Order\\Service\\OrderServiceFactory#__invoke->php:App\\Order\\Service\\PriceCalculator",
+      "kind": "creates",
+      "from": {
+        "node": "php:App\\Order\\Service\\OrderServiceFactory",
+        "member": "__invoke"
+      },
+      "to": {
+        "node": "php:App\\Order\\Service\\PriceCalculator"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:php:App\\Order\\Handler\\PlaceOrderHandlerFactory#__invoke->php:App\\Order\\Handler\\PlaceOrderHandler",
+      "kind": "creates",
+      "from": {
+        "node": "php:App\\Order\\Handler\\PlaceOrderHandlerFactory",
+        "member": "__invoke"
+      },
+      "to": {
+        "node": "php:App\\Order\\Handler\\PlaceOrderHandler"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:php:App\\Order\\Handler\\GetOrderHandlerFactory#__invoke->php:App\\Order\\Handler\\GetOrderHandler",
+      "kind": "creates",
+      "from": {
+        "node": "php:App\\Order\\Handler\\GetOrderHandlerFactory",
+        "member": "__invoke"
+      },
+      "to": {
+        "node": "php:App\\Order\\Handler\\GetOrderHandler"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:php:App\\Order\\Entity\\Order#total->php:App\\Order\\Entity\\OrderItem#subtotal",
+      "kind": "calls",
+      "from": {
+        "node": "php:App\\Order\\Entity\\Order",
+        "member": "total"
+      },
+      "to": {
+        "node": "php:App\\Order\\Entity\\OrderItem",
+        "member": "subtotal"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:php:App\\Order\\Service\\OrderService#place->php:App\\Order\\Entity\\Order#addItem",
+      "kind": "calls",
+      "from": {
+        "node": "php:App\\Order\\Service\\OrderService",
+        "member": "place"
+      },
+      "to": {
+        "node": "php:App\\Order\\Entity\\Order",
+        "member": "addItem"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:php:App\\Order\\Service\\OrderService#place->php:App\\Order\\Service\\PriceCalculator#applyDiscount",
+      "kind": "calls",
+      "from": {
+        "node": "php:App\\Order\\Service\\OrderService",
+        "member": "place"
+      },
+      "to": {
+        "node": "php:App\\Order\\Service\\PriceCalculator",
+        "member": "applyDiscount"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:php:App\\Order\\Service\\OrderService#place->php:App\\Order\\Repository\\OrderRepositoryInterface#save",
+      "kind": "calls",
+      "from": {
+        "node": "php:App\\Order\\Service\\OrderService",
+        "member": "place"
+      },
+      "to": {
+        "node": "php:App\\Order\\Repository\\OrderRepositoryInterface",
+        "member": "save"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:php:App\\Order\\Service\\OrderService#get->php:App\\Order\\Repository\\OrderRepositoryInterface#find",
+      "kind": "calls",
+      "from": {
+        "node": "php:App\\Order\\Service\\OrderService",
+        "member": "get"
+      },
+      "to": {
+        "node": "php:App\\Order\\Repository\\OrderRepositoryInterface",
+        "member": "find"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:php:App\\Order\\Handler\\PlaceOrderHandler#handle->php:App\\Order\\Service\\OrderServiceInterface#place",
+      "kind": "calls",
+      "from": {
+        "node": "php:App\\Order\\Handler\\PlaceOrderHandler",
+        "member": "handle"
+      },
+      "to": {
+        "node": "php:App\\Order\\Service\\OrderServiceInterface",
+        "member": "place"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:php:App\\Order\\Handler\\PlaceOrderHandler#handle->php:App\\Order\\Dto\\PlaceOrderDto#fromArray",
+      "kind": "calls",
+      "from": {
+        "node": "php:App\\Order\\Handler\\PlaceOrderHandler",
+        "member": "handle"
+      },
+      "to": {
+        "node": "php:App\\Order\\Dto\\PlaceOrderDto",
+        "member": "fromArray"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:php:App\\Order\\Handler\\PlaceOrderHandler#handle->php:App\\Order\\Entity\\AbstractEntity#getId",
+      "kind": "calls",
+      "from": {
+        "node": "php:App\\Order\\Handler\\PlaceOrderHandler",
+        "member": "handle"
+      },
+      "to": {
+        "node": "php:App\\Order\\Entity\\AbstractEntity",
+        "member": "getId"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:php:App\\Order\\Handler\\PlaceOrderHandler#handle->php:App\\Order\\Entity\\Order#total",
+      "kind": "calls",
+      "from": {
+        "node": "php:App\\Order\\Handler\\PlaceOrderHandler",
+        "member": "handle"
+      },
+      "to": {
+        "node": "php:App\\Order\\Entity\\Order",
+        "member": "total"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:php:App\\Order\\Handler\\GetOrderHandler#handle->php:App\\Order\\Service\\OrderServiceInterface#get",
+      "kind": "calls",
+      "from": {
+        "node": "php:App\\Order\\Handler\\GetOrderHandler",
+        "member": "handle"
+      },
+      "to": {
+        "node": "php:App\\Order\\Service\\OrderServiceInterface",
+        "member": "get"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:php:App\\Order\\Handler\\GetOrderHandler#handle->php:App\\Order\\Entity\\AbstractEntity#getId",
+      "kind": "calls",
+      "from": {
+        "node": "php:App\\Order\\Handler\\GetOrderHandler",
+        "member": "handle"
+      },
+      "to": {
+        "node": "php:App\\Order\\Entity\\AbstractEntity",
+        "member": "getId"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:php:App\\Order\\Handler\\GetOrderHandler#handle->php:App\\Order\\Entity\\Order#getItems",
+      "kind": "calls",
+      "from": {
+        "node": "php:App\\Order\\Handler\\GetOrderHandler",
+        "member": "handle"
+      },
+      "to": {
+        "node": "php:App\\Order\\Entity\\Order",
+        "member": "getItems"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:php:App\\ConfigProvider#__invoke->php:App\\ConfigProvider#getDependencies",
+      "kind": "calls",
+      "from": {
+        "node": "php:App\\ConfigProvider",
+        "member": "__invoke"
+      },
+      "to": {
+        "node": "php:App\\ConfigProvider",
+        "member": "getDependencies"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "routes-to:php:route:POST /orders->php:App\\Order\\Handler\\PlaceOrderHandler#handle",
+      "kind": "routes-to",
+      "from": {
+        "node": "php:route:POST /orders"
+      },
+      "to": {
+        "node": "php:App\\Order\\Handler\\PlaceOrderHandler",
+        "member": "handle"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "routes-to:php:route:GET /orders/{id:\\d+}->php:App\\Order\\Handler\\GetOrderHandler#handle",
+      "kind": "routes-to",
+      "from": {
+        "node": "php:route:GET /orders/{id:\\d+}"
+      },
+      "to": {
+        "node": "php:App\\Order\\Handler\\GetOrderHandler",
+        "member": "handle"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "binds:php:App\\Order\\Repository\\OrderRepositoryInterface->php:App\\Order\\Repository\\DoctrineOrderRepository",
+      "kind": "binds",
+      "from": {
+        "node": "php:App\\Order\\Repository\\OrderRepositoryInterface"
+      },
+      "to": {
+        "node": "php:App\\Order\\Repository\\DoctrineOrderRepository"
+      },
+      "confidence": "exact",
+      "location": {
+        "file": "src/ConfigProvider.php",
+        "line": 26,
+        "endLine": 26
+      }
+    },
+    {
+      "id": "binds:php:App\\Order\\Service\\OrderServiceInterface->php:App\\Order\\Service\\OrderService",
+      "kind": "binds",
+      "from": {
+        "node": "php:App\\Order\\Service\\OrderServiceInterface"
+      },
+      "to": {
+        "node": "php:App\\Order\\Service\\OrderService"
+      },
+      "confidence": "exact",
+      "location": {
+        "file": "src/ConfigProvider.php",
+        "line": 27,
+        "endLine": 27
+      }
+    }
+  ],
+  "types": {
+    "php:App\\Order\\Entity\\AbstractEntity": {
+      "id": "php:App\\Order\\Entity\\AbstractEntity",
+      "name": "AbstractEntity",
+      "nodeId": "php:App\\Order\\Entity\\AbstractEntity",
+      "fields": [
+        {
+          "name": "id",
+          "type": {
+            "kind": "union",
+            "of": [
+              {
+                "kind": "primitive",
+                "name": "int"
+              },
+              {
+                "kind": "primitive",
+                "name": "null"
+              }
+            ]
+          },
+          "optional": true
+        }
+      ]
+    },
+    "php:App\\Order\\Entity\\Order": {
+      "id": "php:App\\Order\\Entity\\Order",
+      "name": "Order",
+      "nodeId": "php:App\\Order\\Entity\\Order",
+      "fields": [
+        {
+          "name": "items",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "named",
+              "id": "php:App\\Order\\Entity\\OrderItem"
+            }
+          },
+          "optional": true
+        },
+        {
+          "name": "customerId",
+          "type": {
+            "kind": "primitive",
+            "name": "int"
+          },
+          "readonly": true
+        },
+        {
+          "name": "status",
+          "type": {
+            "kind": "primitive",
+            "name": "string"
+          },
+          "optional": true
+        }
+      ]
+    },
+    "php:App\\Order\\Entity\\OrderItem": {
+      "id": "php:App\\Order\\Entity\\OrderItem",
+      "name": "OrderItem",
+      "nodeId": "php:App\\Order\\Entity\\OrderItem",
+      "fields": [
+        {
+          "name": "sku",
+          "type": {
+            "kind": "primitive",
+            "name": "string"
+          },
+          "readonly": true
+        },
+        {
+          "name": "quantity",
+          "type": {
+            "kind": "primitive",
+            "name": "int"
+          },
+          "readonly": true
+        },
+        {
+          "name": "price",
+          "type": {
+            "kind": "primitive",
+            "name": "float"
+          },
+          "readonly": true
+        }
+      ]
+    },
+    "php:App\\Order\\Dto\\PlaceOrderDto": {
+      "id": "php:App\\Order\\Dto\\PlaceOrderDto",
+      "name": "PlaceOrderDto",
+      "nodeId": "php:App\\Order\\Dto\\PlaceOrderDto",
+      "fields": [
+        {
+          "name": "customerId",
+          "type": {
+            "kind": "primitive",
+            "name": "int"
+          },
+          "readonly": true
+        },
+        {
+          "name": "items",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "shape",
+              "fields": [
+                {
+                  "name": "sku",
+                  "type": {
+                    "kind": "primitive",
+                    "name": "string"
+                  }
+                },
+                {
+                  "name": "quantity",
+                  "type": {
+                    "kind": "primitive",
+                    "name": "int"
+                  }
+                },
+                {
+                  "name": "price",
+                  "type": {
+                    "kind": "primitive",
+                    "name": "float"
+                  }
+                }
+              ]
+            }
+          },
+          "readonly": true
+        },
+        {
+          "name": "note",
+          "type": {
+            "kind": "union",
+            "of": [
+              {
+                "kind": "primitive",
+                "name": "string"
+              },
+              {
+                "kind": "primitive",
+                "name": "null"
+              }
+            ]
+          },
+          "optional": true,
+          "readonly": true
+        }
+      ]
+    }
+  }
+}
