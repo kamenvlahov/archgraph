@@ -1,14 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import schema from '../schema.json' with { type: 'json' };
-import {
-  CONFIDENCES,
-  EDGE_KINDS,
-  LANGUAGES,
-  NODE_KINDS,
-  TYPE_REF_KINDS,
-  VISIBILITIES,
-  type GraphModel,
-} from './types.ts';
+import { CORE_REGISTRY, extendRegistry, KIND_NAME } from './registry.ts';
+import { CONFIDENCES, TYPE_REF_KINDS, VISIBILITIES, type GraphModel } from './types.ts';
 import { validate } from './validate.ts';
 
 const loc = (line: number) => ({ file: 'src/Order/OrderService.php', line, endLine: line + 5 });
@@ -42,6 +35,8 @@ function sample(): GraphModel {
         language: 'php',
         role: 'service',
         framework: 'mezzio',
+        layer: 'application',
+        context: 'Order',
         location: loc(10),
         tags: ['final'],
         members: [
@@ -170,6 +165,59 @@ describe('структура', () => {
   });
 });
 
+describe('регистър', () => {
+  const views = { name: 'views', nodeKinds: ['template'], edgeKinds: ['renders'] };
+
+  function withTemplate() {
+    const m = sample();
+    m.nodes.push({
+      id: 'php:template:order/show.twig',
+      kind: 'template',
+      name: 'order/show.twig',
+      language: 'php',
+      location: { file: 'templates/order/show.twig', line: 1, endLine: 9 },
+      members: [],
+    });
+    m.edges.push({
+      id: 'e2',
+      kind: 'renders',
+      from: { node: 'php:App\\Order\\OrderService', member: 'place' },
+      to: { node: 'php:template:order/show.twig' },
+      confidence: 'inferred',
+    });
+    return m;
+  }
+
+  test('ядрото не познава видове от разширения', () => {
+    expect(errorsOf(withTemplate()).map((e) => e.path)).toEqual(['$.nodes[2].kind', '$.edges[1].kind']);
+  });
+
+  test('разширението добавя вид нод и ребро', () => {
+    const r = validate(withTemplate(), extendRegistry(CORE_REGISTRY, views));
+    expect(r.ok ? [] : r.errors).toEqual([]);
+  });
+
+  test('нов език е само регистрация', () => {
+    const m = sample();
+    m.nodes[0]!.language = 'go';
+    expect(errorsOf(m).map((e) => e.path)).toEqual(['$.nodes[0].language']);
+    expect(validate(m, extendRegistry(CORE_REGISTRY, { name: 'lang-go', languages: ['go'] })).ok).toBe(true);
+  });
+
+  test('конфликт и невалидно име са грешка', () => {
+    const r = extendRegistry(CORE_REGISTRY, views);
+    expect(() => extendRegistry(r, { name: 'other', nodeKinds: ['template'] })).toThrow(
+      'other: вид нод "template" вече е регистриран',
+    );
+    expect(() => extendRegistry(CORE_REGISTRY, { name: 'x', edgeKinds: ['Renders'] })).toThrow('невалидно име');
+  });
+
+  test('ядрото не се променя', () => {
+    extendRegistry(CORE_REGISTRY, views);
+    expect(CORE_REGISTRY.nodeKinds.has('template')).toBe(false);
+  });
+});
+
 describe('връзки', () => {
   test('ребро към несъществуващ нод, member и порт', () => {
     const m = sample();
@@ -217,10 +265,10 @@ describe('връзки', () => {
 
 test('schema.json има същите списъци като types.ts', () => {
   const d = schema.$defs;
-  expect(d.node.properties.kind.enum).toEqual([...NODE_KINDS]);
-  expect(d.node.properties.language.enum).toEqual([...LANGUAGES]);
+  expect(d.kindName.pattern).toBe(KIND_NAME.source);
+  for (const ref of [d.node.properties.kind, d.node.properties.language, d.edge.properties.kind])
+    expect(ref.$ref).toBe('#/$defs/kindName');
   expect(d.member.properties.visibility.enum).toEqual([...VISIBILITIES]);
-  expect(d.edge.properties.kind.enum).toEqual([...EDGE_KINDS]);
   expect(d.edge.properties.confidence.enum).toEqual([...CONFIDENCES]);
   expect(d.typeRef.properties.kind.enum).toEqual([...TYPE_REF_KINDS]);
   expect(d.typeRef.oneOf.map((b) => b.properties.kind.const)).toEqual([...TYPE_REF_KINDS]);

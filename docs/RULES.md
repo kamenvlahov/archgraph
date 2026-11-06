@@ -109,6 +109,99 @@ wiring:
     decorators: ['get', 'post', 'put', 'patch', 'delete']
 ```
 
+## Регистрация на услуги (`bindings`)
+
+Коя имплементация дава DI контейнерът за даден интерфейс ([D-008](DECISIONS.md)). Всеки запис е **форма** (общ извличач в engine-а) с параметри. Нов framework или собствен контейнер означава нов YAML, а не нов код. Нов код трябва само за напълно нова форма.
+
+Всеки запис създава ребро `binds`, от интерфейса към имплементацията, с `location` към реда на регистрацията. Ако формата има и потребител (contextual binding), реброто тръгва от порта на потребителя и важи само за него.
+
+```yaml
+bindings:
+  - form: array_map # Interface::class => Impl::class в PHP масив
+    in: 'ConfigProvider::getDependencies'
+    keys: ['aliases'] # factories → creates от фабриката, invokables → без интерфейс
+  - form: call # $this->app->bind(I::class, Impl::class)
+    calls: ['$this->app->bind', '$this->app->singleton', '$this->app->scoped']
+    args: { interface: 0, impl: 1 }
+  - form: chain # $this->app->when(A::class)->needs(I::class)->give(B::class)
+    steps: { consumer: when, interface: needs, impl: give }
+  - form: config_file # services.yaml
+    file: 'config/services.yaml'
+    entries: 'services' # I: '@Impl' / I: { class: Impl } / _defaults.bind
+  - form: attribute # #[AsAlias(I::class)] на имплементацията
+    name: "Symfony\\Component\\DependencyInjection\\Attribute\\AsAlias"
+    interface_arg: 0
+  - form: object_literal # { provide: TOKEN, useClass: Impl }
+    keys: { token: provide, impl: [useClass, useExisting], factory: useFactory }
+  - form: provider_return # def get_repo() -> I: return Impl()  /  useFactory: () => new Impl()
+    when: { decorator: 'lru_cache' } # по избор: кои функции са доставчици
+  - form: string_path # Django settings: EMAIL_BACKEND = 'app.mail.SmtpBackend'
+    file: '**/settings*.py'
+    keys: ['*_BACKEND', '*_CLASS']
+  - form: autowire # няма регистрация, но интерфейсът има точно една имплементация
+    confidence: inferred
+```
+
+| Форма             | Покрива                                                                                           |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| `array_map`       | Mezzio/Laminas `aliases`, Laravel `$bindings`/`$singletons` в provider                            |
+| `call`            | Laravel `bind`/`singleton`/`scoped`/`instance`, InversifyJS `bind(I).to(X)`, `container.register` |
+| `chain`           | Laravel contextual binding, InversifyJS `.whenTargetNamed()`                                      |
+| `config_file`     | Symfony `services.yaml`/`.xml`, Laminas `module.config.php` в отделен файл                        |
+| `attribute`       | Symfony `#[AsAlias]`, `#[Autowire(service:)]`, tsyringe `@injectable`/`@registry`                 |
+| `object_literal`  | NestJS `providers` (`useClass`, `useExisting`, `useFactory`, `useValue`)                          |
+| `provider_return` | FastAPI доставчици за `Depends`, Nest `useFactory`, Python `dependency-injector` `Factory`        |
+| `string_path`     | Django `settings.py` (`*_BACKEND`), конфигурации с класове като низове                            |
+| `autowire`        | Symfony/Laravel/Nest без изрична регистрация. Само при една имплементация, иначе „нееднозначно“.  |
+
+Token вместо интерфейс (Nest `ORDER_REPOSITORY`) се свързва с интерфейса през мястото на инжектиране: `@Inject(TOKEN) x: I`.
+
+**Правила на проекта.** Освен правилата за framework-а engine-ът чете и `.archgraph/rules/*.yaml` в самия проект. Така собствен контейнер или вътрешна конвенция се описва на място, без промяна в archgraph.
+
+## Архитектура на проекта: слоеве и контексти
+
+Слоевете зависят от архитектурата, а не от framework-а. Затова са в `.archgraph/architecture.yaml` в самия проект ([D-009](DECISIONS.md)). Готовите стилове се ползват направо или се променят.
+
+```yaml
+style: hexagonal # layered | clean | onion | hexagonal | mvc | none, задава слоеве и allow по подразбиране
+
+layers: # първото съвпадение печели; условията са същите като при ролите + role
+  - name: domain
+    match: { any: [{ path_glob: 'src/*/Domain/**' }, { role: entity }] }
+  - name: application
+    match: { namespace_contains: "\\Application\\" }
+  - name: ports
+    match: { all: [{ kind: interface }, { namespace_contains: "\\Port\\" }] }
+  - name: adapters
+    match: { any: [{ path_glob: 'src/*/Infrastructure/**' }, { role: [controller, repository] }] }
+
+allow: # от кой слой към кой е позволена зависимост; всичко друго е нарушение
+  adapters: [application, ports, domain]
+  application: [ports, domain]
+  ports: [domain]
+  domain: []
+
+ignore_edges: [uses-type] # по избор: кои ребра не се проверяват (напр. DTO в сигнатури)
+
+contexts: # bounded contexts / модули, независими от слоевете
+  from: namespace_segment # или path_segment
+  index: 1 # App\<Order>\... → context "Order"
+  allow_cross: [binds, injects] # между контексти само през тези ребра (по избор)
+```
+
+| Стил        | Слоеве по подразбиране (отвън навътре)                                 |
+| ----------- | ---------------------------------------------------------------------- |
+| `layered`   | presentation → application → domain → infrastructure                   |
+| `clean`     | frameworks → interface-adapters → use-cases → entities                 |
+| `onion`     | infrastructure → application-services → domain-services → domain-model |
+| `hexagonal` | adapters → application → ports → domain                                |
+| `mvc`       | controller → model, controller → view                                  |
+| `none`      | без слоеве; ползва се само слоят по подразбиране от каталога на ролите |
+
+Ако проектът няма `architecture.yaml`, слоят идва от каталога на ролите: всяка роля има слой по подразбиране.
+
+**Нарушения.** Ребро от слой A към слой B, което не е в `allow`, се маркира в графа и се връща от MCP. Например controller → repository при `layered`, или domain → infrastructure. Същото важи за ребро между два контекста, което не е в `allow_cross`.
+
 ## Патерни
 
 Освен ролите, правилата описват и **шаблони на патерни** за командата „правим …“:

@@ -1,31 +1,20 @@
 // Общият модел от docs/ARCHITECTURE.md. Тук няма нищо, което зависи от език или framework.
+// Видовете нодове, ребра и езици са в registry.ts.
 
 export const MODEL_VERSION = 1;
 
-export const LANGUAGES = ['php', 'node', 'python'] as const;
-export const NODE_KINDS = ['class', 'interface', 'trait', 'enum', 'function', 'module', 'route'] as const;
 export const VISIBILITIES = ['public', 'protected', 'private'] as const;
-export const EDGE_KINDS = [
-  'implements',
-  'extends',
-  'injects',
-  'calls',
-  'creates',
-  'routes-to',
-  'returns',
-  'uses-type',
-] as const;
 export const CONFIDENCES = ['exact', 'inferred'] as const;
 export const TYPE_REF_KINDS = ['named', 'primitive', 'array', 'map', 'union', 'shape', 'unknown'] as const;
 
-export type Language = (typeof LANGUAGES)[number];
-export type NodeKind = (typeof NODE_KINDS)[number];
 export type Visibility = (typeof VISIBILITIES)[number];
-export type EdgeKind = (typeof EDGE_KINDS)[number];
 export type Confidence = (typeof CONFIDENCES)[number];
 
-// Ролите идват от YAML правилата (docs/RULES.md), затова не са затворен списък.
+// Ролите идват от YAML правилата (docs/RULES.md), а видовете и езиците от регистъра.
 export type Role = string;
+export type Language = string;
+export type NodeKind = string;
+export type EdgeKind = string;
 export type TypeId = string;
 
 export interface GraphModel {
@@ -43,6 +32,9 @@ export interface Node {
   language: Language;
   role?: Role;
   framework?: string;
+  // от архитектурата на проекта (.archgraph/architecture.yaml): слой и bounded context/модул
+  layer?: string;
+  context?: string;
   location: Location;
   members: Member[];
   tags?: string[];
@@ -102,6 +94,8 @@ export interface Edge {
   from: EdgeEnd;
   to: EdgeEnd;
   confidence: Confidence;
+  // къде е описана връзката, ако не е в кода на нода (DI регистрация, route файл)
+  location?: Location;
 }
 
 export interface Location {

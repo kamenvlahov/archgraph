@@ -1,15 +1,13 @@
 import {
   CONFIDENCES,
-  EDGE_KINDS,
-  LANGUAGES,
   MODEL_VERSION,
-  NODE_KINDS,
   TYPE_REF_KINDS,
   VISIBILITIES,
   type GraphModel,
   type Member,
   type Node,
 } from './types.ts';
+import { CORE_REGISTRY, type Registry } from './registry.ts';
 
 export interface ValidationError {
   path: string;
@@ -22,7 +20,8 @@ type Obj = Record<string, unknown>;
 
 // Проверява формата (същото като schema.json) и връзките вътре в графа:
 // уникални id-та, ребрата сочат към съществуващи нодове, методи и портове.
-export function validate(input: unknown): ValidationResult {
+// Видовете и езиците се приемат, ако са в регистъра (ядро + разширения).
+export function validate(input: unknown, registry: Registry = CORE_REGISTRY): ValidationResult {
   const errors: ValidationError[] = [];
   const fail = (path: string, message: string) => errors.push({ path, message });
 
@@ -138,13 +137,19 @@ export function validate(input: unknown): ValidationResult {
 
   const node = (v: unknown, path: string) => {
     if (!isObj(v, path)) return;
-    only(v, ['id', 'kind', 'name', 'language', 'role', 'framework', 'location', 'members', 'tags'], path);
+    only(
+      v,
+      ['id', 'kind', 'name', 'language', 'role', 'framework', 'layer', 'context', 'location', 'members', 'tags'],
+      path,
+    );
     str(v, 'id', path);
-    oneOf(v, 'kind', NODE_KINDS, path);
+    oneOf(v, 'kind', [...registry.nodeKinds], path);
     str(v, 'name', path);
-    oneOf(v, 'language', LANGUAGES, path);
+    oneOf(v, 'language', [...registry.languages], path);
     str(v, 'role', path, false);
     str(v, 'framework', path, false);
+    str(v, 'layer', path, false);
+    str(v, 'context', path, false);
     location(v.location, `${path}.location`);
     if (isArr(v.members, `${path}.members`)) v.members.forEach((m, i) => member(m, `${path}.members[${i}]`));
     if (v.tags !== undefined && isArr(v.tags, `${path}.tags`))
@@ -161,12 +166,13 @@ export function validate(input: unknown): ValidationResult {
 
   const edge = (v: unknown, path: string) => {
     if (!isObj(v, path)) return;
-    only(v, ['id', 'kind', 'from', 'to', 'confidence'], path);
+    only(v, ['id', 'kind', 'from', 'to', 'confidence', 'location'], path);
     str(v, 'id', path);
-    oneOf(v, 'kind', EDGE_KINDS, path);
+    oneOf(v, 'kind', [...registry.edgeKinds], path);
     edgeEnd(v.from, `${path}.from`);
     edgeEnd(v.to, `${path}.to`);
     oneOf(v, 'confidence', CONFIDENCES, path);
+    if (v.location !== undefined) location(v.location, `${path}.location`);
   };
 
   if (!isObj(input, '$')) return { ok: false, errors };

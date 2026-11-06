@@ -6,22 +6,52 @@
   "required": ["version", "root", "nodes", "edges", "types"],
   "additionalProperties": false,
   "properties": {
-    "version": { "const": 1 },
-    "root": { "$ref": "#/$defs/nonEmpty" },
-    "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" } },
-    "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } },
-    "types": { "type": "object", "additionalProperties": { "$ref": "#/$defs/typeShape" } }
+    "version": {
+      "const": 1
+    },
+    "root": {
+      "$ref": "#/$defs/nonEmpty"
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/edge"
+      }
+    },
+    "types": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/typeShape"
+      }
+    }
   },
   "$defs": {
-    "nonEmpty": { "type": "string", "minLength": 1 },
+    "nonEmpty": {
+      "type": "string",
+      "minLength": 1
+    },
     "location": {
       "type": "object",
       "required": ["file", "line", "endLine"],
       "additionalProperties": false,
       "properties": {
-        "file": { "$ref": "#/$defs/nonEmpty" },
-        "line": { "type": "integer", "minimum": 1 },
-        "endLine": { "type": "integer", "minimum": 1 }
+        "file": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "endLine": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     },
     "node": {
@@ -29,15 +59,45 @@
       "required": ["id", "kind", "name", "language", "location", "members"],
       "additionalProperties": false,
       "properties": {
-        "id": { "$ref": "#/$defs/nonEmpty" },
-        "kind": { "enum": ["class", "interface", "trait", "enum", "function", "module", "route"] },
-        "name": { "$ref": "#/$defs/nonEmpty" },
-        "language": { "enum": ["php", "node", "python"] },
-        "role": { "$ref": "#/$defs/nonEmpty" },
-        "framework": { "$ref": "#/$defs/nonEmpty" },
-        "location": { "$ref": "#/$defs/location" },
-        "members": { "type": "array", "items": { "$ref": "#/$defs/member" } },
-        "tags": { "type": "array", "items": { "type": "string" } }
+        "id": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "kind": {
+          "$ref": "#/$defs/kindName"
+        },
+        "name": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "language": {
+          "$ref": "#/$defs/kindName"
+        },
+        "role": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "framework": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "layer": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "context": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "location": {
+          "$ref": "#/$defs/location"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/member"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "member": {
@@ -45,14 +105,36 @@
       "required": ["name", "visibility", "inputs", "location"],
       "additionalProperties": false,
       "properties": {
-        "name": { "$ref": "#/$defs/nonEmpty" },
-        "visibility": { "enum": ["public", "protected", "private"] },
-        "static": { "type": "boolean" },
-        "async": { "type": "boolean" },
-        "inputs": { "type": "array", "items": { "$ref": "#/$defs/port" } },
-        "output": { "$ref": "#/$defs/port" },
-        "throws": { "type": "array", "items": { "$ref": "#/$defs/typeRef" } },
-        "location": { "$ref": "#/$defs/location" }
+        "name": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "visibility": {
+          "enum": ["public", "protected", "private"]
+        },
+        "static": {
+          "type": "boolean"
+        },
+        "async": {
+          "type": "boolean"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/port"
+          }
+        },
+        "output": {
+          "$ref": "#/$defs/port"
+        },
+        "throws": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/typeRef"
+          }
+        },
+        "location": {
+          "$ref": "#/$defs/location"
+        }
       }
     },
     "port": {
@@ -60,11 +142,21 @@
       "required": ["name", "type"],
       "additionalProperties": false,
       "properties": {
-        "name": { "$ref": "#/$defs/nonEmpty" },
-        "type": { "$ref": "#/$defs/typeRef" },
-        "optional": { "type": "boolean" },
-        "default": { "type": "string" },
-        "variadic": { "type": "boolean" }
+        "name": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "type": {
+          "$ref": "#/$defs/typeRef"
+        },
+        "optional": {
+          "type": "boolean"
+        },
+        "default": {
+          "type": "string"
+        },
+        "variadic": {
+          "type": "boolean"
+        }
       }
     },
     "field": {
@@ -72,10 +164,18 @@
       "required": ["name", "type"],
       "additionalProperties": false,
       "properties": {
-        "name": { "$ref": "#/$defs/nonEmpty" },
-        "type": { "$ref": "#/$defs/typeRef" },
-        "optional": { "type": "boolean" },
-        "readonly": { "type": "boolean" }
+        "name": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "type": {
+          "$ref": "#/$defs/typeRef"
+        },
+        "optional": {
+          "type": "boolean"
+        },
+        "readonly": {
+          "type": "boolean"
+        }
       }
     },
     "typeShape": {
@@ -83,66 +183,129 @@
       "required": ["id", "name", "fields"],
       "additionalProperties": false,
       "properties": {
-        "id": { "$ref": "#/$defs/nonEmpty" },
-        "name": { "$ref": "#/$defs/nonEmpty" },
-        "nodeId": { "$ref": "#/$defs/nonEmpty" },
-        "fields": { "type": "array", "items": { "$ref": "#/$defs/field" } }
+        "id": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "name": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "nodeId": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/field"
+          }
+        }
       }
     },
     "typeRef": {
       "type": "object",
       "required": ["kind"],
       "properties": {
-        "kind": { "enum": ["named", "primitive", "array", "map", "union", "shape", "unknown"] }
+        "kind": {
+          "enum": ["named", "primitive", "array", "map", "union", "shape", "unknown"]
+        }
       },
       "oneOf": [
         {
           "required": ["id"],
           "additionalProperties": false,
           "properties": {
-            "kind": { "const": "named" },
-            "id": { "$ref": "#/$defs/nonEmpty" },
-            "args": { "type": "array", "items": { "$ref": "#/$defs/typeRef" } }
+            "kind": {
+              "const": "named"
+            },
+            "id": {
+              "$ref": "#/$defs/nonEmpty"
+            },
+            "args": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/typeRef"
+              }
+            }
           }
         },
         {
           "required": ["name"],
           "additionalProperties": false,
-          "properties": { "kind": { "const": "primitive" }, "name": { "$ref": "#/$defs/nonEmpty" } }
-        },
-        {
-          "required": ["of"],
-          "additionalProperties": false,
-          "properties": { "kind": { "const": "array" }, "of": { "$ref": "#/$defs/typeRef" } }
-        },
-        {
-          "required": ["key", "value"],
-          "additionalProperties": false,
           "properties": {
-            "kind": { "const": "map" },
-            "key": { "$ref": "#/$defs/typeRef" },
-            "value": { "$ref": "#/$defs/typeRef" }
+            "kind": {
+              "const": "primitive"
+            },
+            "name": {
+              "$ref": "#/$defs/nonEmpty"
+            }
           }
         },
         {
           "required": ["of"],
           "additionalProperties": false,
           "properties": {
-            "kind": { "const": "union" },
-            "of": { "type": "array", "items": { "$ref": "#/$defs/typeRef" } }
+            "kind": {
+              "const": "array"
+            },
+            "of": {
+              "$ref": "#/$defs/typeRef"
+            }
+          }
+        },
+        {
+          "required": ["key", "value"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "map"
+            },
+            "key": {
+              "$ref": "#/$defs/typeRef"
+            },
+            "value": {
+              "$ref": "#/$defs/typeRef"
+            }
+          }
+        },
+        {
+          "required": ["of"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "union"
+            },
+            "of": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/typeRef"
+              }
+            }
           }
         },
         {
           "required": ["fields"],
           "additionalProperties": false,
           "properties": {
-            "kind": { "const": "shape" },
-            "fields": { "type": "array", "items": { "$ref": "#/$defs/field" } }
+            "kind": {
+              "const": "shape"
+            },
+            "fields": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/field"
+              }
+            }
           }
         },
         {
           "additionalProperties": false,
-          "properties": { "kind": { "const": "unknown" }, "hint": { "$ref": "#/$defs/nonEmpty" } }
+          "properties": {
+            "kind": {
+              "const": "unknown"
+            },
+            "hint": {
+              "$ref": "#/$defs/nonEmpty"
+            }
+          }
         }
       ]
     },
@@ -151,9 +314,15 @@
       "required": ["node"],
       "additionalProperties": false,
       "properties": {
-        "node": { "$ref": "#/$defs/nonEmpty" },
-        "member": { "$ref": "#/$defs/nonEmpty" },
-        "port": { "$ref": "#/$defs/nonEmpty" }
+        "node": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "member": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "port": {
+          "$ref": "#/$defs/nonEmpty"
+        }
       }
     },
     "edge": {
@@ -161,14 +330,30 @@
       "required": ["id", "kind", "from", "to", "confidence"],
       "additionalProperties": false,
       "properties": {
-        "id": { "$ref": "#/$defs/nonEmpty" },
-        "kind": {
-          "enum": ["implements", "extends", "injects", "calls", "creates", "routes-to", "returns", "uses-type"]
+        "id": {
+          "$ref": "#/$defs/nonEmpty"
         },
-        "from": { "$ref": "#/$defs/edgeEnd" },
-        "to": { "$ref": "#/$defs/edgeEnd" },
-        "confidence": { "enum": ["exact", "inferred"] }
+        "kind": {
+          "$ref": "#/$defs/kindName"
+        },
+        "from": {
+          "$ref": "#/$defs/edgeEnd"
+        },
+        "to": {
+          "$ref": "#/$defs/edgeEnd"
+        },
+        "confidence": {
+          "enum": ["exact", "inferred"]
+        },
+        "location": {
+          "$ref": "#/$defs/location"
+        }
       }
+    },
+    "kindName": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Вид от регистъра: ядро + разширения (D-007). Схемата проверява само формата на името."
     }
   }
 }

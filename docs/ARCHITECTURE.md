@@ -73,7 +73,7 @@ archgraph/
 ## Общ модел
 
 ```ts
-type Language = 'php' | 'node' | 'python';
+type Language = string; // от регистъра: ядро 'php' | 'node' | 'python' + разширения
 
 interface GraphModel {
   version: 1;
@@ -85,11 +85,13 @@ interface GraphModel {
 
 interface Node {
   id: string; // "php:App\\Order\\OrderService"
-  kind: 'class' | 'interface' | 'trait' | 'enum' | 'function' | 'module' | 'route';
+  kind: string; // от регистъра: ядро class | interface | trait | enum | function | module | route
   name: string;
   language: Language;
   role?: Role; // от правилата: controller, service, repository, factory, dto, entity...
   framework?: string; // "mezzio", "nestjs", "fastapi"...
+  layer?: string; // от .archgraph/architecture.yaml: "domain", "application"... (D-009)
+  context?: string; // bounded context / модул: "Order", "Billing"
   location: Location;
   members: Member[]; // методите → редове с портове в нода
   tags?: string[]; // "abstract", "final", "deprecated", "unused"
@@ -140,10 +142,11 @@ interface Field {
 
 interface Edge {
   id: string;
-  kind: 'implements' | 'extends' | 'injects' | 'calls' | 'creates' | 'routes-to' | 'returns' | 'uses-type';
+  kind: string; // от регистъра: ядро implements | extends | injects | calls | creates | routes-to | returns | uses-type | binds
   from: { node: string; member?: string; port?: string };
   to: { node: string; member?: string; port?: string };
   confidence: 'exact' | 'inferred'; // exact = от SCIP/типове, inferred = от евристика
+  location?: Location; // къде е описана връзката извън нода: DI регистрация, route файл
 }
 
 interface Location {
@@ -152,6 +155,55 @@ interface Location {
   endLine: number;
 }
 ```
+
+## Видове зависимости
+
+| Зависимост                   | Ребро                   | Откъде                                                                            | Къде       |
+| ---------------------------- | ----------------------- | --------------------------------------------------------------------------------- | ---------- |
+| Наследяване                  | `extends`, `implements` | синтаксис                                                                         | ядро       |
+| Инжектиране                  | `injects`               | конструктор, `Depends`, декоратори                                                | ядро       |
+| Регистрация в DI             | `binds`                 | `bindings` в YAML правилата ([RULES.md](RULES.md#регистрация-на-услуги-bindings)) | ядро       |
+| Създаване                    | `creates`               | `new X`, `X(...)`, фабрики                                                        | ядро       |
+| Извикване (вкл. статично)    | `calls`                 | синтаксис + SCIP                                                                  | ядро       |
+| Типове в сигнатури           | `uses-type`, `returns`  | портовете                                                                         | ядро       |
+| HTTP вход                    | `routes-to`             | route файлове, декоратори                                                         | ядро       |
+| Изгледи                      | `renders`, `includes`   | ресурсен адаптер за шаблони                                                       | разширение |
+| Събития                      | `emits`, `listens`      | dispatch извиквания, listener регистрации                                         | разширение |
+| Опашки и задачи              | `dispatches`, `handles` | `dispatch(new Job)`, message handlers                                             | разширение |
+| Таблици                      | `maps-to`               | ORM атрибути, миграции                                                            | разширение |
+| Модули и импорти             | `imports`               | `use`, `import`, `from ... import`                                                | разширение |
+| Външни услуги и конфигурация | `requests`, `reads`     | HTTP клиенти, `env()`/`getenv`                                                    | разширение |
+
+Ядрото покрива това, което има във всеки backend проект. Останалото е разширение по [D-007](DECISIONS.md), а за конкретния framework всичко се настройва в YAML правилата.
+
+## Слоеве и контексти
+
+Слоевете и контекстите са две независими оси, описани в `.archgraph/architecture.yaml` ([RULES.md](RULES.md#архитектура-на-проекта-слоеве-и-контексти), [D-009](DECISIONS.md)):
+
+- **Слой** (`layer`): domain, application, adapters... според стила. В интерфейса слоевете са хоризонтални ленти, а elkjs подрежда нодовете в лентата на слоя им.
+- **Контекст** (`context`): bounded context или модул. В интерфейса е група, която може да се свие, както групите в ComfyUI.
+- **`allow`**: позволените посоки на зависимост. Ребро извън тях е нарушение. Маркира се в червено и се връща от MCP (`violations`).
+- **Плановете за AI** включват слоя на всеки засегнат и нов клас и списъка от какво той не може да зависи.
+
+## Разширяване
+
+Ядрото не изброява всички компоненти на архитектурата ([D-007](DECISIONS.md)). Има три места за разширение:
+
+| Какво               | Къде                        | Пример                                                 |
+| ------------------- | --------------------------- | ------------------------------------------------------ |
+| Видове нодове/ребра | регистър в `packages/model` | `template` + `renders`, `event` + `emits`/`listens`    |
+| Роли                | каталог в YAML правилата    | `middleware`, `job`, `listener` със слой, цвят, икона  |
+| Източници           | езиков или ресурсен адаптер | Go (език), Twig/Blade/Jinja, `services.yaml` (ресурси) |
+
+Едно разширение обявява какво регистрира и носи адаптера си:
+
+```ts
+const views: Extension = { name: 'views', nodeKinds: ['template'], edgeKinds: ['renders', 'includes'] };
+const registry = extendRegistry(CORE_REGISTRY, views);
+validate(graph, registry);
+```
+
+Engine-ът сглобява регистъра от заредените разширения. Интерфейсът и плановете не съдържат списъци с видове. Взимат ги от регистъра и каталога на ролите.
 
 ## Портове и структура на типовете
 
