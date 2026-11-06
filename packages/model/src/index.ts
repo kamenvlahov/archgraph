@@ -1,1 +1,2 @@
-export const MODEL_VERSION = 1;
+export * from './types.ts';
+export { validate, type ValidationError, type ValidationResult } from './validate.ts';
