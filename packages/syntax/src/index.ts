@@ -17,6 +17,16 @@ export function parse(parser: Parser, text: string): Tree {
   return tree;
 }
 
+// Дървото живее в паметта на WASM и GC не го чисти. Без delete() голям проект изчерпва паметта и процесът пада.
+export function withTree<T>(parser: Parser, text: string, read: (tree: Tree) => T): T {
+  const tree = parse(parser, text);
+  try {
+    return read(tree);
+  } finally {
+    tree.delete();
+  }
+}
+
 export interface SyntaxError {
   line: number;
   text: string;

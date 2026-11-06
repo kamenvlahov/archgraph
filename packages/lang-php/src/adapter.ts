@@ -9,7 +9,7 @@ import type {
   SourceFile,
   TypeRef,
 } from '@archgraph/model';
-import { parse, type Node } from '@archgraph/syntax';
+import { withTree, type Node } from '@archgraph/syntax';
 import { phpParser } from './grammar.ts';
 import { isPrimitive, parseDocComment, parseDocType, type DocComment } from './phpdoc.ts';
 
@@ -36,7 +36,7 @@ export const phpAdapter: LanguageAdapter = {
   extensions: ['.php'],
   async read(files: SourceFile[]): Promise<GraphFragment> {
     const parser = await phpParser();
-    const nodes = files.flatMap((file) => readFile(parse(parser, file.text).rootNode, file.path));
+    const nodes = files.flatMap((file) => withTree(parser, file.text, (tree) => readFile(tree.rootNode, file.path)));
     return { nodes, edges: [], types: {} };
   },
 };
