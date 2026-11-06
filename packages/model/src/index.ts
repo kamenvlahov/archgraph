@@ -1,3 +1,4 @@
 export * from './types.ts';
 export { validate, type ValidationError, type ValidationResult } from './validate.ts';
 export * from './registry.ts';
+export type { GraphFragment, LanguageAdapter, SourceFile } from './adapter.ts';

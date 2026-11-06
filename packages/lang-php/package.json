@@ -5,5 +5,10 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@archgraph/model": "workspace:*",
+    "@archgraph/syntax": "workspace:*",
+    "tree-sitter-php": "0.24.2"
   }
 }

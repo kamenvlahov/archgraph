@@ -1,3 +1,10 @@
 packages:
   - packages/*
   - apps/*
+
+# Граматиките имат native install скрипт (node-gyp). Ползваме само .wasm файловете им.
+allowBuilds:
+  tree-sitter-php: false
+  tree-sitter-typescript: false
+  tree-sitter-javascript: false # зависимост на tree-sitter-typescript
+  tree-sitter-python: false

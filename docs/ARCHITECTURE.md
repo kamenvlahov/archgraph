@@ -51,6 +51,7 @@
 archgraph/
 ├─ packages/
 │  ├─ model/          общ модел: типове, валидация, сериализация
+│  ├─ syntax/         обвивка около web-tree-sitter: зареждане на граматика, парсване, синтактични грешки
 │  ├─ engine/         зарежда адаптери и правила, държи графа, наблюдава файлове, JSON-RPC
 │  ├─ lang-php/       tree-sitter-php + scip-php → модел
 │  ├─ lang-node/      tree-sitter-typescript/javascript + scip-typescript → модел

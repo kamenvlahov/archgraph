@@ -1,1 +1,1 @@
-export {};
+export { pythonParser } from './grammar.ts';
