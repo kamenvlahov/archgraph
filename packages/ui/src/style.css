@@ -646,3 +646,25 @@ aside .scroll {
   padding-left: 12px;
   text-indent: -12px;
 }
+
+nav input {
+  margin-top: 12px;
+}
+nav ul {
+  flex: none;
+}
+nav {
+  overflow: auto;
+}
+nav .hint {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 0 16px 8px;
+}
+.dot-role {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}

@@ -22,11 +22,14 @@ export interface GraphFragment {
 // извикванията извън класовете, които имат низов аргумент (`$app->post('/orders', H::class)`),
 // и присвояванията на ниво модул от такова извикване (`router = APIRouter(prefix="/orders")`).
 export interface Annotation {
-  kind: 'decorator' | 'call' | 'assign';
+  kind: 'decorator' | 'call' | 'assign' | 'object';
   name: string; // както е в кода, без `@` и `#[`: `router.post`, `Post`, `$app->post`, `APIRouter`
   args: Arg[];
   on?: { node: string; member?: string }; // decorator: класът или методът
   target?: string; // assign: променливата
+  // object: обект в масив (`[{ path: 'login', component: Login }]`), свойствата са именувани args;
+  // `parent` е мястото на обекта, в чийто масив е вложен (`children: [...]`)
+  parent?: Location;
   location: Location;
 }
 

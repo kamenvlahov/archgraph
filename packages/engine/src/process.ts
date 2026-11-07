@@ -164,14 +164,20 @@ export function processView(query: GraphQuery, start: Target, depth: number): Pr
 
   // Обхождане в ширина: колоната е първата дълбочина, на която нодът се среща.
   const seen = new Set<string>();
-  let level: [Target, number][] = [[start, 0]];
+  // `entry` е клас, който е начало на процеса (избран или сочен от route): тръгва се от всеки негов
+  // метод. Клас, стигнат с `new X`, не се разгъва, защото процесът не минава през всичките му методи.
+  let level: [Target, number, boolean][] = [[start, 0, true]];
   for (let d = 0; d <= depth && level.length; d++) {
-    const next: [Target, number][] = [];
-    for (const [t, column] of level) {
+    const next: [Target, number, boolean][] = [];
+    for (const [t, column, entry] of level) {
       visit(t, column);
       const key = `${t.node.id}#${t.member?.name ?? ''}`;
       if (seen.has(key) || d === depth) continue;
       seen.add(key);
+      if (entry && !t.member && t.node.kind !== 'route') {
+        for (const member of t.node.members) next.push([{ node: t.node, member }, column, false]);
+        continue;
+      }
       const children = t.node.kind === 'route' ? query.handlers(t.node) : query.callees(t);
       for (const [child, arrow] of children) {
         const kind = ARROWS[arrow] ?? 'calls';
@@ -180,7 +186,7 @@ export function processView(query: GraphQuery, start: Target, depth: number): Pr
         const id = `${kind}:${from.node}#${from.member ?? ''}->${to.node}#${to.member ?? ''}`;
         edges.set(id, { id, kind, from, to, inferred: arrow === '→? ' || arrow === '?? ' });
         // Имплементацията стои под договора си, а не колона по-надясно.
-        next.push([child, kind === 'implements' ? column : column + 1]);
+        next.push([child, kind === 'implements' ? column : column + 1, kind === 'routes-to']);
       }
     }
     level = next;

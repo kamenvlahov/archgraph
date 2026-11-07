@@ -47,6 +47,7 @@ interface Ctx {
   calls: CallSite[];
   types: Record<string, TypeShape>;
   annotations: Annotation[];
+  nested: GraphNode[]; // вложени функции с декоратор (D-013)
 }
 
 export const pythonAdapter: LanguageAdapter = {
@@ -86,6 +87,7 @@ export const pythonAdapter: LanguageAdapter = {
         calls,
         types,
         annotations,
+        nested: [],
       };
       return withTree(parser, file.text, (tree) => readModule(tree.rootNode, ctx));
     });
@@ -114,7 +116,7 @@ function readModule(root: Node, ctx: Ctx): GraphNode[] {
       ctx.locals.add(def.childForFieldName('name')?.text ?? '');
     }
   }
-  return decls.map((stmt) => readDeclaration(stmt, ctx));
+  return [...decls.map((stmt) => readDeclaration(stmt, ctx)), ...ctx.nested];
 }
 
 function definition(stmt: Node): Node | undefined {
@@ -509,13 +511,17 @@ interface Body {
   props: Map<string, Expr>;
   isMethod: boolean; // първият параметър е self / cls
   ctx: Ctx;
+  outer?: Map<string, Expr>; // променливите на външната функция за вложена (self, routes...)
 }
 
 // Извикванията в тялото на функция или метод. Локалните променливи се помнят по реда на присвояване.
 function readCalls(fn: Node, member: Member, b: Body) {
   const ctx = withLocalImports(fn, b.ctx);
   const from = { node: b.node, member: member.name };
-  const vars = new Map<string, Expr>(member.inputs.map((p) => [p.name, { kind: 'type', type: p.type }]));
+  const vars = new Map<string, Expr>([
+    ...(b.outer ?? []),
+    ...member.inputs.map((p): [string, Expr] => [p.name, { kind: 'type', type: p.type }]),
+  ]);
   // self / cls не е порт, затова името му идва от синтаксиса.
   const first = fn.childForFieldName('parameters')?.namedChildren[0];
   const self = b.isMethod && first?.type === 'identifier' ? first.text : undefined;
@@ -558,6 +564,26 @@ function readCalls(fn: Node, member: Member, b: Body) {
 
   const visit = (n: Node) => {
     switch (n.type) {
+      case 'decorated_definition': {
+        // Вложена функция с декоратор е регистрирана някъде (`@routes.get("/prompt")` в aiohttp,
+        // `@app.route` във Flask фабрика): входна точка, собствен нод (D-013). Извикванията ѝ са нейни.
+        const def = definition(n);
+        if (def?.type !== 'function_definition') break;
+        const name = def.childForFieldName('name')?.text ?? '';
+        const id = `${b.node}.${b.node.endsWith(`.${member.name}`) ? '' : `${member.name}.`}${name}`;
+        const inner = readMember(n, id, ctx, false);
+        ctx.nested.push({
+          id,
+          kind: 'function',
+          name,
+          language: 'python',
+          location: location(n, ctx.file),
+          members: [inner],
+        });
+        annotate(n, { node: id, member: name }, ctx);
+        readCalls(def, inner, { node: id, props: b.props, isMethod: false, ctx, outer: new Map(vars) });
+        return;
+      }
       case 'assignment': {
         const left = n.childForFieldName('left');
         const type = n.childForFieldName('type');

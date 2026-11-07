@@ -103,7 +103,7 @@ export async function scan(
 // Framework-ите, чийто manifest в корена ги споменава (`composer.json`, `package.json`, `pyproject.toml`).
 function detect(root: string, all: FrameworkRules[]): FrameworkRules[] {
   const read = (file: string) => (existsSync(join(root, file)) ? readFileSync(join(root, file), 'utf8') : '');
-  return all.filter((f) => f.detect.some((d) => read(d.file).includes(d.contains)));
+  return all.filter((f) => f.detect.some((d) => read(d.file).toLowerCase().includes(d.contains.toLowerCase())));
 }
 
 // Пуска инсталираните SCIP индексатори. Връща точните ребра и извикванията, които остават за евристиката.

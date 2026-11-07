@@ -52,6 +52,12 @@ test('serve: ендпойнти, процес и план по HTTP', async () =
       await fetch(`${base}/api/plan?task=x&target=${encodeURIComponent('OrderService#place')}`)
     ).text();
     expect(plan).toContain('### OrderService#place');
+    const found = (await (await fetch(`${base}/api/search?q=orderserv`)).json()) as { label: string }[];
+    expect(found.slice(0, 3).map((e) => e.label)).toEqual([
+      'OrderService',
+      'OrderServiceFactory',
+      'OrderServiceInterface',
+    ]);
     expect((await fetch(`${base}/../../package.json`)).status).toBe(404);
   } finally {
     server.close();

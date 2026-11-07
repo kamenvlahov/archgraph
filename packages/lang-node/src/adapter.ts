@@ -75,7 +75,43 @@ function readModule(root: Node, ctx: Ctx): GraphNode[] {
     if (decl) decls.push({ decl, outer: stmt });
   }
   for (const { decl } of decls) for (const name of declaredNames(decl)) ctx.locals.add(name);
+  objectFacts(root, ctx);
   return decls.flatMap(({ decl, outer }) => readDeclaration(decl, outer, ctx));
+}
+
+// Обекти в масив с поне едно низово свойство: таблици като Angular `Routes`
+// (`{ path: 'login', loadComponent: () => import('./login').then((m) => m.Login), children: [...] }`).
+// Кое от тях е route, решават правилата (D-012).
+function objectFacts(root: Node, ctx: Ctx) {
+  for (const obj of root.descendantsOfType('object')) {
+    if (obj.parent?.type !== 'array') continue;
+    const args = obj.namedChildren.flatMap((pair): Arg[] => {
+      if (pair.type !== 'pair') return [];
+      const key = pair.childForFieldName('key');
+      const value = pair.childForFieldName('value');
+      const name = key?.type === 'string' ? key.text.slice(1, -1) : (key?.text ?? '');
+      return value ? [{ ...lazyClass(value, ctx), name }] : [];
+    });
+    if (!args.some((a) => a.kind === 'string')) continue;
+    // обект → масив → pair (`children:`) → обект
+    const outer = obj.parent?.parent?.type === 'pair' ? obj.parent.parent.parent : undefined;
+    ctx.annotations.push({
+      kind: 'object',
+      name: '',
+      args,
+      ...(outer?.type === 'object' ? { parent: location(outer, ctx.file) } : {}),
+      location: location(obj, ctx.file),
+    });
+  }
+}
+
+// `() => import('./x').then((m) => m.X)` е препратка към класа X в ./x; останалото като argValue.
+function lazyClass(value: Node, ctx: Ctx): Arg {
+  const m = /^\(\)\s*=>\s*import\(\s*['"]([^'"]+)['"]\s*\)\s*\.then\(\s*\(?\s*(\w+)\s*\)?\s*=>\s*\2\.(\w+)\s*\)$/s.exec(
+    value.text,
+  );
+  if (m?.[1] && m[3]) return { kind: 'class', id: `node:${resolveModule(m[1], ctx)}#${m[3]}` };
+  return argValue(value, ctx);
 }
 
 function declaredNames(decl: Node): string[] {

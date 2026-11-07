@@ -70,3 +70,12 @@ test('детайли на нода: наследяване, тагове, ост
       .sort(),
   ).toEqual(['calls OrderService#place', 'creates OrderServiceFactory#__invoke', 'injects OrderService#__construct']);
 });
+
+test('процес от клас: тръгва от всеки негов метод', async () => {
+  const query = new GraphQuery((await scan(join(fixtures, 'php-mezzio'), { scip: false })).graph);
+  const [start] = query.find('OrderService');
+  if (!start) throw new Error('няма OrderService');
+  const v = processView(query, start, 3);
+  expect(v.nodes[0]?.members.map((m) => m.name)).toEqual(['__construct', 'place', 'get']);
+  expect(v.nodes.map((n) => n.name)).toContain('OrderRepositoryInterface');
+});

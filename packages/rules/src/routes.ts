@@ -31,6 +31,25 @@ export function routes(
       edges.push(edge('routes-to', { node: id }, to));
     };
 
+    const objects = rules.objects;
+    if (objects) {
+      const at = (l: { file: string; line: number }) => `${l.file}:${l.line}`;
+      const byPlace = new Map(annotations.filter((a) => a.kind === 'object').map((a) => [at(a.location), a]));
+      const own = (a: Annotation) => {
+        const p = a.args.find((x) => x.name === objects.path);
+        return p?.kind === 'string' ? p.value : undefined;
+      };
+      const full = (a: Annotation, depth = 0): string => {
+        const parent = a.parent && depth < 20 ? byPlace.get(at(a.parent)) : undefined;
+        return join(parent ? full(parent, depth + 1) : '', own(a) ?? '');
+      };
+      for (const a of byPlace.values()) {
+        const handler = a.args.find((x) => x.kind === 'class' && objects.handler.includes(x.name ?? ''));
+        if (own(a) === undefined || handler?.kind !== 'class' || !byId.has(handler.id)) continue;
+        add(objects.method, full(a), a, { node: handler.id });
+      }
+    }
+
     for (const a of annotations) {
       if (a.kind === 'decorator' && a.on?.member && rules.decorators?.includes(last(a.name))) {
         add(httpMethod(a.name), join(prefix(a, annotations, rules), path(a)), a, a.on);

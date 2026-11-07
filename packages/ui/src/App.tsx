@@ -41,6 +41,7 @@ export function App() {
   const [view, setView] = useState<ProcessView>();
   const [error, setError] = useState<string>();
   const [depth, setDepth] = useState(6);
+  const [found, setFound] = useState<Entry[]>([]);
 
   useEffect(() => {
     fetch('/api/project')
@@ -58,6 +59,21 @@ export function App() {
       .then((v: ProcessView & { error?: string }) => (v.error ? setError(v.error) : setView(v)))
       .catch((e: Error) => setError(e.message));
   }, [entry, depth]);
+
+  // Търсенето показва и класове и методи: начало на процес, когато ендпойнтът липсва.
+  useEffect(() => {
+    if (filter.trim().length < 2) {
+      setFound([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetch(`/api/search?q=${encodeURIComponent(filter)}`)
+        .then((r) => r.json())
+        .then(setFound)
+        .catch(() => setFound([]));
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [filter]);
 
   const shown = (project?.entries ?? []).filter((e) => e.label.toLowerCase().includes(filter.toLowerCase()));
   return (
@@ -92,8 +108,13 @@ export function App() {
         )}
       </header>
       <nav>
+        <input placeholder="ендпойнт, клас или метод…" value={filter} onChange={(e) => setFilter(e.target.value)} />
         <h3>Ендпойнти</h3>
-        <input placeholder="търси…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        {shown.length === 0 && (
+          <div className="hint">
+            {project?.entries.length ? 'няма съвпадения' : 'няма намерени ендпойнти; потърси клас или метод'}
+          </div>
+        )}
         <ul>
           {shown.map((e) => (
             <li key={e.id} className={e.id === entry ? 'on' : ''} onClick={() => setEntry(e.id)} title={e.label}>
@@ -104,6 +125,22 @@ export function App() {
             </li>
           ))}
         </ul>
+        {found.length > 0 && (
+          <>
+            <h3>Класове и методи</h3>
+            <ul>
+              {found.map((e) => (
+                <li key={e.id} className={e.id === entry ? 'on' : ''} onClick={() => setEntry(e.id)} title={e.label}>
+                  <i className="dot-role" style={{ background: `var(--r-${e.role}, var(--r-class))` }} />
+                  {e.label}
+                  <small>
+                    {e.file}:{e.line}
+                  </small>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </nav>
       <ReactFlowProvider>
         <Process view={view} error={error} />

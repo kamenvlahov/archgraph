@@ -22,6 +22,9 @@ export interface RouteRules {
   mount?: { keyword: string };
   // методът на класа-handler, към който сочи `routes-to`
   handlerMethods?: string[];
+  // таблица от обекти: `{ path: 'x', component: X, children: [...] }` (Angular). Пътят на вложения
+  // обект започва с пътищата на обектите, в които е; обект без handler само дава префикс.
+  objects?: { path: string; handler: string[]; method: string };
 }
 
 export const FRAMEWORKS: FrameworkRules[] = [
@@ -54,6 +57,34 @@ export const FRAMEWORKS: FrameworkRules[] = [
       decorators: ['get', 'post', 'put', 'patch', 'delete', 'api_route'],
       prefix: { assign: 'APIRouter', keyword: 'prefix' },
       mount: { keyword: 'prefix' },
+    },
+  },
+  {
+    framework: 'angular',
+    language: 'node',
+    detect: [{ file: 'package.json', contains: '"@angular/router"' }],
+    routes: { objects: { path: 'path', handler: ['component', 'loadComponent'], method: 'PAGE' } },
+  },
+  {
+    // `@routes.get("/prompt")`, често във вложена функция в метод (ComfyUI `PromptServer.__init__`)
+    framework: 'aiohttp',
+    language: 'python',
+    detect: [
+      { file: 'requirements.txt', contains: 'aiohttp' },
+      { file: 'pyproject.toml', contains: 'aiohttp' },
+    ],
+    routes: { decorators: ['get', 'post', 'put', 'patch', 'delete', 'head', 'view'] },
+  },
+  {
+    framework: 'flask',
+    language: 'python',
+    detect: [
+      { file: 'requirements.txt', contains: 'flask' },
+      { file: 'pyproject.toml', contains: 'flask' },
+    ],
+    routes: {
+      decorators: ['route', 'get', 'post', 'put', 'patch', 'delete'],
+      prefix: { assign: 'Blueprint', keyword: 'url_prefix' },
     },
   },
 ];

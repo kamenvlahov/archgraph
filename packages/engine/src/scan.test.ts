@@ -339,3 +339,88 @@ class Svc:
     ['other', 'unknown'],
   ]);
 });
+
+test('aiohttp: route от вложена функция с декоратор, която е собствен нод (D-013)', async () => {
+  const dir = project({
+    'requirements.txt': 'aiohttp>=3\n',
+    'server.py': `from aiohttp import web
+
+
+class PromptServer:
+    def __init__(self):
+        routes = web.RouteTableDef()
+
+        @routes.post("/prompt")
+        async def post_prompt(request):
+            return self.queue_info()
+
+        def helper():
+            return self.queue_info()
+
+    def queue_info(self) -> dict:
+        return {}
+`,
+  });
+  const { graph } = await scan(dir, { scip: false });
+  const ids = graph.edges.map((e) => e.id);
+  expect(graph.nodes.map((n) => n.id)).toContain('python:server.PromptServer.__init__.post_prompt');
+  // closure без декоратор не е нод: извикванията му остават в __init__
+  expect(graph.nodes.map((n) => n.id)).not.toContain('python:server.PromptServer.__init__.helper');
+  expect(ids).toContain(
+    'routes-to:python:route:POST /prompt->python:server.PromptServer.__init__.post_prompt#post_prompt',
+  );
+  expect(ids).toContain(
+    'calls:python:server.PromptServer.__init__.post_prompt#post_prompt->python:server.PromptServer#queue_info',
+  );
+  expect(ids).toContain('calls:python:server.PromptServer#__init__->python:server.PromptServer#queue_info');
+});
+
+test('Flask: Blueprint с url_prefix, разпознат и при Flask с главна буква', async () => {
+  const dir = project({
+    'requirements.txt': 'Flask==3.0\n',
+    'app/orders.py': `from flask import Blueprint
+
+bp = Blueprint("orders", __name__, url_prefix="/orders")
+
+
+@bp.post("/<int:id>/pay")
+def pay(id):
+    return ""
+`,
+  });
+  const { graph } = await scan(dir, { scip: false });
+  expect(graph.nodes.filter((n) => n.kind === 'route').map((n) => n.name)).toEqual(['POST /orders/<int:id>/pay']);
+});
+
+test('Angular: Routes с вложени children, component и loadComponent', async () => {
+  const dir = project({
+    'package.json': '{"dependencies": {"@angular/router": "^20"}}',
+    'src/shell.ts': 'export class Shell {}',
+    'src/plans.ts': 'export class Plans { open(): void {} }',
+    'src/login.ts': 'export class Login {}',
+    'src/app.routes.ts': `import { Routes } from '@angular/router';
+import { Shell } from './shell';
+
+export const routes: Routes = [
+  { path: 'login', loadComponent: () => import('./login').then((m) => m.Login) },
+  { path: 'legacy', redirectTo: 'login' },
+  {
+    path: 'operator',
+    component: Shell,
+    children: [{ path: 'plans/:id', loadComponent: () => import('./plans').then((m) => m.Plans) }],
+  },
+];
+`,
+  });
+  const { graph } = await scan(dir, { scip: false });
+  expect(
+    graph.edges
+      .filter((e) => e.kind === 'routes-to')
+      .map((e) => `${e.from.node} -> ${e.to.node}`)
+      .sort(),
+  ).toEqual([
+    'node:route:PAGE /login -> node:src/login.ts#Login',
+    'node:route:PAGE /operator -> node:src/shell.ts#Shell',
+    'node:route:PAGE /operator/plans/:id -> node:src/plans.ts#Plans',
+  ]);
+});
