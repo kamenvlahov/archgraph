@@ -1,3 +1,12 @@
 export { DEFAULT_EXCLUDES, MAX_FILE_SIZE } from './files.ts';
 export { GraphQuery, label, signature, typeText, where, type Target } from './query.ts';
+export {
+  processView,
+  roleOf,
+  type ProcessEdge,
+  type ProcessMember,
+  type ProcessNode,
+  type ProcessView,
+  type Slot,
+} from './process.ts';
 export { ADAPTERS, InvalidGraphError, scan, type ScanOptions, type ScanReport } from './scan.ts';

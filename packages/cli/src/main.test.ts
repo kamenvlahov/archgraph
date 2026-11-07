@@ -33,3 +33,27 @@ test('plan: Markdown план и грешка при непознат нод', a
   out.mockRestore();
   log.mockRestore();
 });
+
+test('serve: ендпойнти, процес и план по HTTP', async () => {
+  const { serve } = await import('./serve.ts');
+  const server = await serve(join(import.meta.dirname, '../../../fixtures/php-mezzio'), 0, { scip: false });
+  const address = server.address();
+  const base = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`;
+  try {
+    const project = (await (await fetch(`${base}/api/project`)).json()) as { entries: { label: string }[] };
+    expect(project.entries.map((e) => e.label)).toEqual(['GET /orders/{id:\\d+}', 'POST /orders']);
+    const view = (await (
+      await fetch(`${base}/api/process?target=${encodeURIComponent('php:route:POST /orders')}`)
+    ).json()) as {
+      nodes: unknown[];
+    };
+    expect(view.nodes.length).toBe(11);
+    const plan = await (
+      await fetch(`${base}/api/plan?task=x&target=${encodeURIComponent('OrderService#place')}`)
+    ).text();
+    expect(plan).toContain('### OrderService#place');
+    expect((await fetch(`${base}/../../package.json`)).status).toBe(404);
+  } finally {
+    server.close();
+  }
+});

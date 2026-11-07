@@ -3,6 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { GraphQuery, InvalidGraphError, scan } from '@archgraph/engine';
 import { plan } from '@archgraph/planner';
+import { serve } from './serve.ts';
 
 const USAGE = `archgraph scan [път] [--out graph.json] [--exclude шаблон]... [--max-file-size байтове] [--no-scip]
 
@@ -14,7 +15,11 @@ const USAGE = `archgraph scan [път] [--out graph.json] [--exclude шабло�
 archgraph plan [път] --task "задача" --node Клас#метод [--node ...] [--no-scip]
 
   --task, -t        задачата с думи
-  --node, -n        засегнат клас, метод или функция (повтаря се): OrderService#place, PlaceOrderDto`;
+  --node, -n        засегнат клас, метод или функция (повтаря се): OrderService#place, PlaceOrderDto
+
+archgraph serve [път] [--port 8790] [--scip]
+
+  интерфейсът в браузъра: процесът от избран ендпойнт (първо \`pnpm ui\`)`;
 
 export async function main(argv: string[]): Promise<number> {
   const { positionals, values } = parseArgs({
@@ -27,13 +32,21 @@ export async function main(argv: string[]): Promise<number> {
       'no-scip': { type: 'boolean' },
       task: { type: 'string', short: 't' },
       node: { type: 'string', short: 'n', multiple: true },
+      port: { type: 'string' },
+      scip: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
   });
   const [command, path = '.'] = positionals;
-  if (values.help || (command !== 'scan' && command !== 'plan')) {
+  if (values.help || !['scan', 'plan', 'serve'].includes(command ?? '')) {
     console.error(USAGE);
     return values.help ? 0 : 1;
+  }
+  if (command === 'serve') {
+    const port = Number(values.port ?? 8790);
+    await serve(path, port, { exclude: values.exclude ?? [], scip: values.scip ?? false });
+    console.error(`archgraph: http://127.0.0.1:${port}  (Ctrl+C спира)`);
+    return 0;
   }
   if (command === 'plan') {
     if (!values.task || !values.node?.length) {

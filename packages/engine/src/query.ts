@@ -112,7 +112,7 @@ export class GraphQuery {
     return lines.join('\n');
   }
 
-  private handlers(route: Node): [Target, string][] {
+  handlers(route: Node): [Target, string][] {
     return (this.out.get(route.id) ?? [])
       .filter((e) => e.kind === 'routes-to')
       .flatMap((e): [Target, string][] => {
@@ -121,7 +121,7 @@ export class GraphQuery {
       });
   }
 
-  private callees(t: Target): [Target, string][] {
+  callees(t: Target): [Target, string][] {
     if (!t.member) return [];
     const result: [Target, string][] = [];
     for (const e of this.out.get(t.node.id) ?? []) {

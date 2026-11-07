@@ -71,6 +71,15 @@ npm i -g @sourcegraph/scip-typescript @sourcegraph/scip-python
 - PHP засега е само по евристика.
 - `--no-scip` пропуска индексаторите. На ComfyUI сканирането е 4 s вместо 70 s.
 
+### Интерфейс
+
+```sh
+pnpm ui                                   # build на packages/ui
+pnpm archgraph serve ~/projects/shop      # http://127.0.0.1:8790
+```
+
+Вляво са ендпойнтите. Избраният показва процеса си отляво надясно като нодове: роля, методи с параметри и резултат, разгъваеми DTO-та. Клик върху нод го фокусира и показва всичко за него. Сървърът слуша само локално.
+
 ### MCP сървър
 
 За Claude Code и всеки MCP клиент. Инструменти: `trace`, `dependents`, `describe_node`, `find_by_role`, `plan`, `rescan`. Отговорите са кратък текст с `file:line`.
