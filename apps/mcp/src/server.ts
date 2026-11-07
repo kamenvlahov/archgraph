@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { GraphQuery, label, scan, where, type Target } from '@archgraph/engine';
+import { plan } from '@archgraph/planner';
 
 // MCP сървър (JSON-RPC 2.0, по едно съобщение на ред през stdio). Протоколът е малък, затова е
 // написан на ръка, без SDK: initialize, tools/list, tools/call, ping.
@@ -61,6 +62,20 @@ const TOOLS = [
       type: 'object',
       properties: { role: { type: 'string' }, project },
       required: ['role'],
+    },
+  },
+  {
+    name: 'plan',
+    description:
+      'Markdown план за промяна: кодът на засегнатите методи, кой ги вика, как са свързани класовете (образец за нови), типовете в сигнатурите и реда на промените. Подай задачата и нодовете, които ще се променят.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task: { type: 'string', description: 'Задачата с думи' },
+        targets: { type: 'array', items: target, minItems: 1 },
+        project,
+      },
+      required: ['task', 'targets'],
     },
   },
   {
@@ -137,6 +152,14 @@ export class Server {
         return query.dependents(one(query, args['target']).node);
       case 'describe_node':
         return query.describe(one(query, args['target']));
+      case 'plan': {
+        const targets = Array.isArray(args['targets']) ? args['targets'] : [];
+        return plan(
+          query,
+          String(args['task'] ?? ''),
+          targets.map((t) => one(query, t)),
+        );
+      }
       case 'find_by_role': {
         const role = String(args['role'] ?? '');
         const nodes = query.findBy(role);

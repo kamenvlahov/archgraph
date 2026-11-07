@@ -1,14 +1,20 @@
 #!/usr/bin/env node
 import { writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
-import { InvalidGraphError, scan } from '@archgraph/engine';
+import { GraphQuery, InvalidGraphError, scan } from '@archgraph/engine';
+import { plan } from '@archgraph/planner';
 
 const USAGE = `archgraph scan [път] [--out graph.json] [--exclude шаблон]... [--max-file-size байтове] [--no-scip]
 
   --out, -o         къде да се запише графът (по подразбиране stdout)
   --exclude, -x     пропусни пътища (повтаря се): vendor, '*.gen.ts', 'src/legacy/**'
   --max-file-size   по-големи файлове се пропускат като бъндъли (по подразбиране 1000000)
-  --no-scip         без SCIP индексатори: по-бързо, всички calls са inferred`;
+  --no-scip         без SCIP индексатори: по-бързо, всички calls са inferred
+
+archgraph plan [път] --task "задача" --node Клас#метод [--node ...] [--no-scip]
+
+  --task, -t        задачата с думи
+  --node, -n        засегнат клас, метод или функция (повтаря се): OrderService#place, PlaceOrderDto`;
 
 export async function main(argv: string[]): Promise<number> {
   const { positionals, values } = parseArgs({
@@ -19,13 +25,29 @@ export async function main(argv: string[]): Promise<number> {
       exclude: { type: 'string', short: 'x', multiple: true },
       'max-file-size': { type: 'string' },
       'no-scip': { type: 'boolean' },
+      task: { type: 'string', short: 't' },
+      node: { type: 'string', short: 'n', multiple: true },
       help: { type: 'boolean', short: 'h' },
     },
   });
   const [command, path = '.'] = positionals;
-  if (values.help || command !== 'scan') {
+  if (values.help || (command !== 'scan' && command !== 'plan')) {
     console.error(USAGE);
     return values.help ? 0 : 1;
+  }
+  if (command === 'plan') {
+    if (!values.task || !values.node?.length) {
+      console.error(USAGE);
+      return 1;
+    }
+    const query = new GraphQuery((await scan(path, { scip: !values['no-scip'] })).graph);
+    const targets = values.node.map((n) => ({ name: n, found: query.find(n) }));
+    const found = targets.flatMap((t) => (t.found.length === 1 ? t.found : []));
+    for (const t of targets.filter((t) => t.found.length !== 1))
+      console.error(`${t.name}: ${t.found.length ? `${t.found.length} съвпадения, уточни с id` : 'няма такъв нод'}`);
+    if (found.length !== targets.length) return 1;
+    process.stdout.write(plan(query, values.task, found));
+    return 0;
   }
 
   const started = performance.now();

@@ -21,3 +21,15 @@ test('непозната команда показва помощ', async () => 
   expect(log.mock.calls[0]?.[0]).toMatch(/^archgraph scan/);
   log.mockRestore();
 });
+
+test('plan: Markdown план и грешка при непознат нод', async () => {
+  const out = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const dir = join(import.meta.dirname, '../../../fixtures/python-fastapi');
+  expect(await main(['plan', dir, '--no-scip', '-t', 'Отстъпки', '-n', 'OrderService#place'])).toBe(0);
+  expect(await main(['plan', dir, '--no-scip', '-t', 'Отстъпки', '-n', 'Nope'])).toBe(1);
+  expect(out.mock.calls.join('')).toContain('### OrderService#place  `app/orders/service.py:13`');
+  expect(log).toHaveBeenCalledWith('Nope: няма такъв нод');
+  out.mockRestore();
+  log.mockRestore();
+});

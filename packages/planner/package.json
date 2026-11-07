@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/plan.ts"
+  },
+  "dependencies": {
+    "@archgraph/engine": "workspace:*",
+    "@archgraph/model": "workspace:*"
   }
 }

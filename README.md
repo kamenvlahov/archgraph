@@ -42,6 +42,22 @@ pnpm archgraph scan ~/projects/shop -o graph.json
 - `--exclude` (`-x`) добавя още: `-x 'backend-*' -x 'src/legacy/**'`.
 - Два класа с едно и също пълно име остават и двата, с таг `duplicate`.
 
+### План за промяна
+
+```sh
+pnpm archgraph plan ~/projects/shop -t "Добави отстъпки по код" -n OrderService#place -n PlaceOrderDto
+```
+
+Markdown за AI агент:
+
+- кодът на засегнатите методи;
+- кой ги вика и кого викат;
+- как са свързани класовете (кой ги създава, какво имплементират, какво получават), т.е. образец за нови класове;
+- полетата на типовете в сигнатурите;
+- редът на промените.
+
+Същото е и MCP инструментът `plan`.
+
 ### Точни ребра (SCIP)
 
 Без нищо допълнително `calls` са по евристика (`confidence: inferred`). Ако е инсталиран SCIP индексатор за езика, archgraph го пуска и извикванията, които той разпознава, стават `exact`. Останалите остават `inferred`.
@@ -57,7 +73,7 @@ npm i -g @sourcegraph/scip-typescript @sourcegraph/scip-python
 
 ### MCP сървър
 
-За Claude Code и всеки MCP клиент. Инструменти: `trace`, `dependents`, `describe_node`, `find_by_role`, `rescan`. Отговорите са кратък текст с `file:line`.
+За Claude Code и всеки MCP клиент. Инструменти: `trace`, `dependents`, `describe_node`, `find_by_role`, `plan`, `rescan`. Отговорите са кратък текст с `file:line`.
 
 ```sh
 claude mcp add archgraph -s user -- node ~/projects/archgraph/apps/mcp/src/main.ts

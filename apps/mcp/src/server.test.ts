@@ -68,6 +68,40 @@ describe('инструменти върху php-mezzio', () => {
   });
 });
 
+test('plan върху php-mezzio: засегнати, свързване и ред', async () => {
+  const server = new Server({ cwd: join(fixtures, 'php-mezzio'), scip: false });
+  const { text, isError } = await call(server, 'plan', {
+    task: 'Добави отстъпки',
+    targets: ['OrderService#place', 'PriceCalculator#applyDiscount', 'PlaceOrderDto'],
+  });
+  expect(isError).toBe(false);
+  expect(text).toContain('### OrderService#place  `src/Order/Service/OrderService.php:20`');
+  expect(text).toContain("$this->prices->applyDiscount($item['price'], $dto->note)");
+  expect(text).toContain(
+    [
+      '- създава се на едно място в проекта:',
+      '  OrderServiceFactory#__invoke  `src/Order/Service/OrderServiceFactory.php:12`',
+      '    ```php',
+      '        public function __invoke(ContainerInterface $container): OrderService',
+    ].join('\n'),
+  );
+  expect(text).toContain('class PriceCalculator, id: `php:App\\Order\\Service\\PriceCalculator`, без конструктор');
+  expect(text.slice(text.indexOf('## Ред на изпълнение'))).toBe(
+    [
+      '## Ред на изпълнение',
+      '',
+      '1. PriceCalculator  src/Order/Service/PriceCalculator.php:7',
+      '2. PlaceOrderDto  src/Order/Dto/PlaceOrderDto.php:7',
+      '3. OrderService  src/Order/Service/OrderService.php:12',
+      '',
+      'След това провери извикващите извън плана, ако сигнатурата се промени:',
+      '',
+      '- PlaceOrderHandler#handle  `src/Order/Handler/PlaceOrderHandler.php:20`',
+      '',
+    ].join('\n'),
+  );
+});
+
 test('протокол: initialize, tools/list, известия и непознат метод', async () => {
   const server = new Server({ cwd: fixtures, scip: false });
   const init = (await server.handle({
@@ -86,6 +120,7 @@ test('протокол: initialize, tools/list, известия и непозн
     'dependents',
     'describe_node',
     'find_by_role',
+    'plan',
     'rescan',
   ]);
   expect(await server.handle({ jsonrpc: '2.0', id: 3, method: 'resources/list' })).toEqual({

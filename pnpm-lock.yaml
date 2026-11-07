@@ -196,6 +196,9 @@ importers:
       '@archgraph/model':
         specifier: workspace:*
         version: link:../../packages/model
+      '@archgraph/planner':
+        specifier: workspace:*
+        version: link:../../packages/planner
 
   packages/cli:
     dependencies:
@@ -205,6 +208,9 @@ importers:
       '@archgraph/model':
         specifier: workspace:*
         version: link:../model
+      '@archgraph/planner':
+        specifier: workspace:*
+        version: link:../planner
 
   packages/engine:
     dependencies:
@@ -259,7 +265,14 @@ importers:
 
   packages/model: {}
 
-  packages/planner: {}
+  packages/planner:
+    dependencies:
+      '@archgraph/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@archgraph/model':
+        specifier: workspace:*
+        version: link:../model
 
   packages/rules: {}
 

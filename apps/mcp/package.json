@@ -8,7 +8,8 @@
   },
   "dependencies": {
     "@archgraph/engine": "workspace:*",
-    "@archgraph/model": "workspace:*"
+    "@archgraph/model": "workspace:*",
+    "@archgraph/planner": "workspace:*"
   },
   "bin": {
     "archgraph-mcp": "./src/main.ts"

@@ -87,7 +87,7 @@ export class GraphQuery {
     return result;
   }
 
-  private callers(t: Target): [Target, string][] {
+  callers(t: Target): [Target, string][] {
     const result: [Target, string][] = [];
     const add = (node: Node, member: string | undefined) => {
       for (const e of this.in.get(node.id) ?? []) {
@@ -214,7 +214,7 @@ function mentions(t: TypeRef, id: string): boolean {
   }
 }
 
-function signature(m: Member, byId: Map<string, Node>): string {
+export function signature(m: Member, byId: Map<string, Node>): string {
   const inputs = m.inputs
     .map((p) => `${p.variadic ? '...' : ''}${p.name}${p.optional ? '?' : ''}: ${typeText(p.type, byId)}`)
     .join(', ');
