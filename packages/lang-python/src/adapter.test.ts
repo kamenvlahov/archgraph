@@ -145,3 +145,13 @@ def handler(a: Service = Depends(get_service), b: Annotated[Service, Depends(get
     'injects:python:app.core.Service->python:app.deps.handler#handler.c',
   ]);
 });
+
+test('src като пакет: импортите `from src.x` намират нода', async () => {
+  const { nodes, edges } = await pythonAdapter.read([
+    { path: 'src/__init__.py', text: '' },
+    { path: 'src/core.py', text: 'class Base:\n    pass\n' },
+    { path: 'src/app.py', text: 'from src.core import Base\n\n\nclass A(Base):\n    pass\n' },
+  ]);
+  expect(nodes.map((n) => n.id)).toEqual(['python:src.core.Base', 'python:src.app.A']);
+  expect(edges.map((e) => e.id)).toEqual(['extends:python:src.app.A->python:src.core.Base']);
+});

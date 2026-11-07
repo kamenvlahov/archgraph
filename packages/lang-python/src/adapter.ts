@@ -66,12 +66,14 @@ export const pythonAdapter: LanguageAdapter = {
   },
   async read(files: SourceFile[]): Promise<GraphFragment> {
     const parser = await pythonParser();
+    // С src/__init__.py `src` е пакет и импортите са `from src.x import Y`.
+    const srcIsPackage = files.some((f) => f.path === 'src/__init__.py');
     const edges: Edge[] = [];
     const calls: CallSite[] = [];
     const types: Record<string, TypeShape> = {};
     const nodes = files.flatMap((file) => {
       const ctx: Ctx = {
-        module: moduleName(file.path),
+        module: moduleName(file.path, srcIsPackage),
         file: file.path,
         parser,
         locals: new Set(),
@@ -86,10 +88,10 @@ export const pythonAdapter: LanguageAdapter = {
   },
 };
 
-// app/orders/models.py → app.orders.models; pkg/__init__.py → pkg; src/ layout без `src.`.
-export function moduleName(path: string): string {
-  return path
-    .replace(/^src\//, '')
+// app/orders/models.py → app.orders.models; pkg/__init__.py → pkg; src/ layout без `src.`,
+// освен ако самият `src` е пакет.
+export function moduleName(path: string, srcIsPackage = false): string {
+  return (srcIsPackage ? path : path.replace(/^src\//, ''))
     .replace(/\.pyi?$/, '')
     .replace(/\/__init__$/, '')
     .split('/')
