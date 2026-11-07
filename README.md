@@ -27,6 +27,21 @@
 
 Кодът остава единственият източник на истината. archgraph само показва и планира, а промените се правят в редактора.
 
+## Използване
+
+Изисква Node 24 и pnpm (`corepack enable`). Няма build стъпка.
+
+```sh
+pnpm install
+pnpm archgraph scan ~/projects/shop -o graph.json
+# archgraph: 156 файла (node 96, php 60) → 47 нода, 192 метода, 360 порта (97% без тип) за 0.3 s
+```
+
+- В git хранилище файловете идват от `git ls-files`, така че `.gitignore` се спазва.
+- По подразбиране се пропускат `vendor`, `node_modules`, `.venv`, `venv`, `dist`, `build`, `*.min.js`, `*.d.ts` и файлове над 1 MB.
+- `--exclude` (`-x`) добавя още: `-x 'backend-*' -x 'src/legacy/**'`.
+- Два класа с едно и също пълно име остават и двата, с таг `duplicate`.
+
 ## Документи
 
 - [docs/PLAN.md](docs/PLAN.md): етапи на изграждане

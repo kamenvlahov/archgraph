@@ -5,5 +5,11 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@archgraph/lang-node": "workspace:*",
+    "@archgraph/lang-php": "workspace:*",
+    "@archgraph/lang-python": "workspace:*",
+    "@archgraph/model": "workspace:*"
   }
 }

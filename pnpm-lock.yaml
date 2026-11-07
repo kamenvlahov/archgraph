@@ -188,9 +188,29 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0(@types/node@26.6.6)(vite@8.3.6(@types/node@26.6.6))
 
-  packages/cli: {}
+  packages/cli:
+    dependencies:
+      '@archgraph/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@archgraph/model':
+        specifier: workspace:*
+        version: link:../model
 
-  packages/engine: {}
+  packages/engine:
+    dependencies:
+      '@archgraph/lang-node':
+        specifier: workspace:*
+        version: link:../lang-node
+      '@archgraph/lang-php':
+        specifier: workspace:*
+        version: link:../lang-php
+      '@archgraph/lang-python':
+        specifier: workspace:*
+        version: link:../lang-python
+      '@archgraph/model':
+        specifier: workspace:*
+        version: link:../model
 
   packages/lang-node:
     dependencies:
