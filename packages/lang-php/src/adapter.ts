@@ -1,5 +1,7 @@
 import {
   edge,
+  type Annotation,
+  type Arg,
   type CallSite,
   type Edge,
   type Expr,
@@ -36,6 +38,7 @@ interface Out {
   edges: Edge[];
   calls: CallSite[];
   types: Record<string, TypeShape>;
+  annotations: Annotation[];
 }
 
 interface Scope {
@@ -49,11 +52,11 @@ export const phpAdapter: LanguageAdapter = {
   extensions: ['.php'],
   async read(files: SourceFile[]): Promise<GraphFragment> {
     const parser = await phpParser();
-    const out: Out = { edges: [], calls: [], types: {} };
+    const out: Out = { edges: [], calls: [], types: {}, annotations: [] };
     const nodes = files.flatMap((file) =>
       withTree(parser, file.text, (tree) => readFile(tree.rootNode, file.path, out)),
     );
-    return { nodes, edges: out.edges, types: out.types, calls: out.calls };
+    return { nodes, edges: out.edges, types: out.types, calls: out.calls, annotations: out.annotations };
   },
 };
 
@@ -73,11 +76,47 @@ function readFile(root: Node, file: string, out: Out): GraphNode[] {
         nodes.push(readClass(n, file, scope, out));
       } else if (n.type === 'function_definition') {
         nodes.push(readFunction(n, file, scope, out));
+      } else {
+        outsideCalls(n, file, scope, out);
       }
     }
   };
   visit(root.namedChildren);
   return nodes;
+}
+
+const CALLS = ['member_call_expression', 'scoped_call_expression', 'function_call_expression'];
+
+// Извикванията извън класовете (config файлове, closures на ниво файл) с низов аргумент като факти
+// за правилата: `$app->post('/orders', PlaceOrderHandler::class)`, `Route::get('/x', ...)`.
+function outsideCalls(n: Node, file: string, scope: Scope, out: Out) {
+  for (const call of n.descendantsOfType(CALLS)) {
+    if (!call) continue;
+    const args = (call.childForFieldName('arguments')?.namedChildren ?? [])
+      .filter((a) => a.type === 'argument')
+      .map((a) => argValue(a.namedChildren.at(-1), scope));
+    if (!args.some((a) => a.kind === 'string')) continue;
+    const fn = call.childForFieldName('function');
+    const object = call.childForFieldName('object') ?? call.childForFieldName('scope');
+    const name = call.childForFieldName('name')?.text ?? '';
+    out.annotations.push({
+      kind: 'call',
+      name: fn ? fn.text : `${object?.text ?? ''}${call.type === 'scoped_call_expression' ? '::' : '->'}${name}`,
+      args,
+      location: location(call, file),
+    });
+  }
+}
+
+function argValue(v: Node | undefined, scope: Scope): Arg {
+  if (
+    (v?.type === 'string' || v?.type === 'encapsed_string') &&
+    v.namedChildren.every((c) => c.type === 'string_content')
+  )
+    return { kind: 'string', value: v.namedChildren.map((c) => c.text).join('') };
+  if (v?.type === 'class_constant_access_expression' && v.namedChildren[1]?.text.toLowerCase() === 'class')
+    return { kind: 'class', id: `php:${resolveClass(v.namedChildren[0]?.text ?? '', scope)}` };
+  return { kind: 'other' };
 }
 
 // use A\B; use A\B as C; use A\{B, C as D};

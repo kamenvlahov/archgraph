@@ -1,10 +1,12 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { nodeAdapter } from '@archgraph/lang-node';
 import { phpAdapter } from '@archgraph/lang-php';
 import { pythonAdapter } from '@archgraph/lang-python';
+import { FRAMEWORKS, routes, type FrameworkRules } from '@archgraph/rules';
 import {
   MODEL_VERSION,
+  type Annotation,
   validate,
   type GraphModel,
   type CallSite,
@@ -31,6 +33,7 @@ export interface ScanReport {
   tooBig: string[];
   duplicates: string[];
   scip: Record<string, string>; // по език: 'exact', 'няма <команда>' или грешката на индексатора
+  frameworks: string[];
 }
 
 export class InvalidGraphError extends Error {
@@ -48,7 +51,7 @@ export async function scan(
 ): Promise<{ graph: GraphModel; report: ScanReport }> {
   const root = resolve(path);
   const maxFileSize = options.maxFileSize ?? MAX_FILE_SIZE;
-  const report: ScanReport = { files: {}, tooBig: [], duplicates: [], scip: {} };
+  const report: ScanReport = { files: {}, tooBig: [], duplicates: [], scip: {}, frameworks: [] };
   const byAdapter = new Map<LanguageAdapter, { path: string; text: string }[]>();
 
   for (const file of listFiles(root, [...DEFAULT_EXCLUDES, ...(options.exclude ?? [])])) {
@@ -66,6 +69,7 @@ export async function scan(
 
   const graph: GraphModel = { version: MODEL_VERSION, root, nodes: [], edges: [], types: {} };
   let calls: CallSite[] = [];
+  let annotations: Annotation[] = [];
   for (const [adapter, files] of byAdapter) {
     const part = await adapter.read(files);
     // concat, а не push(...): голям проект има повече нодове, отколкото стекът побира като аргументи.
@@ -73,8 +77,13 @@ export async function scan(
     graph.edges = graph.edges.concat(part.edges);
     Object.assign(graph.types, part.types);
     calls = calls.concat(part.calls ?? []);
+    annotations = annotations.concat(part.annotations ?? []);
   }
   report.duplicates = renameDuplicates(graph.nodes);
+  const frameworks = detect(root, FRAMEWORKS);
+  report.frameworks = frameworks.map((f) => f.framework);
+  const routed = routes(annotations, frameworks, graph.nodes);
+  graph.nodes = graph.nodes.concat(routed.nodes);
   graph.edges = linkEdges(graph.nodes, graph.edges);
   const exact =
     options.scip === false
@@ -83,12 +92,18 @@ export async function scan(
   const inferred = callEdges(graph.nodes, graph.edges, graph.types, exact.rest);
   // Едно и също извикване може да се среща няколко пъти в метода, а реброто е едно.
   const called = new Map([...inferred.edges, ...exact.edges].map((e) => [e.id, e]));
-  graph.edges = graph.edges.concat([...called.values()]);
+  graph.edges = graph.edges.concat([...called.values()], routed.edges);
   if (inferred.unresolved.length > 0) graph.unresolved = inferred.unresolved;
 
   const result = validate(graph);
   if (!result.ok) throw new InvalidGraphError(result.errors);
   return { graph, report };
+}
+
+// Framework-ите, чийто manifest в корена ги споменава (`composer.json`, `package.json`, `pyproject.toml`).
+function detect(root: string, all: FrameworkRules[]): FrameworkRules[] {
+  const read = (file: string) => (existsSync(join(root, file)) ? readFileSync(join(root, file), 'utf8') : '');
+  return all.filter((f) => f.detect.some((d) => read(d.file).includes(d.contains)));
 }
 
 // Пуска инсталираните SCIP индексатори. Връща точните ребра и извикванията, които остават за евристиката.

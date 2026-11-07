@@ -37,6 +37,8 @@ export class GraphQuery {
   find(query: string): Target[] {
     const exact = this.byId.get(query);
     if (exact) return [{ node: exact }];
+    const url = /^(?:([A-Za-z]+)\s+)?(\/\S*)$/.exec(query.trim());
+    if (url) return this.routes(url[2] ?? '/', url[1]?.toUpperCase()).map((node) => ({ node }));
     const m = /^(.+?)(?:#|::|->|\.)([A-Za-z_$][\w$]*)$/.exec(query);
     const targets: Target[] = [];
     if (m) {
@@ -51,6 +53,28 @@ export class GraphQuery {
     return this.named(query).map((node) =>
       node.kind === 'function' && node.members[0] ? { node, member: node.members[0] } : { node },
     );
+  }
+
+  // Route-овете за URL: `/patients/5/payments` → `POST /patients/{patient_id}/payments`. Параметрите
+  // (`{id}`, `:id`, `{id:\d+}`) съвпадат с всеки сегмент. Без пълно съвпадение се търси route, чийто
+  // път е краят на URL-а: префиксът може да е там, където графът не го вижда.
+  routes(url: string, method?: string): Node[] {
+    const segments = (path: string) => path.split(/[?#]/)[0]?.split('/').filter(Boolean) ?? [];
+    const wanted = segments(url);
+    const candidates = this.graph.nodes.flatMap((node) => {
+      if (node.kind !== 'route') return [];
+      const [verb = '', path = ''] = node.name.split(' ');
+      if (method && verb !== method && verb !== 'ANY') return [];
+      const parts = segments(path);
+      const tail = wanted.slice(wanted.length - parts.length);
+      if (parts.length > wanted.length || !parts.every((p, i) => isParam(p) || p === tail[i])) return [];
+      return [{ node, full: parts.length === wanted.length, literal: parts.filter((p) => !isParam(p)).length }];
+    });
+    const full = candidates.filter((c) => c.full);
+    const best = full.length > 0 ? full : candidates;
+    // `/patients/new` е и `{patient_id}`, и `new`: по-конкретният route печели.
+    const most = Math.max(...best.map((c) => c.literal));
+    return best.filter((c) => c.literal === most).map((c) => c.node);
   }
 
   private named(name: string): Node[] {
@@ -72,13 +96,29 @@ export class GraphQuery {
       seen.add(key);
       // Начало от клас надолу: веригата тръгва от всеки негов метод.
       const methods: [Target, string][] = t.node.members.map((member) => [{ node: t.node, member }, '· ']);
-      const next = direction === 'up' ? this.callers(t) : level === 0 && !t.member ? methods : this.callees(t);
+      const next =
+        direction === 'up'
+          ? this.callers(t)
+          : t.node.kind === 'route'
+            ? this.handlers(t.node)
+            : level === 0 && !t.member
+              ? methods
+              : this.callees(t);
       for (const [n, a] of next) walk(n, level + 1, a);
       if (direction === 'down' && t.member)
         for (const note of this.unknownCallees(t)) lines.push(`${'  '.repeat(level + 1)}${note}`);
     };
     walk(start, 0, '');
     return lines.join('\n');
+  }
+
+  private handlers(route: Node): [Target, string][] {
+    return (this.out.get(route.id) ?? [])
+      .filter((e) => e.kind === 'routes-to')
+      .flatMap((e): [Target, string][] => {
+        const to = this.target(e.to.node, e.to.member);
+        return to ? [[to, '⇢ ']] : [];
+      });
   }
 
   private callees(t: Target): [Target, string][] {
@@ -109,10 +149,10 @@ export class GraphQuery {
     const result: [Target, string][] = [];
     const add = (node: Node, member: string | undefined) => {
       for (const e of this.in.get(node.id) ?? []) {
-        if (e.kind !== 'calls' && e.kind !== 'creates') continue;
+        if (e.kind !== 'calls' && e.kind !== 'creates' && e.kind !== 'routes-to') continue;
         if (member !== undefined && e.to.member !== member) continue;
         const from = this.target(e.from.node, e.from.member);
-        if (from) result.push([from, e.kind === 'creates' ? 'new ← ' : '← ']);
+        if (from) result.push([from, e.kind === 'creates' ? 'new ← ' : e.kind === 'routes-to' ? '⇠ ' : '← ']);
       }
     };
     add(t.node, t.member?.name);
@@ -251,6 +291,10 @@ export function where(t: Target): string {
 
 function loc(l: Location): string {
   return `${l.file}:${l.line}`;
+}
+
+function isParam(segment: string): boolean {
+  return segment.startsWith(':') || segment.includes('{') || segment === '*';
 }
 
 function targetId(t: Target): string {

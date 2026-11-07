@@ -226,6 +226,9 @@ importers:
       '@archgraph/model':
         specifier: workspace:*
         version: link:../model
+      '@archgraph/rules':
+        specifier: workspace:*
+        version: link:../rules
 
   packages/lang-node:
     dependencies:
@@ -274,7 +277,11 @@ importers:
         specifier: workspace:*
         version: link:../model
 
-  packages/rules: {}
+  packages/rules:
+    dependencies:
+      '@archgraph/model':
+        specifier: workspace:*
+        version: link:../model
 
   packages/syntax:
     dependencies:

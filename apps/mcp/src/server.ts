@@ -24,14 +24,14 @@ const project = { type: 'string', description: 'Път до проекта. По
 const target = {
   type: 'string',
   description:
-    'Клас, метод или функция: `OrderService#place`, `OrderService::place`, `OrderService.place`, име или id.',
+    'Клас, метод или функция: `OrderService#place`, `OrderService::place`, `OrderService.place`, име или id. Или URL: `POST /orders/5`, `/orders/5` (намира route-а и handler-а му).',
 };
 
 const TOOLS = [
   {
     name: 'trace',
     description:
-      'Веригата от извиквания от метод надолу (кого вика, с имплементациите на интерфейсите) или нагоре (кой го вика). Всеки ред е с file:line. `→` е точно (SCIP), `→?` е по евристика, `⇒` е имплементация, `new` е създаване, `??` е възможно извикване само по име (получателят е неизвестен; провери в кода).',
+      'Веригата от извиквания от метод надолу (кого вика, с имплементациите на интерфейсите) или нагоре (кой го вика). Всеки ред е с file:line. `→` е точно (SCIP), `→?` е по евристика, `⇒` е имплементация, `new` е създаване, `⇢`/`⇠` е route → handler, `??` е възможно извикване само по име (получателят е неизвестен; провери в кода).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -57,7 +57,7 @@ const TOOLS = [
   {
     name: 'find_by_role',
     description:
-      'Нодове по роля (controller, service, repository...; ролите идват от правилата за framework), вид (class, interface, function) или таг (abstract, duplicate).',
+      'Нодове по роля (controller, service, repository, route...; ролите идват от правилата за framework), вид (class, interface, function, route) или таг (abstract, duplicate).',
     inputSchema: {
       type: 'object',
       properties: { role: { type: 'string' }, project },

@@ -1,6 +1,8 @@
 import { posix } from 'node:path';
 import {
   edge,
+  type Annotation,
+  type Arg,
   type CallSite,
   type Edge,
   type Expr,
@@ -30,6 +32,7 @@ interface Ctx {
   edges: Edge[];
   calls: CallSite[];
   types: Record<string, TypeShape>;
+  annotations: Annotation[];
 }
 
 export const nodeAdapter: LanguageAdapter = {
@@ -45,6 +48,7 @@ export const nodeAdapter: LanguageAdapter = {
     const edges: Edge[] = [];
     const calls: CallSite[] = [];
     const types: Record<string, TypeShape> = {};
+    const annotations: Annotation[] = [];
     const nodes = files.flatMap((file) => {
       const ctx: Ctx = {
         file: file.path,
@@ -55,10 +59,11 @@ export const nodeAdapter: LanguageAdapter = {
         edges,
         calls,
         types,
+        annotations,
       };
       return withTree(parser, file.text, (tree) => readModule(tree.rootNode, ctx));
     });
-    return { nodes, edges, types, calls };
+    return { nodes, edges, types, calls, annotations };
   },
 };
 
@@ -148,6 +153,10 @@ function readDeclaration(decl: Node, outer: Node, ctx: Ctx): GraphNode[] {
       const members = methods.map((m) => readMember(m, ctx));
       const n = node('class', name, members, decl.type === 'abstract_class_declaration' ? ['abstract'] : []);
       addHeritage(decl, n.id, ctx);
+      // `@Controller('orders') export class` има декоратора в export-а, иначе е в класа.
+      const own = [...(outer === decl ? [] : outer.namedChildren), ...decl.namedChildren];
+      annotate(own, { node: n.id }, ctx);
+      methods.forEach((m, i) => annotate(precedingDecorators(m), { node: n.id, member: members[i]?.name ?? '' }, ctx));
       const props = new Map<string, Expr>(
         addFields(n, body, ctx)
           .filter((f) => f.type.kind !== 'unknown')
@@ -249,6 +258,42 @@ function visibility(n: Node): Member['visibility'] {
   const mod = n.namedChildren.find((c) => c.type === 'accessibility_modifier')?.text;
   if (mod === 'private' || n.childForFieldName('name')?.type === 'private_property_identifier') return 'private';
   return mod === 'protected' ? 'protected' : 'public';
+}
+
+function precedingDecorators(n: Node): Node[] {
+  const result: Node[] = [];
+  for (let prev = n.previousNamedSibling; prev?.type === 'decorator'; prev = prev.previousNamedSibling)
+    result.push(prev);
+  return result.reverse();
+}
+
+// Декораторите като факти за правилата: `@Get(':id')` → име `Get` и аргументите.
+function annotate(nodes: Node[], on: { node: string; member?: string }, ctx: Ctx) {
+  for (const d of nodes) {
+    if (d.type !== 'decorator') continue;
+    const e = d.namedChildren[0];
+    const call = e?.type === 'call_expression' ? e : undefined;
+    ctx.annotations.push({
+      kind: 'decorator',
+      name: (call ? call.childForFieldName('function') : e)?.text ?? '',
+      args: (call?.childForFieldName('arguments')?.namedChildren ?? [])
+        .filter((a) => a.type !== 'comment')
+        .map((a) => argValue(a, ctx)),
+      on,
+      location: location(d, ctx.file),
+    });
+  }
+}
+
+function argValue(a: Node, ctx: Ctx): Arg {
+  if (a.type === 'string') return { kind: 'string', value: a.namedChildren.map((c) => c.text).join('') };
+  if (a.type === 'template_string' && !a.namedChildren.some((c) => c.type === 'template_substitution'))
+    return { kind: 'string', value: a.text.slice(1, -1) };
+  if (a.type === 'identifier') {
+    const ref = named(a.text, ctx);
+    if (ref.kind === 'named') return { kind: 'class', id: ref.id };
+  }
+  return { kind: 'other' };
 }
 
 // Декораторите на метод са съседи преди него в тялото на класа.

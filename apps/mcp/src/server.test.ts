@@ -51,6 +51,23 @@ describe('инструменти върху php-mezzio', () => {
     ]);
   });
 
+  test('URL намира route-а; trace минава до handler-а, а нагоре показва route-а', async () => {
+    const down = await call(server, 'trace', { target: 'GET /orders/42', depth: 2 });
+    expect(down.text.split('\n').slice(0, 3)).toEqual([
+      'GET /orders/{id:\\d+}  config/routes.php:11',
+      '  ⇢ GetOrderHandler#handle  src/Order/Handler/GetOrderHandler.php:20',
+      '    →? OrderServiceInterface#get  src/Order/Service/OrderServiceInterface.php:14',
+    ]);
+    expect((await call(server, 'describe_node', { target: '/orders?page=2' })).text).toContain('POST /orders');
+    expect((await call(server, 'describe_node', { target: 'DELETE /orders' })).isError).toBe(true);
+    const up = await call(server, 'trace', { target: 'PlaceOrderHandler#handle', direction: 'up' });
+    expect(up.text.split('\n')).toEqual([
+      'PlaceOrderHandler#handle  src/Order/Handler/PlaceOrderHandler.php:20',
+      '  ⇠ POST /orders  config/routes.php:10',
+    ]);
+    expect((await call(server, 'find_by_role', { role: 'route' })).text.split('\n')).toHaveLength(2);
+  });
+
   test('извикване без получател: възможно по име в trace, dependents и describe', async () => {
     const down = await call(server, 'trace', { target: 'ReorderHandler#handle', depth: 2 });
     expect(down.text.split('\n')).toEqual([

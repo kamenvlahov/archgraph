@@ -10,6 +10,7 @@
     "@archgraph/lang-node": "workspace:*",
     "@archgraph/lang-php": "workspace:*",
     "@archgraph/lang-python": "workspace:*",
-    "@archgraph/model": "workspace:*"
+    "@archgraph/model": "workspace:*",
+    "@archgraph/rules": "workspace:*"
   }
 }

@@ -1,4 +1,4 @@
-import type { Edge, Node, TypeId, TypeRef, TypeShape } from './types.ts';
+import type { Edge, Location, Node, TypeId, TypeRef, TypeShape } from './types.ts';
 
 // Договорът между engine-а и езиковите адаптери. Тук са само типове,
 // за да не зависи моделът от tree-sitter или от конкретен език.
@@ -14,7 +14,27 @@ export interface GraphFragment {
   edges: Edge[];
   types: Record<TypeId, TypeShape>;
   calls?: CallSite[];
+  annotations?: Annotation[];
 }
+
+// Синтактичен факт за правилата на framework-а (route-ове сега, по-късно роли и bindings).
+// Адаптерът не знае framework-а. Дава декораторите и атрибутите с литералните им аргументи,
+// извикванията извън класовете, които имат низов аргумент (`$app->post('/orders', H::class)`),
+// и присвояванията на ниво модул от такова извикване (`router = APIRouter(prefix="/orders")`).
+export interface Annotation {
+  kind: 'decorator' | 'call' | 'assign';
+  name: string; // както е в кода, без `@` и `#[`: `router.post`, `Post`, `$app->post`, `APIRouter`
+  args: Arg[];
+  on?: { node: string; member?: string }; // decorator: класът или методът
+  target?: string; // assign: променливата
+  location: Location;
+}
+
+export type Arg = { name?: string } & (
+  | { kind: 'string'; value: string }
+  | { kind: 'class'; id: TypeId } // `X::class`, `X` в TS/Python
+  | { kind: 'other' }
+);
 
 // Извикване в тялото на метод. Адаптерът знае само локалния контекст (параметри, свойства на класа,
 // локални променливи), затова описва получателя като израз. Engine-ът извежда типа му, след като

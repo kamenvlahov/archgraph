@@ -22,12 +22,14 @@ describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi'])('%s', (name) => {
     const expected = JSON.parse(readFileSync(join(fixtures, name, 'expected.json'), 'utf8')) as GraphModel;
     const { graph } = await scan(join(fixtures, name));
     expect(graph.root).toBe(join(fixtures, name));
-    expect(graph.nodes.map((n) => n.id).sort()).toEqual(
-      expected.nodes
-        .filter((n) => n.kind !== 'route')
-        .map((n) => n.id)
-        .sort(),
-    );
+    expect(graph.nodes.map((n) => n.id).sort()).toEqual(expected.nodes.map((n) => n.id).sort());
+  });
+
+  test('route нодовете като expected.json', async () => {
+    const expected = JSON.parse(readFileSync(join(fixtures, name, 'expected.json'), 'utf8')) as GraphModel;
+    const { graph, report } = await scan(join(fixtures, name), { scip: false });
+    expect(graph.nodes.filter((n) => n.kind === 'route')).toEqual(expected.nodes.filter((n) => n.kind === 'route'));
+    expect(report.frameworks).toEqual([expected.nodes[0]?.framework]);
   });
 });
 
@@ -121,9 +123,36 @@ def run(repo: Repo, data: dict[str, int], untyped, r: "R") -> None:
   expect(graph.edges.map((e) => e.id)).toContain('calls:python:app.jobs.run#run->python:app.repo.Repo#save');
 });
 
+test('routes: префикс от include_router и от присвояване с prefix=, без framework няма route-ове', async () => {
+  const files = {
+    'app/__init__.py': '',
+    'app/a.py':
+      'from fastapi import APIRouter\nrouter = APIRouter(prefix="/a")\n\n@router.get("/{x}")\ndef get_a(x: int): ...\n',
+    'app/b.py': 'from fastapi import APIRouter\nrouter = APIRouter()\n\n@router.post("")\ndef post_b(): ...\n',
+    'app/main.py': `from fastapi import FastAPI
+from app.a import router as a_router
+from app import b
+
+def create_app() -> FastAPI:
+    app = FastAPI()
+    app.include_router(a_router, prefix="/api")
+    return app
+
+feature = Feature(router=b.router, prefix="/b")
+`,
+  };
+  const { graph } = await scan(project({ ...files, 'pyproject.toml': 'dependencies = ["fastapi"]' }), { scip: false });
+  expect(graph.edges.filter((e) => e.kind === 'routes-to').map((e) => e.id)).toEqual([
+    'routes-to:python:route:GET /api/a/{x}->python:app.a.get_a#get_a',
+    'routes-to:python:route:POST /b->python:app.b.post_b#post_b',
+  ]);
+  const plain = await scan(project(files), { scip: false });
+  expect(plain.graph.nodes.filter((n) => n.kind === 'route')).toEqual([]);
+});
+
 describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi'])('ребра: %s', (name) => {
-  test('extends, implements, injects, calls и creates като expected.json', async () => {
-    const kinds = ['extends', 'implements', 'injects', 'calls', 'creates'];
+  test('extends, implements, injects, calls, creates и routes-to като expected.json', async () => {
+    const kinds = ['extends', 'implements', 'injects', 'calls', 'creates', 'routes-to'];
     const expected = JSON.parse(readFileSync(join(fixtures, name, 'expected.json'), 'utf8')) as GraphModel;
     const { graph } = await scan(join(fixtures, name));
     const key = (e: GraphModel['edges'][number]) => `${e.kind} ${JSON.stringify(e.from)} -> ${JSON.stringify(e.to)}`;

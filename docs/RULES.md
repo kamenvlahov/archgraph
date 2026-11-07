@@ -107,7 +107,11 @@ wiring:
     call: 'Depends' # def x(svc: OrderService = Depends(get_service)) → injects
   routes:
     decorators: ['get', 'post', 'put', 'patch', 'delete']
+    prefix: { assign: 'APIRouter', keyword: 'prefix' } # router = APIRouter(prefix="/orders")
+    mount: { keyword: 'prefix' } # app.include_router(router, prefix="/api")
 ```
+
+> Засега правилата за route-ове са TS данни със същата форма в `packages/rules/src/frameworks.ts` ([D-012](DECISIONS.md)). Зареждането от YAML идва с двигателя на правилата.
 
 ## Регистрация на услуги (`bindings`)
 

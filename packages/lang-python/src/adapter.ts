@@ -1,5 +1,7 @@
 import {
   edge,
+  type Annotation,
+  type Arg,
   type CallSite,
   type Edge,
   type Expr,
@@ -44,6 +46,7 @@ interface Ctx {
   edges: Edge[];
   calls: CallSite[];
   types: Record<string, TypeShape>;
+  annotations: Annotation[];
 }
 
 export const pythonAdapter: LanguageAdapter = {
@@ -71,6 +74,7 @@ export const pythonAdapter: LanguageAdapter = {
     const edges: Edge[] = [];
     const calls: CallSite[] = [];
     const types: Record<string, TypeShape> = {};
+    const annotations: Annotation[] = [];
     const nodes = files.flatMap((file) => {
       const ctx: Ctx = {
         module: moduleName(file.path, srcIsPackage),
@@ -81,10 +85,11 @@ export const pythonAdapter: LanguageAdapter = {
         edges,
         calls,
         types,
+        annotations,
       };
       return withTree(parser, file.text, (tree) => readModule(tree.rootNode, ctx));
     });
-    return { nodes, edges, types, calls };
+    return { nodes, edges, types, calls, annotations };
   },
 };
 
@@ -102,6 +107,7 @@ function readModule(root: Node, ctx: Ctx): GraphNode[] {
   const decls: Node[] = [];
   topImports(root, ctx);
   for (const stmt of root.namedChildren) {
+    topLevelCall(stmt, ctx);
     const def = definition(stmt);
     if (def) {
       decls.push(stmt);
@@ -176,6 +182,82 @@ function location(n: Node, file: string): Location {
   return { file, line: n.startPosition.row + 1, endLine: n.endPosition.row + 1 };
 }
 
+// `router = APIRouter(prefix="/orders")` и `app.add_url_rule("/x", ...)` на ниво модул, ако имат низов аргумент.
+function topLevelCall(stmt: Node, ctx: Ctx) {
+  if (stmt.type !== 'expression_statement') return;
+  const inner = stmt.namedChildren[0];
+  const assign = inner?.type === 'assignment' ? inner : undefined;
+  const call = assign ? assign.childForFieldName('right') : inner;
+  if (call?.type !== 'call') return;
+  const args = callArgs(call, ctx);
+  if (!args.some((a) => a.kind === 'string')) return;
+  const name = call.childForFieldName('function')?.text ?? '';
+  const target = assign?.childForFieldName('left');
+  ctx.annotations.push({
+    kind: assign ? 'assign' : 'call',
+    name,
+    args,
+    ...(target?.type === 'identifier' ? { target: target.text } : {}),
+    location: location(stmt, ctx.file),
+  });
+}
+
+// Извикване във функция като факт, ако подава препратка и именуван низ:
+// `app.include_router(orders_router, prefix="/orders")`. Останалите са шум за правилата.
+function innerCall(call: Node, ctx: Ctx) {
+  const args = callArgs(call, ctx);
+  if (!args.some((a) => a.kind === 'string' && a.name) || !args.some((a) => a.kind === 'class')) return;
+  ctx.annotations.push({
+    kind: 'call',
+    name: call.childForFieldName('function')?.text ?? '',
+    args,
+    location: location(call, ctx.file),
+  });
+}
+
+// Декораторите като факти за правилата: `@router.post("/x", status_code=201)` → име и аргументи.
+function annotate(stmt: Node, on: { node: string; member?: string }, ctx: Ctx) {
+  if (stmt.type !== 'decorated_definition') return;
+  for (const d of stmt.namedChildren.filter((c) => c.type === 'decorator')) {
+    const e = d.namedChildren[0];
+    const call = e?.type === 'call' ? e : undefined;
+    ctx.annotations.push({
+      kind: 'decorator',
+      name: (call ? call.childForFieldName('function') : e)?.text ?? '',
+      args: call ? callArgs(call, ctx) : [],
+      on,
+      location: location(d, ctx.file),
+    });
+  }
+}
+
+function callArgs(call: Node, ctx: Ctx): Arg[] {
+  return (call.childForFieldName('arguments')?.namedChildren ?? []).flatMap((a): Arg[] => {
+    if (a.type === 'comment') return [];
+    if (a.type === 'keyword_argument') {
+      const value = argValue(a.childForFieldName('value'), ctx);
+      return [{ ...value, name: a.childForFieldName('name')?.text ?? '' }];
+    }
+    return [argValue(a, ctx)];
+  });
+}
+
+function argValue(n: Node | null, ctx: Ctx): Arg {
+  if (n?.type === 'string' && !n.namedChildren.some((c) => c.type === 'interpolation'))
+    return {
+      kind: 'string',
+      value: n.namedChildren
+        .filter((c) => c.type === 'string_content')
+        .map((c) => c.text)
+        .join(''),
+    };
+  if (n?.type === 'identifier' || n?.type === 'attribute') {
+    const ref = named(n.text, ctx);
+    if (ref.kind === 'named') return { kind: 'class', id: ref.id };
+  }
+  return { kind: 'other' };
+}
+
 function decorators(stmt: Node): string[] {
   if (stmt.type !== 'decorated_definition') return [];
   return stmt.namedChildren.filter((c) => c.type === 'decorator').map((d) => d.namedChildren[0]?.text ?? '');
@@ -195,6 +277,7 @@ function readDeclaration(stmt: Node, ctx: Ctx): GraphNode {
   if (def.type === 'function_definition') {
     node.kind = 'function';
     node.members = [readMember(stmt, node.id, ctx, false)];
+    annotate(stmt, { node: node.id, member: name }, ctx);
     readCalls(def, node.members[0] as Member, { node: node.id, props: new Map(), isMethod: false, ctx });
     return node;
   }
@@ -208,9 +291,11 @@ function readDeclaration(stmt: Node, ctx: Ctx): GraphNode {
     const to = named(base, ctx);
     if (to.kind === 'named') ctx.edges.push(edge('extends', { node: node.id }, { node: to.id }));
   }
+  annotate(stmt, { node: node.id }, ctx);
   const body = def.childForFieldName('body')?.namedChildren ?? [];
   const methods = body.filter((s) => definition(s)?.type === 'function_definition');
   node.members = methods.map((s) => readMember(s, node.id, ctx, true));
+  methods.forEach((m, i) => annotate(m, { node: node.id, member: node.members[i]?.name ?? '' }, ctx));
   const init = methods.findIndex((_, i) => node.members[i]?.name === '__init__');
   const fields = readFields(body, init < 0 ? undefined : (methods[init] as Node), node.members[init], ctx);
   if (fields.length > 0) ctx.types[node.id] = { id: node.id, name, nodeId: node.id, fields };
@@ -497,6 +582,7 @@ function readCalls(fn: Node, member: Member, b: Body) {
         for (const c of n.namedChildren.filter((c) => c.type === 'for_in_clause')) visit(c);
         break;
       case 'call': {
+        innerCall(n, ctx);
         const callee = n.childForFieldName('function');
         if (callee?.type === 'identifier' && !vars.has(callee.text)) {
           const ref = named(callee.text, ctx);
