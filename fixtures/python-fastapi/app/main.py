@@ -9,4 +9,11 @@ def create_app() -> FastAPI:
     return app
 
 
+def warm_up() -> None:
+    # Импорт вътре във функцията важи само в нея.
+    from app.orders.dependencies import get_repository
+
+    get_repository().find(0)
+
+
 app = create_app()

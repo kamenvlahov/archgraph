@@ -244,6 +244,18 @@ describe('връзки', () => {
     ]);
   });
 
+  test('неразрешено извикване от несъществуващ нод или member', () => {
+    const m = sample();
+    m.unresolved = [
+      { from: { node: 'php:App\\Order\\OrderService', member: 'place' }, name: 'save', line: 3 },
+      { from: { node: 'php:Missing', member: 'x' }, name: 'save', line: 3 },
+      { from: { node: 'php:App\\Order\\OrderService', member: 'nope' }, name: 'save', line: 3 },
+    ];
+    expect(errorsOf(m).map((e) => e.path)).toEqual(['$.unresolved[1].from.node', '$.unresolved[2].from.member']);
+    m.unresolved = [{ from: { node: 'php:App\\Order\\OrderService', member: 'place' }, name: '', line: 0 }];
+    expect(errorsOf(m).map((e) => e.path)).toEqual(['$.unresolved[0].name', '$.unresolved[0].line']);
+  });
+
   test('порт без member', () => {
     const m = sample();
     m.edges[0]!.to = { node: 'php:App\\Order\\OrderService', port: 'dto' };

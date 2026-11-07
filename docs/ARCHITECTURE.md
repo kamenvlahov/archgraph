@@ -82,6 +82,14 @@ interface GraphModel {
   nodes: Node[];
   edges: Edge[];
   types: Record<TypeId, TypeShape>; // речник на типовете за структурата на портовете
+  unresolved?: UnresolvedCall[]; // извиквания без ребро, които може да са пропусната връзка (D-011)
+}
+
+interface UnresolvedCall {
+  // получателят е без тип или функцията я няма; пази се само ако името съвпада с член в проекта
+  from: { node: string; member: string };
+  name: string;
+  line: number;
 }
 
 interface Node {

@@ -29,6 +29,12 @@
       "additionalProperties": {
         "$ref": "#/$defs/typeShape"
       }
+    },
+    "unresolved": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/unresolvedCall"
+      }
     }
   },
   "$defs": {
@@ -354,6 +360,33 @@
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]*$",
       "description": "Вид от регистъра: ядро + разширения (D-007). Схемата проверява само формата на името."
+    },
+    "unresolvedCall": {
+      "type": "object",
+      "required": ["from", "name", "line"],
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "object",
+          "required": ["node", "member"],
+          "additionalProperties": false,
+          "properties": {
+            "node": {
+              "$ref": "#/$defs/nonEmpty"
+            },
+            "member": {
+              "$ref": "#/$defs/nonEmpty"
+            }
+          }
+        },
+        "name": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
     }
   }
 }

@@ -4,9 +4,9 @@
 
 | Проект            | Framework | Особено                                                |
 | ----------------- | --------- | ------------------------------------------------------ |
-| `php-mezzio/`     | Mezzio    | фабрики, `ConfigProvider`, readonly DTO, PHPDoc масив  |
+| `php-mezzio/`     | Mezzio    | фабрики, `ConfigProvider`, readonly DTO, PHPDoc масив, handler с контейнер без тип |
 | `node-nestjs/`    | NestJS    | декоратори, DI по конструктор, един чист JS с JSDoc    |
-| `python-fastapi/` | FastAPI   | `Depends`, Pydantic схеми, Protocol, функция без hints |
+| `python-fastapi/` | FastAPI   | `Depends`, Pydantic схеми, Protocol, функция без hints, импорт във функция |
 
 ## Правила за `expected.json`
 
@@ -59,5 +59,9 @@
 - `calls`: от метода, който вика, към метода на **декларирания** тип (интерфейса, не имплементацията). Ако методът е наследен, реброто сочи класа, в който е деклариран (`Order` → `AbstractEntity#getId`).
 - `creates`: от метода, в който има `new X(...)` (вкл. `new self`, а в Python извикване `X(...)` на клас от проекта), към класа `X`. Отделно `calls` към конструктора не се пише.
 - `routes-to`: от route нода към метода на handler-а.
+
+**Неразрешени извиквания (`unresolved`)** ([D-011](../docs/DECISIONS.md))
+
+Извикване без ребро, чието име съвпада с член в проекта: получателят е без тип (`$this->container->get('orders')->place()`) или функцията от модул на проекта я няма. Получател от известен тип извън проекта (`dict`, `ServerRequestInterface`, резултат от външен метод) не е пропуск. Записва се по едно на име от член: `from`, `name` и редът на първото извикване. Ключът липсва, когато няма такива.
 
 **Роли** са тези от `docs/RULES.md` за съответния framework. Етап 1 не ги сравнява.

@@ -1,4 +1,4 @@
-import type { Edge, GraphModel, Location, Member, Node, TypeRef } from '@archgraph/model';
+import type { Edge, GraphModel, Location, Member, Node, TypeRef, UnresolvedCall } from '@archgraph/model';
 
 // Заявки върху готов граф: за MCP сървъра и по-късно за интерфейса. Отговорите са кратък текст
 // с `file:line`, защото основният потребител е агент, който ще отвори точно тези места.
@@ -13,12 +13,23 @@ export class GraphQuery {
   private readonly byId: Map<string, Node>;
   private readonly out: Map<string, Edge[]>;
   private readonly in: Map<string, Edge[]>;
+  // Извикванията без ребро (D-011): по име на извиквания член и по извикващия.
+  private readonly unresolvedTo: Map<string, UnresolvedCall[]>;
+  private readonly unresolvedFrom: Map<string, UnresolvedCall[]>;
+  private readonly membersByName: Map<string, Target[]>;
 
   constructor(graph: GraphModel) {
     this.graph = graph;
     this.byId = new Map(graph.nodes.map((n) => [n.id, n]));
     this.out = Map.groupBy(graph.edges, (e) => e.from.node);
     this.in = Map.groupBy(graph.edges, (e) => e.to.node);
+    const unresolved = graph.unresolved ?? [];
+    this.unresolvedTo = Map.groupBy(unresolved, (u) => u.name);
+    this.unresolvedFrom = Map.groupBy(unresolved, (u) => `${u.from.node}#${u.from.member}`);
+    this.membersByName = Map.groupBy(
+      graph.nodes.flatMap((node) => node.members.map((member) => ({ node, member }))),
+      (t) => t.member.name,
+    );
   }
 
   // `OrdersService#place`, `OrderService::place`, `OrderService.place`, пълно id или само име.
@@ -63,6 +74,8 @@ export class GraphQuery {
       const methods: [Target, string][] = t.node.members.map((member) => [{ node: t.node, member }, '· ']);
       const next = direction === 'up' ? this.callers(t) : level === 0 && !t.member ? methods : this.callees(t);
       for (const [n, a] of next) walk(n, level + 1, a);
+      if (direction === 'down' && t.member)
+        for (const note of this.unknownCallees(t)) lines.push(`${'  '.repeat(level + 1)}${note}`);
     };
     walk(start, 0, '');
     return lines.join('\n');
@@ -77,6 +90,11 @@ export class GraphQuery {
       if (!to) continue;
       if (e.kind === 'calls') result.push([to, e.confidence === 'exact' ? '→ ' : '→? ']);
       else if (e.kind === 'creates') result.push([to, 'new ']);
+    }
+    // Неразрешено извикване с един кандидат по име: показва се като възможно продължение.
+    for (const u of this.unresolvedFrom.get(targetId(t)) ?? []) {
+      const candidates = this.candidates(u.name);
+      if (candidates.length === 1) result.push([candidates[0] as Target, '?? ']);
     }
     // Интерфейсен метод: имплементациите (или това, което DI реално дава, ако има `binds`).
     if (t.node.kind === 'interface')
@@ -102,7 +120,36 @@ export class GraphQuery {
     if (t.member)
       for (const contract of this.contracts(t.node))
         if (contract.members.some((m) => m.name === t.member?.name)) add(contract, t.member.name);
+    // Възможни извикващи: извикване със същото име, чийто получател не е известен.
+    const known = new Set(result.map(([from]) => targetId(from)));
+    for (const [from] of this.possibleCallers(t)) if (!known.has(targetId(from))) result.push([from, '?? ← ']);
     return result;
+  }
+
+  // Извикванията със същото име като члена, които графът не можа да свърже, с реда на извикването.
+  possibleCallers(t: Target): [Target, Location][] {
+    if (!t.member) return [];
+    return (this.unresolvedTo.get(t.member.name) ?? []).flatMap((u): [Target, Location][] => {
+      const from = this.target(u.from.node, u.from.member);
+      return from ? [[from, { file: from.node.location.file, line: u.line, endLine: u.line }]] : [];
+    });
+  }
+
+  // Членовете с това име. Имплементация на друг кандидат не е отделна възможност: остава договорът.
+  private candidates(name: string): Target[] {
+    const all = this.membersByName.get(name) ?? [];
+    const ids = new Set(all.map((c) => c.node.id));
+    return all.filter((c) => !this.contracts(c.node).some((p) => ids.has(p.id)));
+  }
+
+  // Бележки за неразрешените извиквания от член с повече от един кандидат.
+  private unknownCallees(t: Target): string[] {
+    return (this.unresolvedFrom.get(targetId(t)) ?? []).flatMap((u) => {
+      const candidates = this.candidates(u.name);
+      if (candidates.length < 2) return [];
+      const names = candidates.length <= MAX_CANDIDATES ? `: ${candidates.map(label).join(', ')}` : '';
+      return [`?? ${u.name}()  :${u.line}  (получателят е неизвестен, ${candidates.length} члена с това име${names})`];
+    });
   }
 
   private implementations(iface: Node): Node[] {
@@ -133,6 +180,10 @@ export class GraphQuery {
         const ports = [...m.inputs, ...(m.output ? [m.output] : [])];
         if (ports.some((p) => mentions(p.type, node.id))) add('uses-type', { node: n, member: m });
       }
+    const kind = 'може би (извикване по име, получателят е неизвестен; провери в кода)';
+    for (const member of node.members)
+      for (const [from, at] of this.possibleCallers({ node, member }))
+        groups.set(kind, (groups.get(kind) ?? new Set()).add(`${member.name} ← ${label(from)}  ${loc(at)}`));
     if (groups.size === 0) return `${label({ node })}: никой не зависи от него`;
     return [...groups]
       .map(([kind, items]) => `${kind} (${items.size}):\n${[...items].map((i) => `  ${i}`).join('\n')}`)
@@ -164,6 +215,12 @@ export class GraphQuery {
     if (receives.length)
       lines.push('', `получава: ${receives.map((e) => this.byId.get(e.from.node)?.name).join(', ')}`);
     if (givenTo.length) lines.push(`инжектиран в: ${givenTo.map((e) => this.byId.get(e.to.node)?.name).join(', ')}`);
+    const unknown = members.flatMap((m) => this.unresolvedFrom.get(targetId({ node, member: m })) ?? []);
+    if (unknown.length)
+      lines.push(
+        '',
+        `неразрешени извиквания (${unknown.length}): ${unknown.map((u) => `${u.name}() :${u.line}`).join(', ')}`,
+      );
     return lines.join('\n');
   }
 
@@ -179,6 +236,9 @@ export class GraphQuery {
     return m ? { node, member: m } : { node };
   }
 }
+
+// Над толкова кандидати по име (`get`, `update`) бележката в trace дава само броя.
+const MAX_CANDIDATES = 3;
 
 export function label(t: Target): string {
   if (!t.member || (t.node.kind === 'function' && t.member.name === t.node.name)) return t.node.name;

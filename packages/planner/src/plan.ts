@@ -240,6 +240,10 @@ function outsideCallers(query: GraphQuery, targets: Target[], nodes: Node[]): st
   const out = new Set<string>();
   for (const t of targets)
     if (t.member)
-      for (const [c] of query.callers(t)) if (!inside.has(c.node.id)) out.add(`${label(c)}  \`${where(c)}\``);
+      for (const [c, arrow] of query.callers(t))
+        if (!inside.has(c.node.id))
+          out.add(
+            `${label(c)}  \`${where(c)}\`${arrow.startsWith('??') ? '  (може би: извикване по име, получателят е неизвестен)' : ''}`,
+          );
   return [...out];
 }

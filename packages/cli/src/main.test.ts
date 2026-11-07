@@ -11,7 +11,7 @@ test('scan записва валиден граф и печата резюме',
   const code = await main(['scan', join(import.meta.dirname, '../../../fixtures/python-fastapi'), '-o', out]);
   expect(code).toBe(0);
   expect(validate(JSON.parse(readFileSync(out, 'utf8'))).ok).toBe(true);
-  expect(log.mock.calls[0]?.[0]).toMatch(/^archgraph: 10 файла \(python 10\) → 16 нода/);
+  expect(log.mock.calls[0]?.[0]).toMatch(/^archgraph: 10 файла \(python 10\) → 17 нода/);
   log.mockRestore();
 });
 

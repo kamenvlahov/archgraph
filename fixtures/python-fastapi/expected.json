@@ -684,6 +684,30 @@
       ]
     },
     {
+      "id": "python:app.main.warm_up",
+      "kind": "function",
+      "name": "warm_up",
+      "language": "python",
+      "framework": "fastapi",
+      "location": {
+        "file": "app/main.py",
+        "line": 12,
+        "endLine": 16
+      },
+      "members": [
+        {
+          "name": "warm_up",
+          "visibility": "public",
+          "inputs": [],
+          "location": {
+            "file": "app/main.py",
+            "line": 12,
+            "endLine": 16
+          }
+        }
+      ]
+    },
+    {
       "id": "python:route:POST /orders",
       "kind": "route",
       "name": "POST /orders",
@@ -1040,6 +1064,32 @@
         "line": 11,
         "endLine": 11
       }
+    },
+    {
+      "id": "calls:python:app.main.warm_up#warm_up->python:app.orders.dependencies.get_repository#get_repository",
+      "kind": "calls",
+      "from": {
+        "node": "python:app.main.warm_up",
+        "member": "warm_up"
+      },
+      "to": {
+        "node": "python:app.orders.dependencies.get_repository",
+        "member": "get_repository"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:python:app.main.warm_up#warm_up->python:app.orders.repository.OrderRepository#find",
+      "kind": "calls",
+      "from": {
+        "node": "python:app.main.warm_up",
+        "member": "warm_up"
+      },
+      "to": {
+        "node": "python:app.orders.repository.OrderRepository",
+        "member": "find"
+      },
+      "confidence": "exact"
     }
   ],
   "types": {

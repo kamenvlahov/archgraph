@@ -176,11 +176,24 @@ export function validate(input: unknown, registry: Registry = CORE_REGISTRY): Va
   };
 
   if (!isObj(input, '$')) return { ok: false, errors };
-  only(input, ['version', 'root', 'nodes', 'edges', 'types'], '$');
+  only(input, ['version', 'root', 'nodes', 'edges', 'types', 'unresolved'], '$');
   if (input.version !== MODEL_VERSION) fail('$.version', `трябва да е ${MODEL_VERSION}`);
   str(input, 'root', '$');
   if (isArr(input.nodes, '$.nodes')) input.nodes.forEach((n, i) => node(n, `$.nodes[${i}]`));
   if (isArr(input.edges, '$.edges')) input.edges.forEach((e, i) => edge(e, `$.edges[${i}]`));
+  if (input.unresolved !== undefined && isArr(input.unresolved, '$.unresolved'))
+    input.unresolved.forEach((u, i) => {
+      const p = `$.unresolved[${i}]`;
+      if (!isObj(u, p)) return;
+      only(u, ['from', 'name', 'line'], p);
+      if (isObj(u.from, `${p}.from`)) {
+        only(u.from, ['node', 'member'], `${p}.from`);
+        str(u.from, 'node', `${p}.from`);
+        str(u.from, 'member', `${p}.from`);
+      }
+      str(u, 'name', p);
+      if (!Number.isInteger(u.line) || (u.line as number) < 1) fail(`${p}.line`, 'трябва да е цяло число ≥ 1');
+    });
   if (isObj(input.types, '$.types')) {
     for (const [key, shape] of Object.entries(input.types)) {
       const p = `$.types[${JSON.stringify(key)}]`;
@@ -225,6 +238,13 @@ export function validate(input: unknown, registry: Registry = CORE_REGISTRY): Va
       else if (end.port !== undefined && !hasPort(m, end.port))
         fail(`${p}.${side}.port`, `"${n.id}::${m.name}" няма порт "${end.port}"`);
     }
+  });
+
+  model.unresolved?.forEach((u, i) => {
+    const n = nodes.get(u.from.node);
+    if (!n) fail(`$.unresolved[${i}].from.node`, `няма нод "${u.from.node}"`);
+    else if (!n.members.some((m) => m.name === u.from.member))
+      fail(`$.unresolved[${i}].from.member`, `"${n.id}" няма member "${u.from.member}"`);
   });
 
   for (const [key, shape] of Object.entries(model.types)) {

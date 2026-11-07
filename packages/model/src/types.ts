@@ -23,6 +23,16 @@ export interface GraphModel {
   nodes: Node[];
   edges: Edge[];
   types: Record<TypeId, TypeShape>;
+  unresolved?: UnresolvedCall[];
+}
+
+// Извикване, което графът не може да свърже: получателят е без тип (service locator, нетипизирана
+// променлива) или функцията не е намерена. Пазят се само тези, чието име съвпада с член в проекта,
+// защото само те може да са пропусната връзка. Заявките ги показват като „възможни по име“ (D-011).
+export interface UnresolvedCall {
+  from: { node: string; member: string };
+  name: string;
+  line: number;
 }
 
 export interface Node {

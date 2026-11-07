@@ -100,8 +100,8 @@ export function moduleName(path: string, srcIsPackage = false): string {
 
 function readModule(root: Node, ctx: Ctx): GraphNode[] {
   const decls: Node[] = [];
+  topImports(root, ctx);
   for (const stmt of root.namedChildren) {
-    if (stmt.type === 'import_statement' || stmt.type === 'import_from_statement') addImports(stmt, ctx);
     const def = definition(stmt);
     if (def) {
       decls.push(stmt);
@@ -114,6 +114,25 @@ function readModule(root: Node, ctx: Ctx): GraphNode[] {
 function definition(stmt: Node): Node | undefined {
   const def = stmt.type === 'decorated_definition' ? stmt.childForFieldName('definition') : stmt;
   return def && (def.type === 'class_definition' || def.type === 'function_definition') ? def : undefined;
+}
+
+const isImport = (n: Node) => n.type === 'import_statement' || n.type === 'import_from_statement';
+
+// Импортите на модула, и тези в `if TYPE_CHECKING:`, `try:` и `with`, но не в дефинициите.
+function topImports(block: Node, ctx: Ctx) {
+  for (const stmt of block.namedChildren) {
+    if (isImport(stmt)) addImports(stmt, ctx);
+    else if (!definition(stmt)) topImports(stmt, ctx);
+  }
+}
+
+// Импорт вътре във функцията (`from src.core.config import get_settings` в `main()`) важи само в нея.
+function withLocalImports(fn: Node, ctx: Ctx): Ctx {
+  const local = fn.childForFieldName('body')?.descendantsOfType(['import_statement', 'import_from_statement']) ?? [];
+  if (local.length === 0) return ctx;
+  const scoped = { ...ctx, imports: new Map(ctx.imports) };
+  for (const stmt of local) addImports(stmt, scoped);
+  return scoped;
 }
 
 // import a.b as c; from a.b import X as Y; from ..core import Base
@@ -409,7 +428,7 @@ interface Body {
 
 // Извикванията в тялото на функция или метод. Локалните променливи се помнят по реда на присвояване.
 function readCalls(fn: Node, member: Member, b: Body) {
-  const { ctx } = b;
+  const ctx = withLocalImports(fn, b.ctx);
   const from = { node: b.node, member: member.name };
   const vars = new Map<string, Expr>(member.inputs.map((p) => [p.name, { kind: 'type', type: p.type }]));
   // self / cls не е порт, затова името му идва от синтаксиса.

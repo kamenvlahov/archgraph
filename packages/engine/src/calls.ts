@@ -1,11 +1,28 @@
 import { CONSTRUCTORS } from './edges.ts';
-import { edge, type CallSite, type Edge, type Expr, type Node, type TypeRef, type TypeShape } from '@archgraph/model';
+import {
+  edge,
+  type CallSite,
+  type Edge,
+  type Expr,
+  type Node,
+  type TypeRef,
+  type TypeShape,
+  type UnresolvedCall,
+} from '@archgraph/model';
 
 // Превръща извикванията от адаптерите в ребра. `calls` е по евристика (типът на получателя е изведен,
 // не доказан), затова е `inferred`. `creates` идва от `new X` или `X()` и е `exact`.
 // Методът се търси в типа на получателя и после нагоре по extends/implements, така че реброто сочи
 // класа, в който е деклариран (`Order` → `AbstractEntity#getId`).
-export function callEdges(nodes: Node[], edges: Edge[], types: Record<string, TypeShape>, calls: CallSite[]): Edge[] {
+// Извикванията без ребро, чието име съвпада с член в проекта, се връщат в `unresolved` (D-011):
+// получател без тип (`$sm->get('X')->run()`) или функция, която не е намерена. Получател от
+// външен тип (`AsyncSession`, `ContainerInterface`) е известен и не е пропуск.
+export function callEdges(
+  nodes: Node[],
+  edges: Edge[],
+  types: Record<string, TypeShape>,
+  calls: CallSite[],
+): { edges: Edge[]; unresolved: UnresolvedCall[] } {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const parents = new Map<string, string[]>();
   for (const e of edges)
@@ -39,24 +56,34 @@ export function callEdges(nodes: Node[], edges: Edge[], types: Record<string, Ty
       case 'call': {
         const n = byId.get(e.id);
         if (n?.kind === 'function') return n.members[0]?.output ? [n.members[0].output.type] : [];
-        return n ? [{ kind: 'named', id: n.id }] : [];
+        return n ? [{ kind: 'named', id: n.id }] : [EXTERNAL];
       }
       case 'field':
-        return classes(typeOf(e.of, depth + 1)).flatMap((id) => {
-          const f = lookup(id, () => fields.get(id)?.find((x) => x.name === e.name));
-          return f ? [f[1].type] : [];
+      case 'result': {
+        const of = typeOf(e.of, depth + 1);
+        const found = classes(of).flatMap((id): TypeRef[] => {
+          if (!byId.has(id)) return [EXTERNAL];
+          const hit =
+            e.kind === 'field'
+              ? lookup(id, () => fields.get(id)?.find((x) => x.name === e.name))?.[1].type
+              : lookup(id, (n) => n.members.find((x) => x.name === e.name))?.[1].output?.type;
+          return hit ? [hit] : [];
         });
-      case 'result':
-        return classes(typeOf(e.of, depth + 1)).flatMap((id) => {
-          const m = lookup(id, (n) => n.members.find((x) => x.name === e.name));
-          return m?.[1].output ? [m[1].output.type] : [];
-        });
+        // Метод на dict, list или външен клас: резултатът е извън проекта, но не е неизвестен.
+        return found.length > 0 || !of.some((t) => t.kind !== 'unknown' && t.kind !== 'named') ? found : [EXTERNAL];
+      }
       case 'element':
         return typeOf(e.of, depth + 1).flatMap(element);
     }
   };
 
+  const memberNames = new Set(nodes.flatMap((n) => n.members.map((m) => m.name)));
+  const modules = new Set(nodes.map((n) => owner(n.id)));
   const result: Edge[] = [];
+  const unresolved: UnresolvedCall[] = [];
+  const missing = (c: CallSite, name: string) => {
+    if (memberNames.has(name) && !CONSTRUCTORS.has(name)) unresolved.push({ from: c.from, name, line: c.line });
+  };
   for (const c of calls) {
     if (c.kind === 'new') {
       if (byId.get(c.id)?.kind === 'class')
@@ -67,16 +94,45 @@ export function callEdges(nodes: Node[], edges: Edge[], types: Record<string, Ty
         result.push(edge('creates', { node: c.from.node, member: c.from.member }, { node: n.id }));
       else if (n?.kind === 'function' && n.members[0])
         result.push(edge('calls', c.from, { node: n.id, member: n.members[0].name }, 'inferred'));
+      // Функция, която я няма: пропуск, ако модулът е от проекта или името е без модул.
+      // `alembic.context.run_migrations` е външна, дори да има наша `run_migrations`.
+      else if (!n && (modules.has(owner(c.id)) || !/[.\\#]/.test(c.id.replace(/^\w+:/, ''))))
+        missing(c, lastName(c.id));
     } else if (!CONSTRUCTORS.has(c.name)) {
       // parent::__construct() и super().__init__() са част от наследяването, не извикване.
-      for (const id of classes(typeOf(c.on))) {
+      const receiver = typeOf(c.on);
+      for (const id of classes(receiver)) {
         const m = lookup(id, (n) => n.members.find((x) => x.name === c.name));
         if (m) result.push(edge('calls', c.from, { node: m[0], member: c.name }, 'inferred'));
       }
+      // Получател с известен тип извън проекта (dict, list, външен клас) не е пропуск.
+      if (receiver.every((t) => t.kind === 'unknown' && t !== EXTERNAL)) missing(c, c.name);
     }
   }
-  return result;
+  // Едно и също име от един член е един пропуск; остава първият ред.
+  const seen = new Set<string>();
+  return {
+    edges: result,
+    unresolved: unresolved.filter((u) => {
+      const key = `${u.from.node}#${u.from.member}->${u.name}`;
+      return !seen.has(key) && seen.add(key);
+    }),
+  };
 }
+
+// `python:app.orders.place` → `place`, `php:App\money` → `money`, `node:src/a.ts#run` → `run`.
+function lastName(id: string): string {
+  return id.split(/[.\\#:/]/).pop() ?? id;
+}
+
+// Модулът или класът, в който е id-то: `python:app.orders.place` → `python:app.orders`.
+function owner(id: string): string {
+  return id.replace(/[.\\#][^.\\#]*$/, '');
+}
+
+// Тип извън проекта: резултат от външна функция или метод на външен клас. Не води до ребро,
+// но и не е пропуск, за разлика от получател без тип.
+const EXTERNAL: TypeRef = { kind: 'unknown', hint: 'external' };
 
 // Нодовете зад тип: `Order`, `?Order`, `Order|Draft`.
 function classes(types: TypeRef[]): string[] {

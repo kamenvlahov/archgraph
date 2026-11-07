@@ -912,6 +912,66 @@
       ]
     },
     {
+      "id": "php:App\\Order\\Handler\\ReorderHandler",
+      "kind": "class",
+      "name": "ReorderHandler",
+      "language": "php",
+      "role": "controller",
+      "framework": "mezzio",
+      "location": {
+        "file": "src/Order/Handler/ReorderHandler.php",
+        "line": 13,
+        "endLine": 25
+      },
+      "members": [
+        {
+          "name": "__construct",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "container",
+              "type": {
+                "kind": "unknown"
+              }
+            }
+          ],
+          "location": {
+            "file": "src/Order/Handler/ReorderHandler.php",
+            "line": 15,
+            "endLine": 17
+          }
+        },
+        {
+          "name": "handle",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "request",
+              "type": {
+                "kind": "named",
+                "id": "php:Psr\\Http\\Message\\ServerRequestInterface"
+              }
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "php:Psr\\Http\\Message\\ResponseInterface"
+            }
+          },
+          "location": {
+            "file": "src/Order/Handler/ReorderHandler.php",
+            "line": 19,
+            "endLine": 24
+          }
+        }
+      ],
+      "tags": [
+        "final"
+      ]
+    },
+    {
       "id": "php:App\\Order\\Handler\\PlaceOrderHandlerFactory",
       "kind": "class",
       "name": "PlaceOrderHandlerFactory",
@@ -1740,6 +1800,45 @@
           "readonly": true
         }
       ]
+    },
+    "php:App\\Order\\Handler\\ReorderHandler": {
+      "id": "php:App\\Order\\Handler\\ReorderHandler",
+      "name": "ReorderHandler",
+      "nodeId": "php:App\\Order\\Handler\\ReorderHandler",
+      "fields": [
+        {
+          "name": "container",
+          "type": {
+            "kind": "unknown"
+          }
+        }
+      ]
     }
-  }
+  },
+  "unresolved": [
+    {
+      "from": {
+        "node": "php:App\\Order\\Handler\\ReorderHandler",
+        "member": "handle"
+      },
+      "name": "place",
+      "line": 21
+    },
+    {
+      "from": {
+        "node": "php:App\\Order\\Handler\\ReorderHandler",
+        "member": "handle"
+      },
+      "name": "get",
+      "line": 21
+    },
+    {
+      "from": {
+        "node": "php:App\\Order\\Handler\\ReorderHandler",
+        "member": "handle"
+      },
+      "name": "getId",
+      "line": 23
+    }
+  ]
 }

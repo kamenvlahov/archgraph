@@ -33,8 +33,8 @@ describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi'])('%s', (name) => {
 
 test('смесен проект с трите езика', async () => {
   const { graph, report } = await scan(fixtures);
-  expect(report.files).toEqual({ php: 17, node: 13, python: 10 });
-  expect(graph.nodes.length).toBe(16 + 15 + 16);
+  expect(report.files).toEqual({ php: 18, node: 13, python: 10 });
+  expect(graph.nodes.length).toBe(17 + 15 + 17);
 });
 
 test('изключени папки, бъндъли и собствени шаблони', async () => {
@@ -78,6 +78,47 @@ describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi'])('types: %s', (nam
     const { graph } = await scan(join(fixtures, name), { scip: false });
     expect(graph.types).toEqual(expected.types);
   });
+});
+
+describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi'])('неразрешени: %s', (name) => {
+  test('извикванията без получател като expected.json', async () => {
+    const expected = JSON.parse(readFileSync(join(fixtures, name, 'expected.json'), 'utf8')) as GraphModel;
+    const { graph } = await scan(join(fixtures, name), { scip: false });
+    expect(graph.unresolved).toEqual(expected.unresolved);
+  });
+});
+
+test('неразрешени: без тип и непозната функция от проекта; външните не са пропуск', async () => {
+  const dir = project({
+    'app/__init__.py': '',
+    'app/repo.py': 'class Repo:\n    def get(self, k: str) -> int: ...\n    def save(self) -> None: ...\n',
+    'app/jobs.py': `import os
+from typing import TYPE_CHECKING
+from alembic import context
+from app import missing
+from app.repo import Repo
+
+if TYPE_CHECKING:
+    from app.repo import Repo as R
+
+
+def save() -> None: ...
+
+
+def run(repo: Repo, data: dict[str, int], untyped, r: "R") -> None:
+    data.get("a")
+    os.environ.get("X")
+    context.save()
+    repo.get("a")
+    r.save()
+    untyped.save()
+    missing.get()
+    untyped.save()
+`,
+  });
+  const { graph } = await scan(dir, { scip: false });
+  expect(graph.unresolved).toEqual([{ from: { node: 'python:app.jobs.run', member: 'run' }, name: 'save', line: 20 }]);
+  expect(graph.edges.map((e) => e.id)).toContain('calls:python:app.jobs.run#run->python:app.repo.Repo#save');
 });
 
 describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi'])('ребра: %s', (name) => {

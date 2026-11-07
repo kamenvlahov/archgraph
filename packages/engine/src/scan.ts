@@ -80,11 +80,11 @@ export async function scan(
     options.scip === false
       ? { edges: [], rest: calls }
       : scipCalls(root, graph.nodes, [...byAdapter.keys()], calls, report);
+  const inferred = callEdges(graph.nodes, graph.edges, graph.types, exact.rest);
   // Едно и също извикване може да се среща няколко пъти в метода, а реброто е едно.
-  const called = new Map(
-    [...callEdges(graph.nodes, graph.edges, graph.types, exact.rest), ...exact.edges].map((e) => [e.id, e]),
-  );
+  const called = new Map([...inferred.edges, ...exact.edges].map((e) => [e.id, e]));
   graph.edges = graph.edges.concat([...called.values()]);
+  if (inferred.unresolved.length > 0) graph.unresolved = inferred.unresolved;
 
   const result = validate(graph);
   if (!result.ok) throw new InvalidGraphError(result.errors);

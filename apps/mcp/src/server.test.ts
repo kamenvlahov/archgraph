@@ -47,7 +47,28 @@ describe('инструменти върху php-mezzio', () => {
       'DoctrineOrderRepository#find  src/Order/Repository/DoctrineOrderRepository.php:16',
       '  ← OrderService#get  src/Order/Service/OrderService.php:31',
       '    ← GetOrderHandler#handle  src/Order/Handler/GetOrderHandler.php:20',
+      '    ?? ← ReorderHandler#handle  src/Order/Handler/ReorderHandler.php:19',
     ]);
+  });
+
+  test('извикване без получател: възможно по име в trace, dependents и describe', async () => {
+    const down = await call(server, 'trace', { target: 'ReorderHandler#handle', depth: 2 });
+    expect(down.text.split('\n')).toEqual([
+      'ReorderHandler#handle  src/Order/Handler/ReorderHandler.php:19',
+      '  ?? OrderServiceInterface#place  src/Order/Service/OrderServiceInterface.php:12',
+      '    ⇒ OrderService#place  src/Order/Service/OrderService.php:20',
+      '  ?? OrderServiceInterface#get  src/Order/Service/OrderServiceInterface.php:14',
+      '    ⇒ OrderService#get  src/Order/Service/OrderService.php:31',
+      '  ?? AbstractEntity#getId  src/Order/Entity/AbstractEntity.php:11',
+    ]);
+    const deps = await call(server, 'dependents', { target: 'OrderService' });
+    expect(deps.text).toContain(
+      'може би (извикване по име, получателят е неизвестен; провери в кода) (2):\n' +
+        '  place ← ReorderHandler#handle  src/Order/Handler/ReorderHandler.php:21\n' +
+        '  get ← ReorderHandler#handle  src/Order/Handler/ReorderHandler.php:21',
+    );
+    const described = await call(server, 'describe_node', { target: 'ReorderHandler' });
+    expect(described.text).toContain('неразрешени извиквания (3): place() :21, get() :21, getId() :23');
   });
 
   test('describe_node и find_by_role', async () => {
@@ -97,6 +118,7 @@ test('plan върху php-mezzio: засегнати, свързване и ре
       'След това провери извикващите извън плана, ако сигнатурата се промени:',
       '',
       '- PlaceOrderHandler#handle  `src/Order/Handler/PlaceOrderHandler.php:20`',
+      '- ReorderHandler#handle  `src/Order/Handler/ReorderHandler.php:19`  (може би: извикване по име, получателят е неизвестен)',
       '',
     ].join('\n'),
   );
