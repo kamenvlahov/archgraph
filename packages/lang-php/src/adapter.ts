@@ -3,6 +3,7 @@ import {
   type CallSite,
   type Edge,
   type Expr,
+  type Field,
   type GraphFragment,
   type LanguageAdapter,
   type Location,
@@ -12,6 +13,7 @@ import {
   type Port,
   type SourceFile,
   type TypeRef,
+  type TypeShape,
 } from '@archgraph/model';
 import { withTree, type Node } from '@archgraph/syntax';
 import { phpParser } from './grammar.ts';
@@ -33,6 +35,7 @@ const TAGS: Record<string, string> = {
 interface Out {
   edges: Edge[];
   calls: CallSite[];
+  types: Record<string, TypeShape>;
 }
 
 interface Scope {
@@ -46,11 +49,11 @@ export const phpAdapter: LanguageAdapter = {
   extensions: ['.php'],
   async read(files: SourceFile[]): Promise<GraphFragment> {
     const parser = await phpParser();
-    const out: Out = { edges: [], calls: [] };
+    const out: Out = { edges: [], calls: [], types: {} };
     const nodes = files.flatMap((file) =>
       withTree(parser, file.text, (tree) => readFile(tree.rootNode, file.path, out)),
     );
-    return { nodes, edges: out.edges, types: {}, calls: out.calls };
+    return { nodes, edges: out.edges, types: out.types, calls: out.calls };
   },
 };
 
@@ -142,7 +145,9 @@ function readClass(n: Node, file: string, outer: Scope, out: Out): GraphNode {
     for (const base of clause.namedChildren)
       out.edges.push(edge(kind, { node: node.id }, { node: `php:${resolveClass(base.text, outer)}` }));
   }
-  const props = properties(body, members, scope);
+  const fields = readFields(body, members, scope, tags.includes('readonly'));
+  if (fields.length > 0) out.types[node.id] = { id: node.id, name, nodeId: node.id, fields };
+  const props = new Map(fields.filter((f) => f.type.kind !== 'unknown').map((f) => [f.name, f.type]));
   const methods = (body?.namedChildren ?? []).filter((c) => c.type === 'method_declaration');
   methods.forEach((m, i) => readCalls(m, members[i] as Member, { node: node.id, scope, props, out }));
   return node;
@@ -237,18 +242,39 @@ function nativeType(t: Node | null, scope: Scope): TypeRef | undefined {
   }
 }
 
-// Типовете на свойствата: промотирани параметри на конструктора и декларации (`@var` е с предимство).
-function properties(body: Node | null, members: Member[], scope: Scope): Map<string, TypeRef> {
-  const props = new Map<string, TypeRef>();
-  for (const port of members.find((m) => m.name.toLowerCase() === '__construct')?.inputs ?? [])
-    props.set(port.name, port.type);
+// Полетата на класа по реда в кода: декларирани свойства (`@var` е с предимство) и промотирани
+// параметри на конструктора. Статичните свойства не са полета на обекта.
+function readFields(body: Node | null, members: Member[], scope: Scope, readonlyClass: boolean): Field[] {
+  const fields: Field[] = [];
+  const add = (decl: Node, name: string, type: TypeRef, hasDefault: boolean) => {
+    const f: Field = { name, type };
+    if (hasDefault) f.optional = true;
+    if (readonlyClass || decl.namedChildren.some((c) => c.type === 'readonly_modifier')) f.readonly = true;
+    fields.push(f);
+  };
   for (const decl of body?.namedChildren ?? []) {
-    if (decl.type !== 'property_declaration') continue;
-    const type = docType(docComment(decl)?.var, scope) ?? nativeType(decl.childForFieldName('type'), scope);
-    for (const el of decl.namedChildren.filter((c) => c.type === 'property_element'))
-      if (type) props.set((el.childForFieldName('name')?.text ?? '').replace(/^\$/, ''), type);
+    if (decl.type === 'property_declaration' && !decl.namedChildren.some((c) => c.type === 'static_modifier')) {
+      const type = docType(docComment(decl)?.var, scope) ??
+        nativeType(decl.childForFieldName('type'), scope) ?? { kind: 'unknown' };
+      for (const el of decl.namedChildren.filter((c) => c.type === 'property_element'))
+        add(
+          decl,
+          (el.childForFieldName('name')?.text ?? '').replace(/^\$/, ''),
+          type,
+          !!el.childForFieldName('default_value'),
+        );
+    }
+    if (decl.type !== 'method_declaration' || decl.childForFieldName('name')?.text.toLowerCase() !== '__construct')
+      continue;
+    const ctor = members.find((m) => m.name.toLowerCase() === '__construct');
+    for (const p of decl.childForFieldName('parameters')?.namedChildren ?? []) {
+      if (p.type !== 'property_promotion_parameter') continue;
+      const name = (p.childForFieldName('name')?.text ?? '').replace(/^\$/, '');
+      const port = ctor?.inputs.find((i) => i.name === name);
+      add(p, name, port?.type ?? { kind: 'unknown' }, !!p.childForFieldName('default_value'));
+    }
   }
-  return props;
+  return fields;
 }
 
 interface Body {

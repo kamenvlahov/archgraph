@@ -1233,6 +1233,41 @@
           }
         }
       ]
+    },
+    "python:app.orders.repository.InMemoryOrderRepository": {
+      "id": "python:app.orders.repository.InMemoryOrderRepository",
+      "name": "InMemoryOrderRepository",
+      "nodeId": "python:app.orders.repository.InMemoryOrderRepository",
+      "fields": [
+        {
+          "name": "_orders",
+          "type": {
+            "kind": "map",
+            "key": {
+              "kind": "primitive",
+              "name": "int"
+            },
+            "value": {
+              "kind": "named",
+              "id": "python:app.orders.models.Order"
+            }
+          }
+        }
+      ]
+    },
+    "python:app.orders.service.OrderService": {
+      "id": "python:app.orders.service.OrderService",
+      "name": "OrderService",
+      "nodeId": "python:app.orders.service.OrderService",
+      "fields": [
+        {
+          "name": "repo",
+          "type": {
+            "kind": "named",
+            "id": "python:app.orders.repository.OrderRepository"
+          }
+        }
+      ]
     }
   }
 }

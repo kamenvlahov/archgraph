@@ -1672,6 +1672,74 @@
           "readonly": true
         }
       ]
+    },
+    "php:App\\Order\\Repository\\DoctrineOrderRepository": {
+      "id": "php:App\\Order\\Repository\\DoctrineOrderRepository",
+      "name": "DoctrineOrderRepository",
+      "nodeId": "php:App\\Order\\Repository\\DoctrineOrderRepository",
+      "fields": [
+        {
+          "name": "em",
+          "type": {
+            "kind": "named",
+            "id": "php:Doctrine\\ORM\\EntityManagerInterface"
+          },
+          "readonly": true
+        }
+      ]
+    },
+    "php:App\\Order\\Service\\OrderService": {
+      "id": "php:App\\Order\\Service\\OrderService",
+      "name": "OrderService",
+      "nodeId": "php:App\\Order\\Service\\OrderService",
+      "fields": [
+        {
+          "name": "orders",
+          "type": {
+            "kind": "named",
+            "id": "php:App\\Order\\Repository\\OrderRepositoryInterface"
+          },
+          "readonly": true
+        },
+        {
+          "name": "prices",
+          "type": {
+            "kind": "named",
+            "id": "php:App\\Order\\Service\\PriceCalculator"
+          },
+          "readonly": true
+        }
+      ]
+    },
+    "php:App\\Order\\Handler\\PlaceOrderHandler": {
+      "id": "php:App\\Order\\Handler\\PlaceOrderHandler",
+      "name": "PlaceOrderHandler",
+      "nodeId": "php:App\\Order\\Handler\\PlaceOrderHandler",
+      "fields": [
+        {
+          "name": "orders",
+          "type": {
+            "kind": "named",
+            "id": "php:App\\Order\\Service\\OrderServiceInterface"
+          },
+          "readonly": true
+        }
+      ]
+    },
+    "php:App\\Order\\Handler\\GetOrderHandler": {
+      "id": "php:App\\Order\\Handler\\GetOrderHandler",
+      "name": "GetOrderHandler",
+      "nodeId": "php:App\\Order\\Handler\\GetOrderHandler",
+      "fields": [
+        {
+          "name": "orders",
+          "type": {
+            "kind": "named",
+            "id": "php:App\\Order\\Service\\OrderServiceInterface"
+          },
+          "readonly": true
+        }
+      ]
     }
   }
 }

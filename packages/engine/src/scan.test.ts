@@ -72,6 +72,14 @@ test('шаблони за изключване', () => {
   expect(isExcluded('lib/src/legacy/b.ts', ['src/legacy/**'])).toBe(false);
 });
 
+describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi'])('types: %s', (name) => {
+  test('полетата като expected.json', async () => {
+    const expected = JSON.parse(readFileSync(join(fixtures, name, 'expected.json'), 'utf8')) as GraphModel;
+    const { graph } = await scan(join(fixtures, name), { scip: false });
+    expect(graph.types).toEqual(expected.types);
+  });
+});
+
 describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi'])('ребра: %s', (name) => {
   test('extends, implements, injects, calls и creates като expected.json', async () => {
     const kinds = ['extends', 'implements', 'injects', 'calls', 'creates'];
@@ -209,4 +217,53 @@ export class Page {
   });
   const { graph } = await scan(dir);
   expect(graph.edges.map((e) => e.id).sort()).toEqual(['calls:node:src/page.ts#Page#open->node:src/api.ts#Api#load']);
+});
+
+test('calls през поле на друг клас', async () => {
+  const dir = project({
+    'Svc.php':
+      '<?php\nclass Repo { public function find(): void {} }\nclass Svc { public function __construct(public Repo $repo) {} }',
+    'Job.php': '<?php\nclass Job { public function run(Svc $svc): void { $svc->repo->find(); } }',
+  });
+  const { graph } = await scan(dir, { scip: false });
+  expect(graph.edges.map((e) => e.id)).toContain('calls:php:Job#run->php:Repo#find');
+});
+
+test('полета в Python: Field без default, ClassVar, self.x в __init__', async () => {
+  const dir = project({
+    'm.py': `from typing import ClassVar
+from pydantic import BaseModel, Field
+
+
+class Repo:
+    pass
+
+
+class In(BaseModel):
+    a: int = Field(gt=0)
+    b: int = Field(1)
+    c: list[int] = Field(default_factory=list)
+    d: int = Field(..., ge=1)
+    count: ClassVar[int] = 0
+
+
+class Svc:
+    def __init__(self, repo: Repo, n):
+        self.repo = repo
+        self.cache: dict[str, int] = {}
+        self.other = n.x
+`,
+  });
+  const { graph } = await scan(dir, { scip: false });
+  expect(graph.types['python:m.In']?.fields.map((f) => [f.name, f.optional ?? false])).toEqual([
+    ['a', false],
+    ['b', true],
+    ['c', true],
+    ['d', false],
+  ]);
+  expect(graph.types['python:m.Svc']?.fields.map((f) => [f.name, f.type.kind])).toEqual([
+    ['repo', 'named'],
+    ['cache', 'map'],
+    ['other', 'unknown'],
+  ]);
 });

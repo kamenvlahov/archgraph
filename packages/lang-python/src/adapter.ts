@@ -3,6 +3,7 @@ import {
   type CallSite,
   type Edge,
   type Expr,
+  type Field,
   type GraphFragment,
   type LanguageAdapter,
   type Location,
@@ -11,6 +12,7 @@ import {
   type Port,
   type SourceFile,
   type TypeRef,
+  type TypeShape,
 } from '@archgraph/model';
 import { withTree, type Node, type Parser } from '@archgraph/syntax';
 import { pythonParser } from './grammar.ts';
@@ -41,6 +43,7 @@ interface Ctx {
   imports: Map<string, string>; // локално име → пълно име (модул.Име или модул)
   edges: Edge[];
   calls: CallSite[];
+  types: Record<string, TypeShape>;
 }
 
 export const pythonAdapter: LanguageAdapter = {
@@ -65,6 +68,7 @@ export const pythonAdapter: LanguageAdapter = {
     const parser = await pythonParser();
     const edges: Edge[] = [];
     const calls: CallSite[] = [];
+    const types: Record<string, TypeShape> = {};
     const nodes = files.flatMap((file) => {
       const ctx: Ctx = {
         module: moduleName(file.path),
@@ -74,10 +78,11 @@ export const pythonAdapter: LanguageAdapter = {
         imports: new Map(),
         edges,
         calls,
+        types,
       };
       return withTree(parser, file.text, (tree) => readModule(tree.rootNode, ctx));
     });
-    return { nodes, edges, types: {}, calls };
+    return { nodes, edges, types, calls };
   },
 };
 
@@ -185,13 +190,13 @@ function readDeclaration(stmt: Node, ctx: Ctx): GraphNode {
   const body = def.childForFieldName('body')?.namedChildren ?? [];
   const methods = body.filter((s) => definition(s)?.type === 'function_definition');
   node.members = methods.map((s) => readMember(s, node.id, ctx, true));
-  // Полета на ниво клас (dataclass, Pydantic), после `self.x = ...` с __init__ най-напред.
-  const props = new Map<string, Expr>();
-  for (const s of body) {
-    const a = s.type === 'expression_statement' ? s.namedChildren[0] : undefined;
-    const type = a?.type === 'assignment' ? a.childForFieldName('type') : undefined;
-    if (type) props.set(a?.childForFieldName('left')?.text ?? '', { kind: 'type', type: typeRef(type, ctx) });
-  }
+  const init = methods.findIndex((_, i) => node.members[i]?.name === '__init__');
+  const fields = readFields(body, init < 0 ? undefined : (methods[init] as Node), node.members[init], ctx);
+  if (fields.length > 0) ctx.types[node.id] = { id: node.id, name, nodeId: node.id, fields };
+  // `self.x = ...` в останалите методи допълва типовете, затова __init__ е най-напред.
+  const props = new Map<string, Expr>(
+    fields.filter((f) => f.type.kind !== 'unknown').map((f) => [f.name, { kind: 'type', type: f.type }]),
+  );
   const order = methods
     .map((_, i) => i)
     .sort((a, b) => +(node.members[b]?.name === '__init__') - +(node.members[a]?.name === '__init__'));
@@ -347,6 +352,50 @@ function forwardRef(t: Node, ctx: Ctx): TypeRef {
     const type = tree.rootNode.descendantsOfType('type')[0];
     return type && !tree.rootNode.hasError ? typeRef(type, ctx) : { kind: 'unknown', hint: text };
   });
+}
+
+// Полетата: анотации на ниво клас (dataclass, Pydantic, TypedDict) и `self.x = ...` в __init__.
+// Стойност по подразбиране прави полето незадължително, освен `Field(...)` / `field()` без default.
+function readFields(body: Node[], init: Node | undefined, ctor: Member | undefined, ctx: Ctx): Field[] {
+  const fields: Field[] = [];
+  const assignments = (stmts: Node[]) =>
+    stmts.flatMap((s) =>
+      s.type === 'expression_statement' && s.namedChildren[0]?.type === 'assignment' ? [s.namedChildren[0]] : [],
+    );
+  for (const a of assignments(body)) {
+    const left = a.childForFieldName('left');
+    const type = a.childForFieldName('type');
+    if (left?.type !== 'identifier' || !type || /^(typing\.)?ClassVar\b/.test(type.text)) continue;
+    const f: Field = { name: left.text, type: typeRef(type, ctx) };
+    if (hasDefault(a.childForFieldName('right'))) f.optional = true;
+    fields.push(f);
+  }
+  const fn = init && definition(init);
+  const self = fn?.childForFieldName('parameters')?.namedChildren[0]?.text;
+  const block = fn?.childForFieldName('body');
+  for (const a of assignments(block?.namedChildren ?? [])) {
+    const left = a.childForFieldName('left');
+    const name = left?.childForFieldName('attribute')?.text;
+    if (left?.type !== 'attribute' || left.childForFieldName('object')?.text !== self || !name) continue;
+    if (fields.some((f) => f.name === name)) continue;
+    const annotation = a.childForFieldName('type');
+    const value = a.childForFieldName('right');
+    const param = value?.type === 'identifier' ? ctor?.inputs.find((p) => p.name === value.text) : undefined;
+    fields.push({ name, type: annotation ? typeRef(annotation, ctx) : (param?.type ?? UNKNOWN) });
+  }
+  return fields;
+}
+
+function hasDefault(value: Node | null): boolean {
+  if (!value) return false;
+  if (value.type !== 'call' || !/^(\w+\.)?(Field|field)$/.test(value.childForFieldName('function')?.text ?? ''))
+    return true;
+  const args = value.childForFieldName('arguments')?.namedChildren ?? [];
+  const first = args[0];
+  if (first && first.type !== 'keyword_argument' && first.type !== 'ellipsis') return true;
+  return args.some(
+    (k) => k.type === 'keyword_argument' && /^default(_factory)?$/.test(k.childForFieldName('name')?.text ?? ''),
+  );
 }
 
 interface Body {

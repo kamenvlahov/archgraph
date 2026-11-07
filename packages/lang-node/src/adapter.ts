@@ -13,6 +13,7 @@ import {
   type Port,
   type SourceFile,
   type TypeRef,
+  type TypeShape,
 } from '@archgraph/model';
 import { withTree, type Node, type Parser } from '@archgraph/syntax';
 import { typescriptParser } from './grammar.ts';
@@ -28,6 +29,7 @@ interface Ctx {
   imports: Map<string, { module: string; name: string }>;
   edges: Edge[];
   calls: CallSite[];
+  types: Record<string, TypeShape>;
 }
 
 export const nodeAdapter: LanguageAdapter = {
@@ -42,11 +44,21 @@ export const nodeAdapter: LanguageAdapter = {
     const known = new Set(files.map((f) => f.path));
     const edges: Edge[] = [];
     const calls: CallSite[] = [];
+    const types: Record<string, TypeShape> = {};
     const nodes = files.flatMap((file) => {
-      const ctx: Ctx = { file: file.path, files: known, parser, locals: new Set(), imports: new Map(), edges, calls };
+      const ctx: Ctx = {
+        file: file.path,
+        files: known,
+        parser,
+        locals: new Set(),
+        imports: new Map(),
+        edges,
+        calls,
+        types,
+      };
       return withTree(parser, file.text, (tree) => readModule(tree.rootNode, ctx));
     });
-    return { nodes, edges, types: {}, calls };
+    return { nodes, edges, types, calls };
   },
 };
 
@@ -136,7 +148,11 @@ function readDeclaration(decl: Node, outer: Node, ctx: Ctx): GraphNode[] {
       const members = methods.map((m) => readMember(m, ctx));
       const n = node('class', name, members, decl.type === 'abstract_class_declaration' ? ['abstract'] : []);
       addHeritage(decl, n.id, ctx);
-      const props = properties(body, ctx);
+      const props = new Map<string, Expr>(
+        addFields(n, body, ctx)
+          .filter((f) => f.type.kind !== 'unknown')
+          .map((f) => [f.name, { kind: 'type', type: f.type }]),
+      );
       // Конструкторът първи, защото `this.x = ...` в него дава типа на свойството за останалите.
       const order = methods
         .map((m, i) => i)
@@ -150,6 +166,7 @@ function readDeclaration(decl: Node, outer: Node, ctx: Ctx): GraphNode[] {
         .map((m) => readMember(m, ctx));
       const n = node('interface', name, members);
       addHeritage(decl, n.id, ctx);
+      addFields(n, decl.childForFieldName('body')?.namedChildren ?? [], ctx);
       return [n];
     }
     case 'enum_declaration':
@@ -365,25 +382,41 @@ function docType(text: string, ctx: Ctx): TypeRef {
   });
 }
 
-// Типовете на свойствата: полета с анотация и параметри на конструктора с `private`/`readonly`.
-function properties(body: Node[], ctx: Ctx): Map<string, Expr> {
-  const props = new Map<string, Expr>();
+// Полетата по реда в кода: полета на класа, свойства на интерфейса и параметри на конструктора
+// с `private`/`public`/`readonly`. Статичните не са полета на обекта. Записват се в `types`.
+function addFields(n: GraphNode, body: Node[], ctx: Ctx): Field[] {
+  const fields: Field[] = [];
+  const add = (decl: Node, name: string, type: TypeRef, optional: boolean) => {
+    const f: Field = { name, type };
+    if (optional) f.optional = true;
+    if (decl.children.some((c) => c.type === 'readonly')) f.readonly = true;
+    fields.push(f);
+  };
   for (const c of body) {
-    const annotation = c.childForFieldName('type')?.namedChildren[0];
-    const type = annotation ? typeRef(annotation, ctx) : initializerType(c.childForFieldName('value'), ctx);
-    if (c.type === 'public_field_definition' && type)
-      props.set(c.childForFieldName('name')?.text ?? '', { kind: 'type', type });
+    if (c.type === 'public_field_definition' || c.type === 'property_signature') {
+      if (c.children.some((m) => m.type === 'static')) continue;
+      const annotation = c.childForFieldName('type')?.namedChildren[0];
+      const value = c.childForFieldName('value');
+      const type = annotation ? typeRef(annotation, ctx) : (initializerType(value, ctx) ?? UNKNOWN);
+      add(c, c.childForFieldName('name')?.text ?? '', type, !!value || c.children.some((m) => m.type === '?'));
+    }
     if (c.type !== 'method_definition' || c.childForFieldName('name')?.text !== 'constructor') continue;
     for (const p of c.childForFieldName('parameters')?.namedChildren ?? []) {
-      const type = p.childForFieldName('type')?.namedChildren[0];
       const isProperty =
         p.namedChildren.some((m) => m.type === 'accessibility_modifier') ||
         p.children.some((m) => m.type === 'readonly');
-      if (isProperty && type)
-        props.set(p.childForFieldName('pattern')?.text ?? '', { kind: 'type', type: typeRef(type, ctx) });
+      if (!isProperty) continue;
+      const annotation = p.childForFieldName('type')?.namedChildren[0];
+      add(
+        p,
+        p.childForFieldName('pattern')?.text ?? '',
+        annotation ? typeRef(annotation, ctx) : UNKNOWN,
+        p.type === 'optional_parameter' || !!p.childForFieldName('value'),
+      );
     }
   }
-  return props;
+  if (fields.length > 0) ctx.types[n.id] = { id: n.id, name: n.name, nodeId: n.id, fields };
+  return fields;
 }
 
 function lineOf(n: Node): number {

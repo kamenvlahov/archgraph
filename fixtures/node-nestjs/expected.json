@@ -1248,6 +1248,65 @@
           }
         }
       ]
+    },
+    "node:src/orders/typeorm-order.repository.ts#TypeOrmOrderRepository": {
+      "id": "node:src/orders/typeorm-order.repository.ts#TypeOrmOrderRepository",
+      "name": "TypeOrmOrderRepository",
+      "nodeId": "node:src/orders/typeorm-order.repository.ts#TypeOrmOrderRepository",
+      "fields": [
+        {
+          "name": "orders",
+          "type": {
+            "kind": "named",
+            "id": "node:typeorm#Repository",
+            "args": [
+              {
+                "kind": "named",
+                "id": "node:src/orders/entities/order.entity.ts#Order"
+              }
+            ]
+          },
+          "readonly": true
+        }
+      ]
+    },
+    "node:src/orders/orders.service.ts#OrdersService": {
+      "id": "node:src/orders/orders.service.ts#OrdersService",
+      "name": "OrdersService",
+      "nodeId": "node:src/orders/orders.service.ts#OrdersService",
+      "fields": [
+        {
+          "name": "orders",
+          "type": {
+            "kind": "named",
+            "id": "node:src/orders/order.repository.ts#OrderRepository"
+          },
+          "readonly": true
+        },
+        {
+          "name": "prices",
+          "type": {
+            "kind": "named",
+            "id": "node:src/orders/price-calculator.js#PriceCalculator"
+          },
+          "readonly": true
+        }
+      ]
+    },
+    "node:src/orders/orders.controller.ts#OrdersController": {
+      "id": "node:src/orders/orders.controller.ts#OrdersController",
+      "name": "OrdersController",
+      "nodeId": "node:src/orders/orders.controller.ts#OrdersController",
+      "fields": [
+        {
+          "name": "orders",
+          "type": {
+            "kind": "named",
+            "id": "node:src/orders/orders.service.ts#OrdersService"
+          },
+          "readonly": true
+        }
+      ]
     }
   }
 }
