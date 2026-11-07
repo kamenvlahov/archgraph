@@ -1,3 +1,4 @@
+import { CONSTRUCTORS } from './edges.ts';
 import { edge, type CallSite, type Edge, type Expr, type Node, type TypeRef, type TypeShape } from '@archgraph/model';
 
 // Превръща извикванията от адаптерите в ребра. `calls` е по евристика (типът на получателя е изведен,
@@ -66,7 +67,8 @@ export function callEdges(nodes: Node[], edges: Edge[], types: Record<string, Ty
         result.push(edge('creates', { node: c.from.node, member: c.from.member }, { node: n.id }));
       else if (n?.kind === 'function' && n.members[0])
         result.push(edge('calls', c.from, { node: n.id, member: n.members[0].name }, 'inferred'));
-    } else {
+    } else if (!CONSTRUCTORS.has(c.name)) {
+      // parent::__construct() и super().__init__() са част от наследяването, не извикване.
       for (const id of classes(typeOf(c.on))) {
         const m = lookup(id, (n) => n.members.find((x) => x.name === c.name));
         if (m) result.push(edge('calls', c.from, { node: m[0], member: c.name }, 'inferred'));

@@ -3,11 +3,12 @@ import { writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { InvalidGraphError, scan } from '@archgraph/engine';
 
-const USAGE = `archgraph scan [път] [--out graph.json] [--exclude шаблон]... [--max-file-size байтове]
+const USAGE = `archgraph scan [път] [--out graph.json] [--exclude шаблон]... [--max-file-size байтове] [--no-scip]
 
   --out, -o         къде да се запише графът (по подразбиране stdout)
   --exclude, -x     пропусни пътища (повтаря се): vendor, '*.gen.ts', 'src/legacy/**'
-  --max-file-size   по-големи файлове се пропускат като бъндъли (по подразбиране 1000000)`;
+  --max-file-size   по-големи файлове се пропускат като бъндъли (по подразбиране 1000000)
+  --no-scip         без SCIP индексатори: по-бързо, всички calls са inferred`;
 
 export async function main(argv: string[]): Promise<number> {
   const { positionals, values } = parseArgs({
@@ -17,6 +18,7 @@ export async function main(argv: string[]): Promise<number> {
       out: { type: 'string', short: 'o' },
       exclude: { type: 'string', short: 'x', multiple: true },
       'max-file-size': { type: 'string' },
+      'no-scip': { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
   });
@@ -30,6 +32,7 @@ export async function main(argv: string[]): Promise<number> {
   try {
     const { graph, report } = await scan(path, {
       exclude: values.exclude ?? [],
+      scip: !values['no-scip'],
       ...(values['max-file-size'] ? { maxFileSize: Number(values['max-file-size']) } : {}),
     });
     const json = JSON.stringify(graph, null, 2) + '\n';
@@ -40,13 +43,21 @@ export async function main(argv: string[]): Promise<number> {
     const ports = members.flatMap((m) => [...m.inputs, ...(m.output ? [m.output] : [])]);
     const untyped = ports.filter((p) => p.type.kind === 'unknown').length;
     const files = Object.entries(report.files);
+    const edges = Map.groupBy(graph.edges, (e) => e.kind);
     const seconds = ((performance.now() - started) / 1000).toFixed(1);
     console.error(
       `archgraph: ${files.reduce((a, [, n]) => a + n, 0)} файла (${files.map(([l, n]) => `${l} ${n}`).join(', ') || 'няма поддържани'})` +
         ` → ${graph.nodes.length} нода, ${members.length} метода, ${ports.length} порта` +
         (ports.length ? ` (${Math.round((untyped / ports.length) * 100)}% без тип)` : '') +
-        ` за ${seconds} s`,
+        `, ${graph.edges.length} ребра за ${seconds} s`,
     );
+    const calls = edges.get('calls') ?? [];
+    if (calls.length) {
+      const exact = calls.filter((e) => e.confidence === 'exact').length;
+      console.error(`  calls: ${calls.length}, точни (SCIP) ${exact}, по евристика ${calls.length - exact}`);
+    }
+    for (const [language, status] of Object.entries(report.scip))
+      if (status !== 'exact') console.error(`  scip ${language}: ${status}`);
     if (report.tooBig.length) console.error(`  пропуснати големи файлове: ${report.tooBig.length} (--max-file-size)`);
     if (report.duplicates.length) console.error(`  еднакви имена: ${report.duplicates.length}, с таг duplicate`);
     if (values.out) console.error(`  записано в ${values.out}`);

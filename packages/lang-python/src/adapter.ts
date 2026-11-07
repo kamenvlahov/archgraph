@@ -46,6 +46,21 @@ interface Ctx {
 export const pythonAdapter: LanguageAdapter = {
   language: 'python',
   extensions: ['.py', '.pyi'],
+  // Празна среда: иначе scip-python вика `pip list`, а външните пакети не ни трябват.
+  indexer: {
+    command: 'scip-python',
+    args: (out, tmp) => [
+      'index',
+      '--quiet',
+      '--project-version',
+      '0',
+      '--output',
+      out,
+      '--environment',
+      `${tmp}/env.json`,
+    ],
+    files: { 'env.json': '[]' },
+  },
   async read(files: SourceFile[]): Promise<GraphFragment> {
     const parser = await pythonParser();
     const edges: Edge[] = [];
@@ -246,6 +261,10 @@ function readPort(p: Node, ctx: Ctx): Port {
   return port;
 }
 
+function lineOf(n: Node): number {
+  return n.startPosition.row + 1;
+}
+
 // FastAPI: `x: S = Depends(get_s)` или `x: Annotated[S, Depends(get_s)]`. `Depends()` без аргумент ползва типа.
 function dependsOn(p: Node, port: Port, ctx: Ctx): string | undefined {
   const calls = [p.childForFieldName('value'), ...(p.childForFieldName('type')?.descendantsOfType('call') ?? [])];
@@ -411,15 +430,16 @@ function readCalls(fn: Node, member: Member, b: Body) {
         const callee = n.childForFieldName('function');
         if (callee?.type === 'identifier' && !vars.has(callee.text)) {
           const ref = named(callee.text, ctx);
-          if (ref.kind === 'named') ctx.calls.push({ from, kind: 'function', id: ref.id });
+          if (ref.kind === 'named') ctx.calls.push({ from, line: lineOf(callee), kind: 'function', id: ref.id });
         } else if (callee?.type === 'attribute') {
           const obj = callee.childForFieldName('object');
+          const attr = callee.childForFieldName('attribute') ?? callee;
           const on = expr(obj);
-          if (on) ctx.calls.push({ from, kind: 'method', on, name: callee.childForFieldName('attribute')?.text ?? '' });
+          if (on) ctx.calls.push({ from, line: lineOf(attr), kind: 'method', on, name: attr.text });
           // module.func(): `import app.pricing as pricing; pricing.apply(...)`
           if (obj?.type === 'identifier' && !vars.has(obj.text)) {
             const ref = named(callee.text, ctx);
-            if (ref.kind === 'named') ctx.calls.push({ from, kind: 'function', id: ref.id });
+            if (ref.kind === 'named') ctx.calls.push({ from, line: lineOf(attr), kind: 'function', id: ref.id });
           }
         }
         break;

@@ -34,13 +34,26 @@
 ```sh
 pnpm install
 pnpm archgraph scan ~/projects/shop -o graph.json
-# archgraph: 156 файла (node 96, php 60) → 47 нода, 192 метода, 360 порта (97% без тип) за 0.3 s
+# archgraph: 156 файла (node 96, php 60) → 47 нода, 192 метода, 360 порта (97% без тип), 42 ребра за 0.3 s
 ```
 
 - В git хранилище файловете идват от `git ls-files`, така че `.gitignore` се спазва.
 - По подразбиране се пропускат `vendor`, `node_modules`, `.venv`, `venv`, `dist`, `build`, `*.min.js`, `*.d.ts` и файлове над 1 MB.
 - `--exclude` (`-x`) добавя още: `-x 'backend-*' -x 'src/legacy/**'`.
 - Два класа с едно и също пълно име остават и двата, с таг `duplicate`.
+
+### Точни ребра (SCIP)
+
+Без нищо допълнително `calls` са по евристика (`confidence: inferred`). Ако е инсталиран SCIP индексатор за езика, archgraph го пуска и извикванията, които той разпознава, стават `exact`. Останалите остават `inferred`.
+
+```sh
+npm i -g @sourcegraph/scip-typescript @sourcegraph/scip-python
+```
+
+- Търсят се в `PATH` и до `node`.
+- За TypeScript трябват инсталирани пакети (`node_modules`), иначе типовете от библиотеките са `any` и SCIP мълчи за тях.
+- PHP засега е само по евристика.
+- `--no-scip` пропуска индексаторите. На ComfyUI сканирането е 4 s вместо 70 s.
 
 ## Документи
 

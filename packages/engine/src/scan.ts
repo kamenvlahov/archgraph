@@ -8,12 +8,14 @@ import {
   validate,
   type GraphModel,
   type CallSite,
+  type Edge,
   type LanguageAdapter,
   type Node,
   type ValidationError,
 } from '@archgraph/model';
 import { callEdges } from './calls.ts';
 import { linkEdges } from './edges.ts';
+import { exactCalls, findCommand, runIndexer } from './exact.ts';
 import { DEFAULT_EXCLUDES, isTooBig, listFiles, MAX_FILE_SIZE } from './files.ts';
 
 export const ADAPTERS: LanguageAdapter[] = [phpAdapter, nodeAdapter, pythonAdapter];
@@ -21,12 +23,14 @@ export const ADAPTERS: LanguageAdapter[] = [phpAdapter, nodeAdapter, pythonAdapt
 export interface ScanOptions {
   exclude?: string[]; // добавя се към DEFAULT_EXCLUDES
   maxFileSize?: number;
+  scip?: boolean; // по подразбиране true: пуска SCIP индексаторите, които са инсталирани
 }
 
 export interface ScanReport {
   files: Record<string, number>; // по език
   tooBig: string[];
   duplicates: string[];
+  scip: Record<string, string>; // по език: 'exact', 'няма <команда>' или грешката на индексатора
 }
 
 export class InvalidGraphError extends Error {
@@ -44,7 +48,7 @@ export async function scan(
 ): Promise<{ graph: GraphModel; report: ScanReport }> {
   const root = resolve(path);
   const maxFileSize = options.maxFileSize ?? MAX_FILE_SIZE;
-  const report: ScanReport = { files: {}, tooBig: [], duplicates: [] };
+  const report: ScanReport = { files: {}, tooBig: [], duplicates: [], scip: {} };
   const byAdapter = new Map<LanguageAdapter, { path: string; text: string }[]>();
 
   for (const file of listFiles(root, [...DEFAULT_EXCLUDES, ...(options.exclude ?? [])])) {
@@ -72,13 +76,45 @@ export async function scan(
   }
   report.duplicates = renameDuplicates(graph.nodes);
   graph.edges = linkEdges(graph.nodes, graph.edges);
+  const exact =
+    options.scip === false
+      ? { edges: [], rest: calls }
+      : scipCalls(root, graph.nodes, [...byAdapter.keys()], calls, report);
   // Едно и също извикване може да се среща няколко пъти в метода, а реброто е едно.
-  const called = new Map(callEdges(graph.nodes, graph.edges, graph.types, calls).map((e) => [e.id, e]));
+  const called = new Map(
+    [...callEdges(graph.nodes, graph.edges, graph.types, exact.rest), ...exact.edges].map((e) => [e.id, e]),
+  );
   graph.edges = graph.edges.concat([...called.values()]);
 
   const result = validate(graph);
   if (!result.ok) throw new InvalidGraphError(result.errors);
   return { graph, report };
+}
+
+// Пуска инсталираните SCIP индексатори. Връща точните ребра и извикванията, които остават за евристиката.
+function scipCalls(
+  root: string,
+  nodes: Node[],
+  adapters: LanguageAdapter[],
+  calls: CallSite[],
+  report: ScanReport,
+): { edges: Edge[]; rest: CallSite[] } {
+  let edges: Edge[] = [];
+  let rest = calls;
+  for (const { language, indexer } of adapters) {
+    if (!indexer) continue;
+    const command = findCommand(indexer.command);
+    const documents = command ? runIndexer(root, indexer, command) : `няма ${indexer.command}`;
+    if (typeof documents === 'string') {
+      report.scip[language] = documents;
+      continue;
+    }
+    report.scip[language] = 'exact';
+    const result = exactCalls(nodes, documents, rest);
+    edges = edges.concat(result.edges);
+    rest = rest.filter((c) => !result.resolved.has(c));
+  }
+  return { edges, rest };
 }
 
 // Два класа с едно и също пълно име се срещат (copy-paste между модули, тестови `Foo`).

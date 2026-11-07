@@ -20,10 +20,11 @@ export interface GraphFragment {
 // локални променливи), затова описва получателя като израз. Engine-ът извежда типа му, след като
 // са известни всички нодове, и прави ребра `calls` и `creates`.
 export type CallSite =
-  | { from: Caller; kind: 'method'; on: Expr; name: string } // x.name()
-  | { from: Caller; kind: 'function'; id: TypeId } // f(): функция или клас (в Python `X()` създава)
-  | { from: Caller; kind: 'new'; id: TypeId }; // new X()
+  | { from: Caller; line: number; kind: 'method'; on: Expr; name: string } // x.name()
+  | { from: Caller; line: number; kind: 'function'; id: TypeId } // f(): функция или клас (в Python `X()` създава)
+  | { from: Caller; line: number; kind: 'new'; id: TypeId }; // new X()
 
+// `line` е редът на името (`name` в `x->name(`), където SCIP слага референцията.
 export interface Caller {
   node: string;
   member: string;
@@ -40,4 +41,12 @@ export interface LanguageAdapter {
   language: string;
   extensions: string[];
   read(files: SourceFile[]): Promise<GraphFragment>;
+  indexer?: Indexer;
+}
+
+// SCIP индексатор за езика. Engine-ът го пуска в корена на проекта, ако командата е инсталирана.
+export interface Indexer {
+  command: string;
+  args(out: string, tmp: string): string[];
+  files?: Record<string, string>; // помощни файлове, които се записват в `tmp` преди пускането
 }

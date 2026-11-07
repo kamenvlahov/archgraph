@@ -33,6 +33,10 @@ interface Ctx {
 export const nodeAdapter: LanguageAdapter = {
   language: 'node',
   extensions: EXTENSIONS,
+  indexer: {
+    command: 'scip-typescript',
+    args: (out) => ['index', '--infer-tsconfig', '--no-progress-bar', '--output', out],
+  },
   async read(files: SourceFile[]): Promise<GraphFragment> {
     const parser = await typescriptParser();
     const known = new Set(files.map((f) => f.path));
@@ -382,6 +386,10 @@ function properties(body: Node[], ctx: Ctx): Map<string, Expr> {
   return props;
 }
 
+function lineOf(n: Node): number {
+  return n.startPosition.row + 1;
+}
+
 // Поле без анотация: `x = new X()` или Angular `x = inject(X)`, което връща X.
 function initializerType(value: Node | null, ctx: Ctx): TypeRef | undefined {
   if (value?.type === 'new_expression') return named(value.childForFieldName('constructor')?.text ?? '', ctx);
@@ -503,11 +511,12 @@ function readCalls(fn: Node, member: Member, b: Body) {
         const callee = n.childForFieldName('function');
         if (callee?.type === 'identifier' && !vars.has(callee.text)) {
           const ref = named(callee.text, ctx);
-          if (ref.kind === 'named') ctx.calls.push({ from, kind: 'function', id: ref.id });
+          if (ref.kind === 'named') ctx.calls.push({ from, line: lineOf(callee), kind: 'function', id: ref.id });
         } else if (callee?.type === 'member_expression') {
           const on = expr(callee.childForFieldName('object'));
-          const name = callee.childForFieldName('property')?.text ?? '';
-          if (on) ctx.calls.push({ from, kind: 'method', on, name });
+          const property = callee.childForFieldName('property') ?? callee;
+          const name = property.text;
+          if (on) ctx.calls.push({ from, line: lineOf(property), kind: 'method', on, name });
           // items.reduce((sum, item) => ...): параметърът на callback-а е елемент на масива.
           const callback = n.childForFieldName('arguments')?.namedChildren[0];
           if (
@@ -529,7 +538,7 @@ function readCalls(fn: Node, member: Member, b: Body) {
       }
       case 'new_expression': {
         const ref = named(n.childForFieldName('constructor')?.text ?? '', ctx);
-        if (ref.kind === 'named') ctx.calls.push({ from, kind: 'new', id: ref.id });
+        if (ref.kind === 'named') ctx.calls.push({ from, line: lineOf(n), kind: 'new', id: ref.id });
         break;
       }
     }

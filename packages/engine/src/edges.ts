@@ -1,6 +1,6 @@
 import { edge, type Edge, type Node, type TypeRef } from '@archgraph/model';
 
-const CONSTRUCTORS = new Set(['__construct', 'constructor', '__init__']);
+export const CONSTRUCTORS = new Set(['__construct', 'constructor', '__init__']);
 
 // Довършва ребрата от адаптерите, след като всички нодове са известни:
 // - `injects` от всеки тип от проекта в порт на конструктор;

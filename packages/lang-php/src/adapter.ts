@@ -324,12 +324,14 @@ function readCalls(fn: Node, member: Member, b: Body) {
       case 'member_call_expression':
       case 'nullsafe_member_call_expression': {
         const on = expr(n.childForFieldName('object'));
-        if (on) b.out.calls.push({ from, kind: 'method', on, name: n.childForFieldName('name')?.text ?? '' });
+        const name = n.childForFieldName('name');
+        if (on) b.out.calls.push({ from, line: lineOf(name ?? n), kind: 'method', on, name: name?.text ?? '' });
         break;
       }
       case 'scoped_call_expression':
         b.out.calls.push({
           from,
+          line: lineOf(n.childForFieldName('name') ?? n),
           kind: 'method',
           on: { kind: 'type', type: classRef(n.childForFieldName('scope')) },
           name: n.childForFieldName('name')?.text ?? '',
@@ -337,14 +339,14 @@ function readCalls(fn: Node, member: Member, b: Body) {
         break;
       case 'object_creation_expression': {
         const ref = created(n) && classRef(created(n));
-        if (ref?.kind === 'named') b.out.calls.push({ from, kind: 'new', id: ref.id });
+        if (ref?.kind === 'named') b.out.calls.push({ from, line: lineOf(n), kind: 'new', id: ref.id });
         break;
       }
       case 'function_call_expression': {
         // Неквалифицирана функция в namespace: PHP търси първо в namespace-а, после глобално.
-        const name = n.childForFieldName('function')?.text ?? '';
-        const ids = new Set([resolveFunction(name, b.scope), name.includes('\\') ? '' : name]);
-        for (const id of ids) if (id) b.out.calls.push({ from, kind: 'function', id: `php:${id}` });
+        const fn = n.childForFieldName('function') ?? n;
+        const ids = new Set([resolveFunction(fn.text, b.scope), fn.text.includes('\\') ? '' : fn.text]);
+        for (const id of ids) if (id) b.out.calls.push({ from, line: lineOf(fn), kind: 'function', id: `php:${id}` });
         break;
       }
     }
@@ -352,6 +354,10 @@ function readCalls(fn: Node, member: Member, b: Body) {
   };
   const body = fn.childForFieldName('body');
   if (body) visit(body);
+}
+
+function lineOf(n: Node): number {
+  return n.startPosition.row + 1;
 }
 
 // Функциите не се резолват през `use` на класове. Без namespace остава глобалното име.
