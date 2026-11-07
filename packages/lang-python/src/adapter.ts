@@ -1,6 +1,8 @@
 import {
   edge,
+  type CallSite,
   type Edge,
+  type Expr,
   type GraphFragment,
   type LanguageAdapter,
   type Location,
@@ -38,6 +40,7 @@ interface Ctx {
   locals: Set<string>;
   imports: Map<string, string>; // локално име → пълно име (модул.Име или модул)
   edges: Edge[];
+  calls: CallSite[];
 }
 
 export const pythonAdapter: LanguageAdapter = {
@@ -46,6 +49,7 @@ export const pythonAdapter: LanguageAdapter = {
   async read(files: SourceFile[]): Promise<GraphFragment> {
     const parser = await pythonParser();
     const edges: Edge[] = [];
+    const calls: CallSite[] = [];
     const nodes = files.flatMap((file) => {
       const ctx: Ctx = {
         module: moduleName(file.path),
@@ -54,10 +58,11 @@ export const pythonAdapter: LanguageAdapter = {
         locals: new Set(),
         imports: new Map(),
         edges,
+        calls,
       };
       return withTree(parser, file.text, (tree) => readModule(tree.rootNode, ctx));
     });
-    return { nodes, edges, types: {} };
+    return { nodes, edges, types: {}, calls };
   },
 };
 
@@ -149,6 +154,7 @@ function readDeclaration(stmt: Node, ctx: Ctx): GraphNode {
   if (def.type === 'function_definition') {
     node.kind = 'function';
     node.members = [readMember(stmt, node.id, ctx, false)];
+    readCalls(def, node.members[0] as Member, { node: node.id, props: new Map(), isMethod: false, ctx });
     return node;
   }
   const bases = (def.childForFieldName('superclasses')?.namedChildren ?? [])
@@ -161,9 +167,28 @@ function readDeclaration(stmt: Node, ctx: Ctx): GraphNode {
     const to = named(base, ctx);
     if (to.kind === 'named') ctx.edges.push(edge('extends', { node: node.id }, { node: to.id }));
   }
-  node.members = (def.childForFieldName('body')?.namedChildren ?? [])
-    .filter((s) => definition(s)?.type === 'function_definition')
-    .map((s) => readMember(s, node.id, ctx, true));
+  const body = def.childForFieldName('body')?.namedChildren ?? [];
+  const methods = body.filter((s) => definition(s)?.type === 'function_definition');
+  node.members = methods.map((s) => readMember(s, node.id, ctx, true));
+  // Полета на ниво клас (dataclass, Pydantic), после `self.x = ...` с __init__ най-напред.
+  const props = new Map<string, Expr>();
+  for (const s of body) {
+    const a = s.type === 'expression_statement' ? s.namedChildren[0] : undefined;
+    const type = a?.type === 'assignment' ? a.childForFieldName('type') : undefined;
+    if (type) props.set(a?.childForFieldName('left')?.text ?? '', { kind: 'type', type: typeRef(type, ctx) });
+  }
+  const order = methods
+    .map((_, i) => i)
+    .sort((a, b) => +(node.members[b]?.name === '__init__') - +(node.members[a]?.name === '__init__'));
+  for (const i of order) {
+    const isMethod = !decorators(methods[i] as Node).includes('staticmethod');
+    readCalls(definition(methods[i] as Node) as Node, node.members[i] as Member, {
+      node: node.id,
+      props,
+      isMethod,
+      ctx,
+    });
+  }
   return node;
 }
 
@@ -303,4 +328,105 @@ function forwardRef(t: Node, ctx: Ctx): TypeRef {
     const type = tree.rootNode.descendantsOfType('type')[0];
     return type && !tree.rootNode.hasError ? typeRef(type, ctx) : { kind: 'unknown', hint: text };
   });
+}
+
+interface Body {
+  node: string;
+  props: Map<string, Expr>;
+  isMethod: boolean; // първият параметър е self / cls
+  ctx: Ctx;
+}
+
+// Извикванията в тялото на функция или метод. Локалните променливи се помнят по реда на присвояване.
+function readCalls(fn: Node, member: Member, b: Body) {
+  const { ctx } = b;
+  const from = { node: b.node, member: member.name };
+  const vars = new Map<string, Expr>(member.inputs.map((p) => [p.name, { kind: 'type', type: p.type }]));
+  // self / cls не е порт, затова името му идва от синтаксиса.
+  const first = fn.childForFieldName('parameters')?.namedChildren[0];
+  const self = b.isMethod && first?.type === 'identifier' ? first.text : undefined;
+  if (self) vars.set(self, { kind: 'type', type: { kind: 'named', id: b.node } });
+
+  const expr = (n: Node | null | undefined): Expr | undefined => {
+    if (!n) return undefined;
+    switch (n.type) {
+      case 'identifier':
+        // Не е локална променлива: клас при `OrderItem.of(...)`.
+        return vars.get(n.text) ?? { kind: 'type', type: named(n.text, ctx) };
+      case 'attribute': {
+        const obj = n.childForFieldName('object');
+        const name = n.childForFieldName('attribute')?.text ?? '';
+        if (obj?.text === self && b.props.has(name)) return b.props.get(name);
+        const of = expr(obj);
+        return of && { kind: 'field', of, name };
+      }
+      case 'call': {
+        const callee = n.childForFieldName('function');
+        if (callee?.type === 'identifier' && !vars.has(callee.text)) {
+          const ref = named(callee.text, ctx);
+          return ref.kind === 'named' ? { kind: 'call', id: ref.id } : undefined;
+        }
+        if (callee?.type !== 'attribute') return undefined;
+        const of = expr(callee.childForFieldName('object'));
+        return of && { kind: 'result', of, name: callee.childForFieldName('attribute')?.text ?? '' };
+      }
+      case 'await':
+      case 'parenthesized_expression':
+        return expr(n.namedChildren[0]);
+      default:
+        return undefined;
+    }
+  };
+
+  const bind = (target: Node | null, of: Expr | undefined) => {
+    if (target?.type === 'identifier' && of) vars.set(target.text, { kind: 'element', of });
+  };
+
+  const visit = (n: Node) => {
+    switch (n.type) {
+      case 'assignment': {
+        const left = n.childForFieldName('left');
+        const type = n.childForFieldName('type');
+        const value = type ? { kind: 'type' as const, type: typeRef(type, ctx) } : expr(n.childForFieldName('right'));
+        if (!value) break;
+        if (left?.type === 'identifier') vars.set(left.text, value);
+        else if (left?.type === 'attribute' && left.childForFieldName('object')?.text === self) {
+          const name = left.childForFieldName('attribute')?.text ?? '';
+          if (!b.props.has(name)) b.props.set(name, value);
+        }
+        break;
+      }
+      case 'for_statement':
+      case 'for_in_clause':
+        bind(n.childForFieldName('left'), expr(n.childForFieldName('right')));
+        break;
+      case 'generator_expression':
+      case 'list_comprehension':
+      case 'set_comprehension':
+      case 'dictionary_comprehension':
+        // `item.subtotal() for item in self.items`: тялото е преди for-а, а типът на item идва от for-а.
+        for (const c of n.namedChildren.filter((c) => c.type === 'for_in_clause')) visit(c);
+        break;
+      case 'call': {
+        const callee = n.childForFieldName('function');
+        if (callee?.type === 'identifier' && !vars.has(callee.text)) {
+          const ref = named(callee.text, ctx);
+          if (ref.kind === 'named') ctx.calls.push({ from, kind: 'function', id: ref.id });
+        } else if (callee?.type === 'attribute') {
+          const obj = callee.childForFieldName('object');
+          const on = expr(obj);
+          if (on) ctx.calls.push({ from, kind: 'method', on, name: callee.childForFieldName('attribute')?.text ?? '' });
+          // module.func(): `import app.pricing as pricing; pricing.apply(...)`
+          if (obj?.type === 'identifier' && !vars.has(obj.text)) {
+            const ref = named(callee.text, ctx);
+            if (ref.kind === 'named') ctx.calls.push({ from, kind: 'function', id: ref.id });
+          }
+        }
+        break;
+      }
+    }
+    for (const c of n.namedChildren) visit(c);
+  };
+  const body = fn.childForFieldName('body');
+  if (body) visit(body);
 }

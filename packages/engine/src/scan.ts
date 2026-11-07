@@ -7,10 +7,12 @@ import {
   MODEL_VERSION,
   validate,
   type GraphModel,
+  type CallSite,
   type LanguageAdapter,
   type Node,
   type ValidationError,
 } from '@archgraph/model';
+import { callEdges } from './calls.ts';
 import { linkEdges } from './edges.ts';
 import { DEFAULT_EXCLUDES, isTooBig, listFiles, MAX_FILE_SIZE } from './files.ts';
 
@@ -59,15 +61,20 @@ export async function scan(
   }
 
   const graph: GraphModel = { version: MODEL_VERSION, root, nodes: [], edges: [], types: {} };
+  let calls: CallSite[] = [];
   for (const [adapter, files] of byAdapter) {
     const part = await adapter.read(files);
     // concat, а не push(...): голям проект има повече нодове, отколкото стекът побира като аргументи.
     graph.nodes = graph.nodes.concat(part.nodes);
     graph.edges = graph.edges.concat(part.edges);
     Object.assign(graph.types, part.types);
+    calls = calls.concat(part.calls ?? []);
   }
   report.duplicates = renameDuplicates(graph.nodes);
   graph.edges = linkEdges(graph.nodes, graph.edges);
+  // Едно и също извикване може да се среща няколко пъти в метода, а реброто е едно.
+  const called = new Map(callEdges(graph.nodes, graph.edges, graph.types, calls).map((e) => [e.id, e]));
+  graph.edges = graph.edges.concat([...called.values()]);
 
   const result = validate(graph);
   if (!result.ok) throw new InvalidGraphError(result.errors);

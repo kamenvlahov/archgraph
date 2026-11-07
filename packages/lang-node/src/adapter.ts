@@ -1,7 +1,9 @@
 import { posix } from 'node:path';
 import {
   edge,
+  type CallSite,
   type Edge,
+  type Expr,
   type Field,
   type GraphFragment,
   type LanguageAdapter,
@@ -25,6 +27,7 @@ interface Ctx {
   locals: Set<string>; // имена, декларирани на ниво модул в този файл
   imports: Map<string, { module: string; name: string }>;
   edges: Edge[];
+  calls: CallSite[];
 }
 
 export const nodeAdapter: LanguageAdapter = {
@@ -34,11 +37,12 @@ export const nodeAdapter: LanguageAdapter = {
     const parser = await typescriptParser();
     const known = new Set(files.map((f) => f.path));
     const edges: Edge[] = [];
+    const calls: CallSite[] = [];
     const nodes = files.flatMap((file) => {
-      const ctx: Ctx = { file: file.path, files: known, parser, locals: new Set(), imports: new Map(), edges };
+      const ctx: Ctx = { file: file.path, files: known, parser, locals: new Set(), imports: new Map(), edges, calls };
       return withTree(parser, file.text, (tree) => readModule(tree.rootNode, ctx));
     });
-    return { nodes, edges, types: {} };
+    return { nodes, edges, types: {}, calls };
   },
 };
 
@@ -123,11 +127,17 @@ function readDeclaration(decl: Node, outer: Node, ctx: Ctx): GraphNode[] {
   switch (decl.type) {
     case 'class_declaration':
     case 'abstract_class_declaration': {
-      const members = (decl.childForFieldName('body')?.namedChildren ?? [])
-        .filter((c) => c.type === 'method_definition' || c.type === 'abstract_method_signature')
-        .map((m) => readMember(m, ctx));
+      const body = decl.childForFieldName('body')?.namedChildren ?? [];
+      const methods = body.filter((c) => c.type === 'method_definition' || c.type === 'abstract_method_signature');
+      const members = methods.map((m) => readMember(m, ctx));
       const n = node('class', name, members, decl.type === 'abstract_class_declaration' ? ['abstract'] : []);
       addHeritage(decl, n.id, ctx);
+      const props = properties(body, ctx);
+      // Конструкторът първи, защото `this.x = ...` в него дава типа на свойството за останалите.
+      const order = methods
+        .map((m, i) => i)
+        .sort((a, b) => +(members[b]?.name === 'constructor') - +(members[a]?.name === 'constructor'));
+      for (const i of order) readCalls(methods[i] as Node, members[i] as Member, { node: n.id, props, ctx });
       return [n];
     }
     case 'interface_declaration': {
@@ -141,8 +151,11 @@ function readDeclaration(decl: Node, outer: Node, ctx: Ctx): GraphNode[] {
     case 'enum_declaration':
       return [node('enum', name, [])];
     case 'function_declaration':
-    case 'generator_function_declaration':
-      return [node('function', name, [readMember(decl, ctx, name)])];
+    case 'generator_function_declaration': {
+      const n = node('function', name, [readMember(decl, ctx, name)]);
+      readCalls(decl, n.members[0] as Member, { node: n.id, props: new Map(), ctx });
+      return [n];
+    }
     case 'lexical_declaration':
     case 'variable_declaration':
       // const handler = async (req, res) => {...} е функция като всяка друга (Express).
@@ -151,7 +164,9 @@ function readDeclaration(decl: Node, outer: Node, ctx: Ctx): GraphNode[] {
         const fnName = d.childForFieldName('name')?.text ?? '';
         if (d.type !== 'variable_declarator' || !value || !/^(arrow_function|function_expression)$/.test(value.type))
           return [];
-        return [node('function', fnName, [readMember(value, ctx, fnName, location(outer, ctx.file))])];
+        const n = node('function', fnName, [readMember(value, ctx, fnName, location(outer, ctx.file))]);
+        readCalls(value, n.members[0] as Member, { node: n.id, props: new Map(), ctx });
+        return [n];
       });
     default:
       return [];
@@ -344,4 +359,182 @@ function docType(text: string, ctx: Ctx): TypeRef {
     const annotation = tree.rootNode.descendantsOfType('type_annotation')[0]?.namedChildren[0];
     return annotation && !tree.rootNode.hasError ? typeRef(annotation, ctx) : { kind: 'unknown', hint: text };
   });
+}
+
+// Типовете на свойствата: полета с анотация и параметри на конструктора с `private`/`readonly`.
+function properties(body: Node[], ctx: Ctx): Map<string, Expr> {
+  const props = new Map<string, Expr>();
+  for (const c of body) {
+    const annotation = c.childForFieldName('type')?.namedChildren[0];
+    const type = annotation ? typeRef(annotation, ctx) : initializerType(c.childForFieldName('value'), ctx);
+    if (c.type === 'public_field_definition' && type)
+      props.set(c.childForFieldName('name')?.text ?? '', { kind: 'type', type });
+    if (c.type !== 'method_definition' || c.childForFieldName('name')?.text !== 'constructor') continue;
+    for (const p of c.childForFieldName('parameters')?.namedChildren ?? []) {
+      const type = p.childForFieldName('type')?.namedChildren[0];
+      const isProperty =
+        p.namedChildren.some((m) => m.type === 'accessibility_modifier') ||
+        p.children.some((m) => m.type === 'readonly');
+      if (isProperty && type)
+        props.set(p.childForFieldName('pattern')?.text ?? '', { kind: 'type', type: typeRef(type, ctx) });
+    }
+  }
+  return props;
+}
+
+// Поле без анотация: `x = new X()` или Angular `x = inject(X)`, което връща X.
+function initializerType(value: Node | null, ctx: Ctx): TypeRef | undefined {
+  if (value?.type === 'new_expression') return named(value.childForFieldName('constructor')?.text ?? '', ctx);
+  const arg = value?.childForFieldName('arguments')?.namedChildren[0];
+  if (
+    value?.type === 'call_expression' &&
+    value.childForFieldName('function')?.text === 'inject' &&
+    arg?.type === 'identifier'
+  )
+    return named(arg.text, ctx);
+  return undefined;
+}
+
+const ARRAY_CALLBACKS = new Set([
+  'map',
+  'flatMap',
+  'filter',
+  'find',
+  'findLast',
+  'some',
+  'every',
+  'forEach',
+  'reduce',
+  'reduceRight',
+  'sort',
+  'findIndex',
+]);
+
+interface Body {
+  node: string;
+  props: Map<string, Expr>;
+  ctx: Ctx;
+}
+
+// Извикванията в тялото на функция или метод. Локалните променливи се помнят по реда на присвояване.
+function readCalls(fn: Node, member: Member, b: Body) {
+  const { ctx } = b;
+  const from = { node: b.node, member: member.name };
+  const vars = new Map<string, Expr>(member.inputs.map((p) => [p.name, { kind: 'type', type: p.type }]));
+  const self: Expr = { kind: 'type', type: { kind: 'named', id: b.node } };
+  const expr = (n: Node | null | undefined): Expr | undefined => {
+    if (!n) return undefined;
+    switch (n.type) {
+      case 'this':
+        return self;
+      case 'identifier':
+        // Не е локална променлива: клас при статично извикване (`Order.create`).
+        return vars.get(n.text) ?? { kind: 'type', type: named(n.text, ctx) };
+      case 'member_expression': {
+        const obj = n.childForFieldName('object');
+        const name = n.childForFieldName('property')?.text ?? '';
+        if (obj?.type === 'this' && b.props.has(name)) return b.props.get(name);
+        const of = expr(obj);
+        return of && { kind: 'field', of, name };
+      }
+      case 'call_expression': {
+        const callee = n.childForFieldName('function');
+        if (callee?.type === 'identifier' && !vars.has(callee.text)) {
+          const ref = named(callee.text, ctx);
+          return ref.kind === 'named' ? { kind: 'call', id: ref.id } : undefined;
+        }
+        if (callee?.type !== 'member_expression') return undefined;
+        const of = expr(callee.childForFieldName('object'));
+        return of && { kind: 'result', of, name: callee.childForFieldName('property')?.text ?? '' };
+      }
+      case 'new_expression':
+        return { kind: 'type', type: named(n.childForFieldName('constructor')?.text ?? '', ctx) };
+      case 'await_expression':
+      case 'non_null_expression':
+      case 'parenthesized_expression':
+        return expr(n.namedChildren[0]);
+      case 'as_expression':
+      case 'satisfies_expression': {
+        const type = n.namedChildren[1];
+        return type ? { kind: 'type', type: typeRef(type, ctx) } : undefined;
+      }
+      default:
+        return undefined;
+    }
+  };
+
+  const visit = (n: Node) => {
+    switch (n.type) {
+      case 'variable_declarator': {
+        const name = n.childForFieldName('name');
+        const annotation = n.childForFieldName('type')?.namedChildren[0];
+        const value = annotation
+          ? { kind: 'type' as const, type: typeRef(annotation, ctx) }
+          : expr(n.childForFieldName('value'));
+        if (name?.type === 'identifier' && value) vars.set(name.text, value);
+        break;
+      }
+      case 'assignment_expression': {
+        const left = n.childForFieldName('left');
+        const value = expr(n.childForFieldName('right'));
+        if (!value) break;
+        if (left?.type === 'identifier') vars.set(left.text, value);
+        else if (left?.type === 'member_expression' && left.childForFieldName('object')?.type === 'this') {
+          const name = left.childForFieldName('property')?.text ?? '';
+          if (!b.props.has(name)) b.props.set(name, value);
+        }
+        break;
+      }
+      case 'for_in_statement': {
+        const left = n.childForFieldName('left');
+        const of = expr(n.childForFieldName('right'));
+        if (left?.type === 'identifier' && of && n.children.some((c) => c.type === 'of'))
+          vars.set(left.text, { kind: 'element', of });
+        break;
+      }
+      case 'required_parameter':
+      case 'optional_parameter': {
+        const type = n.childForFieldName('type')?.namedChildren[0];
+        const name = n.childForFieldName('pattern');
+        if (type && name?.type === 'identifier') vars.set(name.text, { kind: 'type', type: typeRef(type, ctx) });
+        break;
+      }
+      case 'call_expression': {
+        const callee = n.childForFieldName('function');
+        if (callee?.type === 'identifier' && !vars.has(callee.text)) {
+          const ref = named(callee.text, ctx);
+          if (ref.kind === 'named') ctx.calls.push({ from, kind: 'function', id: ref.id });
+        } else if (callee?.type === 'member_expression') {
+          const on = expr(callee.childForFieldName('object'));
+          const name = callee.childForFieldName('property')?.text ?? '';
+          if (on) ctx.calls.push({ from, kind: 'method', on, name });
+          // items.reduce((sum, item) => ...): параметърът на callback-а е елемент на масива.
+          const callback = n.childForFieldName('arguments')?.namedChildren[0];
+          if (
+            on &&
+            ARRAY_CALLBACKS.has(name) &&
+            callback &&
+            /^(arrow_function|function_expression)$/.test(callback.type)
+          ) {
+            const params = callback.childForFieldName('parameters')?.namedChildren ?? [
+              callback.childForFieldName('parameter'),
+            ];
+            const item = params[name.startsWith('reduce') ? 1 : 0];
+            const id = item?.type === 'identifier' ? item : item?.childForFieldName('pattern');
+            if (id?.type === 'identifier' && !item?.childForFieldName('type'))
+              vars.set(id.text, { kind: 'element', of: on });
+          }
+        }
+        break;
+      }
+      case 'new_expression': {
+        const ref = named(n.childForFieldName('constructor')?.text ?? '', ctx);
+        if (ref.kind === 'named') ctx.calls.push({ from, kind: 'new', id: ref.id });
+        break;
+      }
+    }
+    for (const c of n.namedChildren) visit(c);
+  };
+  const body = fn.childForFieldName('body');
+  if (body) visit(body);
 }

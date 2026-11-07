@@ -72,13 +72,18 @@ test('шаблони за изключване', () => {
   expect(isExcluded('lib/src/legacy/b.ts', ['src/legacy/**'])).toBe(false);
 });
 
-describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi'])('ребра от синтаксиса: %s', (name) => {
-  test('extends, implements и injects като expected.json', async () => {
-    const kinds = ['extends', 'implements', 'injects'];
+describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi'])('ребра: %s', (name) => {
+  test('extends, implements, injects, calls и creates като expected.json', async () => {
+    const kinds = ['extends', 'implements', 'injects', 'calls', 'creates'];
     const expected = JSON.parse(readFileSync(join(fixtures, name, 'expected.json'), 'utf8')) as GraphModel;
     const { graph } = await scan(join(fixtures, name));
     const key = (e: GraphModel['edges'][number]) => `${e.kind} ${JSON.stringify(e.from)} -> ${JSON.stringify(e.to)}`;
-    expect(graph.edges.map(key).sort()).toEqual(
+    expect(
+      graph.edges
+        .filter((e) => kinds.includes(e.kind))
+        .map(key)
+        .sort(),
+    ).toEqual(
       expected.edges
         .filter((e) => kinds.includes(e.kind))
         .map(key)
@@ -105,4 +110,103 @@ class Svc extends \\Vendor\\Base implements Repo {
     'injects:php:Log->php:Svc#__construct.log',
     'injects:php:Repo->php:Svc#__construct.repo',
   ]);
+});
+
+test('calls през верига, nullsafe, self:: и глобална функция', async () => {
+  const dir = project({
+    'helpers.php': '<?php\nfunction money() {}',
+    'Repo.php': `<?php
+namespace App;
+class Order { public function total(): int {} }
+class Repo {
+    public function find(): ?Order {}
+    public static function make(): self { return new self(); }
+    public function run(): void {
+        self::make()?->find()?->total();
+        money();
+    }
+}`,
+  });
+  const { graph } = await scan(dir);
+  expect(graph.edges.map((e) => e.id).sort()).toEqual([
+    'calls:php:App\\Repo#run->php:App\\Order#total',
+    'calls:php:App\\Repo#run->php:App\\Repo#find',
+    'calls:php:App\\Repo#run->php:App\\Repo#make',
+    'calls:php:App\\Repo#run->php:money#money',
+    'creates:php:App\\Repo#make->php:App\\Repo',
+  ]);
+});
+
+test('calls в Python: модул с alias, staticmethod, for и comprehension', async () => {
+  const dir = project({
+    'shop/pricing.py': 'def apply(x):\n    return x\n',
+    'shop/models.py': `import shop.pricing as pricing
+
+
+class Item:
+    def sub(self) -> float:
+        return pricing.apply(1)
+
+
+class Cart:
+    def __init__(self, items: list[Item]):
+        self.items = items
+
+    @staticmethod
+    def empty() -> "Cart":
+        return Cart([])
+
+    def total(self):
+        for item in self.items:
+            item.sub()
+        return [i.sub() for i in self.items]
+`,
+  });
+  const { graph } = await scan(dir);
+  expect(graph.edges.map((e) => e.id).sort()).toEqual([
+    'calls:python:shop.models.Cart#total->python:shop.models.Item#sub',
+    'calls:python:shop.models.Item#sub->python:shop.pricing.apply#apply',
+    'creates:python:shop.models.Cart#empty->python:shop.models.Cart',
+  ]);
+});
+
+test('calls в TS: поле, this.x = в конструктора, callback и наследен метод', async () => {
+  const dir = project({
+    'src/a.ts': `export class Base { id(): number { return 1; } }
+export class Item extends Base { sub(): number { return 1; } }
+export class Cart {
+  items: Item[] = [];
+  constructor(store) { this.store = new Item(); }
+  total() {
+    this.store.sub();
+    return this.items.map((i) => i.id()).filter((x) => x);
+  }
+}`,
+  });
+  const { graph } = await scan(dir);
+  expect(
+    graph.edges
+      .filter((e) => e.kind !== 'extends')
+      .map((e) => e.id)
+      .sort(),
+  ).toEqual([
+    'calls:node:src/a.ts#Cart#total->node:src/a.ts#Base#id',
+    'calls:node:src/a.ts#Cart#total->node:src/a.ts#Item#sub',
+    'creates:node:src/a.ts#Cart#constructor->node:src/a.ts#Item',
+  ]);
+});
+
+test('поле от inject(X) или new X() има тип X', async () => {
+  const dir = project({
+    'src/api.ts': 'export class Api { load(): void {} }',
+    'src/page.ts': `import { inject } from '@angular/core';
+import { Api } from './api';
+export class Page {
+  private readonly api = inject(Api);
+  private backup = new Api();
+  open() { this.api.load(); this.backup.load(); }
+}`,
+  });
+  const { graph } = await scan(dir);
+  expect(graph.edges.map((e) => e.id).sort()).toEqual(['calls:node:src/page.ts#Page#open->node:src/api.ts#Api#load']);
 });

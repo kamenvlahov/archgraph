@@ -1,6 +1,8 @@
 import {
   edge,
+  type CallSite,
   type Edge,
+  type Expr,
   type GraphFragment,
   type LanguageAdapter,
   type Location,
@@ -27,6 +29,12 @@ const TAGS: Record<string, string> = {
   readonly_modifier: 'readonly',
 };
 
+// Ребрата и извикванията от всички файлове.
+interface Out {
+  edges: Edge[];
+  calls: CallSite[];
+}
+
 interface Scope {
   namespace: string;
   uses: Map<string, string>; // alias (lowercase) → пълно име
@@ -38,15 +46,15 @@ export const phpAdapter: LanguageAdapter = {
   extensions: ['.php'],
   async read(files: SourceFile[]): Promise<GraphFragment> {
     const parser = await phpParser();
-    const edges: Edge[] = [];
+    const out: Out = { edges: [], calls: [] };
     const nodes = files.flatMap((file) =>
-      withTree(parser, file.text, (tree) => readFile(tree.rootNode, file.path, edges)),
+      withTree(parser, file.text, (tree) => readFile(tree.rootNode, file.path, out)),
     );
-    return { nodes, edges, types: {} };
+    return { nodes, edges: out.edges, types: {}, calls: out.calls };
   },
 };
 
-function readFile(root: Node, file: string, edges: Edge[]): GraphNode[] {
+function readFile(root: Node, file: string, out: Out): GraphNode[] {
   const nodes: GraphNode[] = [];
   const scope: Scope = { namespace: '', uses: new Map() };
   const visit = (statements: Node[]) => {
@@ -59,9 +67,9 @@ function readFile(root: Node, file: string, edges: Edge[]): GraphNode[] {
       } else if (n.type === 'namespace_use_declaration') {
         addUses(n, scope);
       } else if (KINDS[n.type]) {
-        nodes.push(readClass(n, file, scope, edges));
+        nodes.push(readClass(n, file, scope, out));
       } else if (n.type === 'function_definition') {
-        nodes.push(readFunction(n, file, scope));
+        nodes.push(readFunction(n, file, scope, out));
       }
     }
   };
@@ -102,7 +110,7 @@ function location(n: Node, file: string): Location {
   return { file, line: n.startPosition.row + 1, endLine: n.endPosition.row + 1 };
 }
 
-function readClass(n: Node, file: string, outer: Scope, edges: Edge[]): GraphNode {
+function readClass(n: Node, file: string, outer: Scope, out: Out): GraphNode {
   const body = n.childForFieldName('body');
   // Счупено заглавие (напр. `class Null` от PHP 5): tree-sitter взима грешно име, затова го четем от текста.
   const broken = n.namedChildren.some((c) => c.type === 'ERROR' && (!body || c.startIndex < body.startIndex));
@@ -132,22 +140,27 @@ function readClass(n: Node, file: string, outer: Scope, edges: Edge[]): GraphNod
       clause.type === 'base_clause' ? 'extends' : clause.type === 'class_interface_clause' ? 'implements' : '';
     if (!kind) continue;
     for (const base of clause.namedChildren)
-      edges.push(edge(kind, { node: node.id }, { node: `php:${resolveClass(base.text, outer)}` }));
+      out.edges.push(edge(kind, { node: node.id }, { node: `php:${resolveClass(base.text, outer)}` }));
   }
+  const props = properties(body, members, scope);
+  const methods = (body?.namedChildren ?? []).filter((c) => c.type === 'method_declaration');
+  methods.forEach((m, i) => readCalls(m, members[i] as Member, { node: node.id, scope, props, out }));
   return node;
 }
 
 // Функция извън клас е нод с един член със същото име (fixtures/README.md).
-function readFunction(n: Node, file: string, outer: Scope): GraphNode {
+function readFunction(n: Node, file: string, outer: Scope, out: Out): GraphNode {
   const name = n.childForFieldName('name')?.text ?? '';
   const fqn = outer.namespace ? `${outer.namespace}\\${name}` : name;
+  const member = readMember(n, file, outer);
+  readCalls(n, member, { node: `php:${fqn}`, scope: outer, props: new Map(), out });
   return {
     id: `php:${fqn}`,
     kind: 'function',
     name,
     language: 'php',
     location: location(n, file),
-    members: [readMember(n, file, outer)],
+    members: [member],
   };
 }
 
@@ -222,4 +235,127 @@ function nativeType(t: Node | null, scope: Scope): TypeRef | undefined {
       // intersection и DNF типове нямат място в TypeRef засега.
       return { kind: 'unknown', hint: t.text };
   }
+}
+
+// Типовете на свойствата: промотирани параметри на конструктора и декларации (`@var` е с предимство).
+function properties(body: Node | null, members: Member[], scope: Scope): Map<string, TypeRef> {
+  const props = new Map<string, TypeRef>();
+  for (const port of members.find((m) => m.name.toLowerCase() === '__construct')?.inputs ?? [])
+    props.set(port.name, port.type);
+  for (const decl of body?.namedChildren ?? []) {
+    if (decl.type !== 'property_declaration') continue;
+    const type = docType(docComment(decl)?.var, scope) ?? nativeType(decl.childForFieldName('type'), scope);
+    for (const el of decl.namedChildren.filter((c) => c.type === 'property_element'))
+      if (type) props.set((el.childForFieldName('name')?.text ?? '').replace(/^\$/, ''), type);
+  }
+  return props;
+}
+
+interface Body {
+  node: string;
+  scope: Scope;
+  props: Map<string, TypeRef>;
+  out: Out;
+}
+
+// Извикванията в тялото на метод. Локалните променливи се помнят по реда на присвояване.
+function readCalls(fn: Node, member: Member, b: Body) {
+  const from = { node: b.node, member: member.name };
+  const vars = new Map<string, Expr>(member.inputs.map((p) => [`$${p.name}`, { kind: 'type', type: p.type }]));
+  const self = b.scope.self;
+  const expr = (n: Node | null): Expr | undefined => {
+    if (!n) return undefined;
+    const obj = n.childForFieldName('object');
+    const name = n.childForFieldName('name')?.text ?? '';
+    switch (n.type) {
+      case 'variable_name':
+        return n.text === '$this' && self
+          ? { kind: 'type', type: { kind: 'named', id: `php:${self}` } }
+          : vars.get(n.text);
+      case 'member_access_expression':
+      case 'nullsafe_member_access_expression': {
+        const prop = obj?.text === '$this' ? b.props.get(name) : undefined;
+        if (prop) return { kind: 'type', type: prop };
+        const of = expr(obj);
+        return of && { kind: 'field', of, name };
+      }
+      case 'member_call_expression':
+      case 'nullsafe_member_call_expression': {
+        const of = expr(obj);
+        return of && { kind: 'result', of, name };
+      }
+      case 'scoped_call_expression':
+        return { kind: 'result', of: { kind: 'type', type: classRef(n.childForFieldName('scope')) }, name };
+      case 'object_creation_expression':
+        return created(n) ? { kind: 'type', type: classRef(created(n)) } : undefined;
+      case 'function_call_expression':
+        return { kind: 'call', id: `php:${resolveFunction(n.childForFieldName('function')?.text ?? '', b.scope)}` };
+      case 'parenthesized_expression':
+        return expr(n.namedChildren[0] ?? null);
+      default:
+        return undefined;
+    }
+  };
+  const classRef = (n: Node | null): TypeRef => named(n?.text ?? '', b.scope);
+  const created = (n: Node) => n.namedChildren.find((c) => c.type === 'name' || c.type === 'qualified_name') ?? null;
+
+  const visit = (n: Node) => {
+    switch (n.type) {
+      case 'assignment_expression': {
+        const left = n.childForFieldName('left');
+        const value = expr(n.childForFieldName('right'));
+        if (left?.type === 'variable_name' && value) vars.set(left.text, value);
+        break;
+      }
+      case 'foreach_statement': {
+        const [iter, binding] = n.namedChildren;
+        const item = binding?.type === 'pair' ? binding.namedChildren[1] : binding;
+        const of = expr(iter ?? null);
+        if (item?.type === 'variable_name' && of) vars.set(item.text, { kind: 'element', of });
+        break;
+      }
+      case 'simple_parameter': {
+        // параметър на closure или arrow function: fn (OrderItem $i) => ...
+        const type = nativeType(n.childForFieldName('type'), b.scope);
+        const name = n.childForFieldName('name')?.text;
+        if (type && name) vars.set(name, { kind: 'type', type });
+        break;
+      }
+      case 'member_call_expression':
+      case 'nullsafe_member_call_expression': {
+        const on = expr(n.childForFieldName('object'));
+        if (on) b.out.calls.push({ from, kind: 'method', on, name: n.childForFieldName('name')?.text ?? '' });
+        break;
+      }
+      case 'scoped_call_expression':
+        b.out.calls.push({
+          from,
+          kind: 'method',
+          on: { kind: 'type', type: classRef(n.childForFieldName('scope')) },
+          name: n.childForFieldName('name')?.text ?? '',
+        });
+        break;
+      case 'object_creation_expression': {
+        const ref = created(n) && classRef(created(n));
+        if (ref?.kind === 'named') b.out.calls.push({ from, kind: 'new', id: ref.id });
+        break;
+      }
+      case 'function_call_expression': {
+        // Неквалифицирана функция в namespace: PHP търси първо в namespace-а, после глобално.
+        const name = n.childForFieldName('function')?.text ?? '';
+        const ids = new Set([resolveFunction(name, b.scope), name.includes('\\') ? '' : name]);
+        for (const id of ids) if (id) b.out.calls.push({ from, kind: 'function', id: `php:${id}` });
+        break;
+      }
+    }
+    for (const c of n.namedChildren) visit(c);
+  };
+  const body = fn.childForFieldName('body');
+  if (body) visit(body);
+}
+
+// Функциите не се резолват през `use` на класове. Без namespace остава глобалното име.
+function resolveFunction(name: string, scope: Scope): string {
+  if (name.startsWith('\\')) return name.slice(1);
+  return scope.namespace ? `${scope.namespace}\\${name}` : name;
 }

@@ -6,6 +6,7 @@ import type { Field, TypeRef } from '@archgraph/model';
 export interface DocComment {
   params: Map<string, string>;
   return?: string;
+  var?: string;
 }
 
 export function parseDocComment(text: string): DocComment {
@@ -16,14 +17,14 @@ export function parseDocComment(text: string): DocComment {
     .join(' ')
     .replace(/\s+/g, ' ');
   const doc: DocComment = { params: new Map() };
-  for (const match of body.matchAll(/@(param|return)\s+/g)) {
+  for (const match of body.matchAll(/@(param|return|var)\s+/g)) {
     const start = (match.index ?? 0) + match[0].length;
     const raw = takeType(body, start);
     // `@return string;` и `@param string &$x` се срещат в стар код.
     const type = raw.replace(/;$/, '').replace(/^&/, '');
     if (!type) continue;
-    if (match[1] === 'return') {
-      doc.return = type;
+    if (match[1] === 'return' || match[1] === 'var') {
+      doc[match[1]] = type;
       continue;
     }
     const name = /^\s*&?(?:\.\.\.)?&?\$(\w+)/.exec(body.slice(start + raw.length));
