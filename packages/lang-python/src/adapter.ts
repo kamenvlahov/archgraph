@@ -485,8 +485,9 @@ function readCalls(fn: Node, member: Member, b: Body) {
           const attr = callee.childForFieldName('attribute') ?? callee;
           const on = expr(obj);
           if (on) ctx.calls.push({ from, line: lineOf(attr), kind: 'method', on, name: attr.text });
-          // module.func(): `import app.pricing as pricing; pricing.apply(...)`
-          if (obj?.type === 'identifier' && !vars.has(obj.text)) {
+          // module.func() и package.module.func(): `import app.pricing as pricing; pricing.apply(...)`
+          const head = callee.text.split('.')[0] ?? '';
+          if (/^[\w.]+$/.test(callee.text) && !vars.has(head)) {
             const ref = named(callee.text, ctx);
             if (ref.kind === 'named') ctx.calls.push({ from, line: lineOf(attr), kind: 'function', id: ref.id });
           }

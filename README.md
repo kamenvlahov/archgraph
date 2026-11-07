@@ -55,6 +55,18 @@ npm i -g @sourcegraph/scip-typescript @sourcegraph/scip-python
 - PHP засега е само по евристика.
 - `--no-scip` пропуска индексаторите. На ComfyUI сканирането е 4 s вместо 70 s.
 
+### MCP сървър
+
+За Claude Code и всеки MCP клиент. Инструменти: `trace`, `dependents`, `describe_node`, `find_by_role`, `rescan`. Отговорите са кратък текст с `file:line`.
+
+```sh
+claude mcp add archgraph -s user -- node ~/projects/archgraph/apps/mcp/src/main.ts
+```
+
+- Проектът е текущата папка на клиента или `project` в заявката.
+- Графът се сканира при първата заявка и се пази в паметта до `rescan`.
+- SCIP е изключен по подразбиране, защото на голям проект първото сканиране става минута. Пуска се с `--scip`.
+
 ## Документи
 
 - [docs/PLAN.md](docs/PLAN.md): етапи на изграждане

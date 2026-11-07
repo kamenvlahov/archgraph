@@ -149,10 +149,12 @@ test('calls в Python: модул с alias, staticmethod, for и comprehension',
   const dir = project({
     'shop/pricing.py': 'def apply(x):\n    return x\n',
     'shop/models.py': `import shop.pricing as pricing
+import shop.pricing
 
 
 class Item:
     def sub(self) -> float:
+        shop.pricing.apply(2)
         return pricing.apply(1)
 
 

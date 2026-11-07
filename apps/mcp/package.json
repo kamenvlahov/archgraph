@@ -1,0 +1,16 @@
+{
+  "name": "@archgraph/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/server.ts"
+  },
+  "dependencies": {
+    "@archgraph/engine": "workspace:*",
+    "@archgraph/model": "workspace:*"
+  },
+  "bin": {
+    "archgraph-mcp": "./src/main.ts"
+  }
+}
