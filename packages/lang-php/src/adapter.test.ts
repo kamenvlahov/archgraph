@@ -91,3 +91,25 @@ namespace Shop\\Billing {
     ]);
   });
 });
+
+test('ребра extends и implements с пълни имена', async () => {
+  const { edges } = await phpAdapter.read([
+    {
+      path: 'A.php',
+      text: `<?php
+namespace App;
+use Lib\\Base as B;
+class A extends B implements I, \\Ext\\J {}
+interface K extends I, Sub\\L {}
+enum E: string implements I {}`,
+    },
+  ]);
+  expect(edges.map((e) => `${e.kind} ${e.from.node} -> ${e.to.node}`)).toEqual([
+    'extends php:App\\A -> php:Lib\\Base',
+    'implements php:App\\A -> php:App\\I',
+    'implements php:App\\A -> php:Ext\\J',
+    'extends php:App\\K -> php:App\\I',
+    'extends php:App\\K -> php:App\\Sub\\L',
+    'implements php:App\\E -> php:App\\I',
+  ]);
+});

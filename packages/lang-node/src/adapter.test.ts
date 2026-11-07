@@ -161,3 +161,24 @@ export function save(rows) {}
     });
   });
 });
+
+test('ребра extends и implements през импорти', async () => {
+  const { edges } = await nodeAdapter.read([
+    { path: 'src/base.ts', text: 'export class Base<T> {}\nexport interface I {}' },
+    {
+      path: 'src/a.ts',
+      text: `import { Base as B, I } from './base.js';
+import * as ns from './base.js';
+class A extends B<string> implements I, ns.I {}
+class M extends mixin(B) {}
+interface K extends I, ns.I {}`,
+    },
+  ]);
+  expect(edges.map((e) => `${e.kind} ${e.from.node} -> ${e.to.node}`)).toEqual([
+    'extends node:src/a.ts#A -> node:src/base.ts#Base',
+    'implements node:src/a.ts#A -> node:src/base.ts#I',
+    'implements node:src/a.ts#A -> node:src/base.ts#I',
+    'extends node:src/a.ts#K -> node:src/base.ts#I',
+    'extends node:src/a.ts#K -> node:src/base.ts#I',
+  ]);
+});

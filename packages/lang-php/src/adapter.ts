@@ -1,13 +1,15 @@
-import type {
-  GraphFragment,
-  LanguageAdapter,
-  Location,
-  Member,
-  Node as GraphNode,
-  NodeKind,
-  Port,
-  SourceFile,
-  TypeRef,
+import {
+  edge,
+  type Edge,
+  type GraphFragment,
+  type LanguageAdapter,
+  type Location,
+  type Member,
+  type Node as GraphNode,
+  type NodeKind,
+  type Port,
+  type SourceFile,
+  type TypeRef,
 } from '@archgraph/model';
 import { withTree, type Node } from '@archgraph/syntax';
 import { phpParser } from './grammar.ts';
@@ -36,12 +38,15 @@ export const phpAdapter: LanguageAdapter = {
   extensions: ['.php'],
   async read(files: SourceFile[]): Promise<GraphFragment> {
     const parser = await phpParser();
-    const nodes = files.flatMap((file) => withTree(parser, file.text, (tree) => readFile(tree.rootNode, file.path)));
-    return { nodes, edges: [], types: {} };
+    const edges: Edge[] = [];
+    const nodes = files.flatMap((file) =>
+      withTree(parser, file.text, (tree) => readFile(tree.rootNode, file.path, edges)),
+    );
+    return { nodes, edges, types: {} };
   },
 };
 
-function readFile(root: Node, file: string): GraphNode[] {
+function readFile(root: Node, file: string, edges: Edge[]): GraphNode[] {
   const nodes: GraphNode[] = [];
   const scope: Scope = { namespace: '', uses: new Map() };
   const visit = (statements: Node[]) => {
@@ -54,7 +59,7 @@ function readFile(root: Node, file: string): GraphNode[] {
       } else if (n.type === 'namespace_use_declaration') {
         addUses(n, scope);
       } else if (KINDS[n.type]) {
-        nodes.push(readClass(n, file, scope));
+        nodes.push(readClass(n, file, scope, edges));
       } else if (n.type === 'function_definition') {
         nodes.push(readFunction(n, file, scope));
       }
@@ -97,7 +102,7 @@ function location(n: Node, file: string): Location {
   return { file, line: n.startPosition.row + 1, endLine: n.endPosition.row + 1 };
 }
 
-function readClass(n: Node, file: string, outer: Scope): GraphNode {
+function readClass(n: Node, file: string, outer: Scope, edges: Edge[]): GraphNode {
   const body = n.childForFieldName('body');
   // Счупено заглавие (напр. `class Null` от PHP 5): tree-sitter взима грешно име, затова го четем от текста.
   const broken = n.namedChildren.some((c) => c.type === 'ERROR' && (!body || c.startIndex < body.startIndex));
@@ -121,6 +126,14 @@ function readClass(n: Node, file: string, outer: Scope): GraphNode {
     members,
   };
   if (tags.length > 0) node.tags = tags;
+  // class A extends B implements I; interface K extends I, J
+  for (const clause of n.namedChildren) {
+    const kind =
+      clause.type === 'base_clause' ? 'extends' : clause.type === 'class_interface_clause' ? 'implements' : '';
+    if (!kind) continue;
+    for (const base of clause.namedChildren)
+      edges.push(edge(kind, { node: node.id }, { node: `php:${resolveClass(base.text, outer)}` }));
+  }
   return node;
 }
 

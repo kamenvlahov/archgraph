@@ -117,3 +117,31 @@ class Line:
     expect(hash?.output?.type).toEqual({ kind: 'unknown' });
   });
 });
+
+test('бази и FastAPI Depends', async () => {
+  const { edges } = await pythonAdapter.read([
+    {
+      path: 'app/deps.py',
+      text: `from typing import Annotated
+import fastapi
+from fastapi import Depends
+from .core import Base, Service, get_service
+
+
+class A(Base, Generic[T], metaclass=Meta):
+    pass
+
+
+def handler(a: Service = Depends(get_service), b: Annotated[Service, Depends(get_service)] = None, c: Service = fastapi.Depends(), d: int = 1):
+    pass
+`,
+    },
+  ]);
+  expect(edges.map((e) => e.id)).toEqual([
+    'extends:python:app.deps.A->python:app.core.Base',
+    'extends:python:app.deps.A->python:Generic',
+    'injects:python:app.core.get_service->python:app.deps.handler#handler.a',
+    'injects:python:app.core.get_service->python:app.deps.handler#handler.b',
+    'injects:python:app.core.Service->python:app.deps.handler#handler.c',
+  ]);
+});

@@ -11,6 +11,7 @@ import {
   type Node,
   type ValidationError,
 } from '@archgraph/model';
+import { linkEdges } from './edges.ts';
 import { DEFAULT_EXCLUDES, isTooBig, listFiles, MAX_FILE_SIZE } from './files.ts';
 
 export const ADAPTERS: LanguageAdapter[] = [phpAdapter, nodeAdapter, pythonAdapter];
@@ -66,6 +67,7 @@ export async function scan(
     Object.assign(graph.types, part.types);
   }
   report.duplicates = renameDuplicates(graph.nodes);
+  graph.edges = linkEdges(graph.nodes, graph.edges);
 
   const result = validate(graph);
   if (!result.ok) throw new InvalidGraphError(result.errors);

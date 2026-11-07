@@ -1,14 +1,16 @@
 import { posix } from 'node:path';
-import type {
-  Field,
-  GraphFragment,
-  LanguageAdapter,
-  Location,
-  Member,
-  Node as GraphNode,
-  Port,
-  SourceFile,
-  TypeRef,
+import {
+  edge,
+  type Edge,
+  type Field,
+  type GraphFragment,
+  type LanguageAdapter,
+  type Location,
+  type Member,
+  type Node as GraphNode,
+  type Port,
+  type SourceFile,
+  type TypeRef,
 } from '@archgraph/model';
 import { withTree, type Node, type Parser } from '@archgraph/syntax';
 import { typescriptParser } from './grammar.ts';
@@ -22,6 +24,7 @@ interface Ctx {
   parser: Parser;
   locals: Set<string>; // имена, декларирани на ниво модул в този файл
   imports: Map<string, { module: string; name: string }>;
+  edges: Edge[];
 }
 
 export const nodeAdapter: LanguageAdapter = {
@@ -30,11 +33,12 @@ export const nodeAdapter: LanguageAdapter = {
   async read(files: SourceFile[]): Promise<GraphFragment> {
     const parser = await typescriptParser();
     const known = new Set(files.map((f) => f.path));
+    const edges: Edge[] = [];
     const nodes = files.flatMap((file) => {
-      const ctx: Ctx = { file: file.path, files: known, parser, locals: new Set(), imports: new Map() };
+      const ctx: Ctx = { file: file.path, files: known, parser, locals: new Set(), imports: new Map(), edges };
       return withTree(parser, file.text, (tree) => readModule(tree.rootNode, ctx));
     });
-    return { nodes, edges: [], types: {} };
+    return { nodes, edges, types: {} };
   },
 };
 
@@ -122,13 +126,17 @@ function readDeclaration(decl: Node, outer: Node, ctx: Ctx): GraphNode[] {
       const members = (decl.childForFieldName('body')?.namedChildren ?? [])
         .filter((c) => c.type === 'method_definition' || c.type === 'abstract_method_signature')
         .map((m) => readMember(m, ctx));
-      return [node('class', name, members, decl.type === 'abstract_class_declaration' ? ['abstract'] : [])];
+      const n = node('class', name, members, decl.type === 'abstract_class_declaration' ? ['abstract'] : []);
+      addHeritage(decl, n.id, ctx);
+      return [n];
     }
     case 'interface_declaration': {
       const members = (decl.childForFieldName('body')?.namedChildren ?? [])
         .filter((c) => c.type === 'method_signature')
         .map((m) => readMember(m, ctx));
-      return [node('interface', name, members)];
+      const n = node('interface', name, members);
+      addHeritage(decl, n.id, ctx);
+      return [n];
     }
     case 'enum_declaration':
       return [node('enum', name, [])];
@@ -147,6 +155,22 @@ function readDeclaration(decl: Node, outer: Node, ctx: Ctx): GraphNode[] {
       });
     default:
       return [];
+  }
+}
+
+// class A extends B implements I, J<X>; interface K extends I. `extends mixin(B)` е израз без име и се пропуска.
+function addHeritage(decl: Node, id: string, ctx: Ctx) {
+  const heritage = decl.namedChildren.find((c) => c.type === 'class_heritage')?.namedChildren ?? [];
+  const clauses = [...heritage, ...decl.namedChildren.filter((c) => c.type === 'extends_type_clause')];
+  for (const clause of clauses) {
+    const kind = clause.type === 'implements_clause' ? 'implements' : 'extends';
+    const bases = clause.type === 'extends_clause' ? [clause.childForFieldName('value')] : clause.namedChildren;
+    for (const base of bases) {
+      const head = base?.type === 'generic_type' ? base.childForFieldName('name') : base;
+      if (!head || !/^(identifier|type_identifier|member_expression|nested_type_identifier)$/.test(head.type)) continue;
+      const to = named(head.text, ctx);
+      if (to.kind === 'named') ctx.edges.push(edge(kind, { node: id }, { node: to.id }));
+    }
   }
 }
 

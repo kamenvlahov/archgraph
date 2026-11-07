@@ -71,3 +71,38 @@ test('шаблони за изключване', () => {
   expect(isExcluded('src/legacy/a/b.ts', ['src/legacy/**'])).toBe(true);
   expect(isExcluded('lib/src/legacy/b.ts', ['src/legacy/**'])).toBe(false);
 });
+
+describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi'])('ребра от синтаксиса: %s', (name) => {
+  test('extends, implements и injects като expected.json', async () => {
+    const kinds = ['extends', 'implements', 'injects'];
+    const expected = JSON.parse(readFileSync(join(fixtures, name, 'expected.json'), 'utf8')) as GraphModel;
+    const { graph } = await scan(join(fixtures, name));
+    const key = (e: GraphModel['edges'][number]) => `${e.kind} ${JSON.stringify(e.from)} -> ${JSON.stringify(e.to)}`;
+    expect(graph.edges.map(key).sort()).toEqual(
+      expected.edges
+        .filter((e) => kinds.includes(e.kind))
+        .map(key)
+        .sort(),
+    );
+  });
+});
+
+test('injects от nullable тип, без масиви и външни типове', async () => {
+  const dir = project({
+    'Repo.php': '<?php\ninterface Repo {}',
+    'Log.php': '<?php\nclass Log {}',
+    'Item.php': '<?php\nclass Item {}',
+    'Svc.php': `<?php
+class Svc extends \\Vendor\\Base implements Repo {
+    /** @param Item[] $items */
+    public function __construct(?Repo $repo, Log|Item $log, array $items, \\Psr\\Log $ext) {}
+}`,
+  });
+  const { graph } = await scan(dir);
+  expect(graph.edges.map((e) => e.id).sort()).toEqual([
+    'implements:php:Svc->php:Repo',
+    'injects:php:Item->php:Svc#__construct.log',
+    'injects:php:Log->php:Svc#__construct.log',
+    'injects:php:Repo->php:Svc#__construct.repo',
+  ]);
+});

@@ -1,12 +1,14 @@
-import type {
-  GraphFragment,
-  LanguageAdapter,
-  Location,
-  Member,
-  Node as GraphNode,
-  Port,
-  SourceFile,
-  TypeRef,
+import {
+  edge,
+  type Edge,
+  type GraphFragment,
+  type LanguageAdapter,
+  type Location,
+  type Member,
+  type Node as GraphNode,
+  type Port,
+  type SourceFile,
+  type TypeRef,
 } from '@archgraph/model';
 import { withTree, type Node, type Parser } from '@archgraph/syntax';
 import { pythonParser } from './grammar.ts';
@@ -35,6 +37,7 @@ interface Ctx {
   parser: Parser;
   locals: Set<string>;
   imports: Map<string, string>; // локално име → пълно име (модул.Име или модул)
+  edges: Edge[];
 }
 
 export const pythonAdapter: LanguageAdapter = {
@@ -42,6 +45,7 @@ export const pythonAdapter: LanguageAdapter = {
   extensions: ['.py', '.pyi'],
   async read(files: SourceFile[]): Promise<GraphFragment> {
     const parser = await pythonParser();
+    const edges: Edge[] = [];
     const nodes = files.flatMap((file) => {
       const ctx: Ctx = {
         module: moduleName(file.path),
@@ -49,10 +53,11 @@ export const pythonAdapter: LanguageAdapter = {
         parser,
         locals: new Set(),
         imports: new Map(),
+        edges,
       };
       return withTree(parser, file.text, (tree) => readModule(tree.rootNode, ctx));
     });
-    return { nodes, edges: [], types: {} };
+    return { nodes, edges, types: {} };
   },
 };
 
@@ -143,7 +148,7 @@ function readDeclaration(stmt: Node, ctx: Ctx): GraphNode {
   };
   if (def.type === 'function_definition') {
     node.kind = 'function';
-    node.members = [readMember(stmt, ctx, false)];
+    node.members = [readMember(stmt, node.id, ctx, false)];
     return node;
   }
   const bases = (def.childForFieldName('superclasses')?.namedChildren ?? [])
@@ -151,13 +156,18 @@ function readDeclaration(stmt: Node, ctx: Ctx): GraphNode {
     .map((b) => (b.type === 'subscript' ? (b.childForFieldName('value')?.text ?? '') : b.text));
   if (bases.some((b) => b === 'Protocol' || b.endsWith('.Protocol'))) node.kind = 'interface';
   else if (bases.some((b) => b === 'ABC' || b.endsWith('.ABC'))) node.tags = ['abstract'];
+  // Всяка база е extends. Engine-ът го прави implements, когато базата е Protocol (interface).
+  for (const base of bases) {
+    const to = named(base, ctx);
+    if (to.kind === 'named') ctx.edges.push(edge('extends', { node: node.id }, { node: to.id }));
+  }
   node.members = (def.childForFieldName('body')?.namedChildren ?? [])
     .filter((s) => definition(s)?.type === 'function_definition')
-    .map((s) => readMember(s, ctx, true));
+    .map((s) => readMember(s, node.id, ctx, true));
   return node;
 }
 
-function readMember(stmt: Node, ctx: Ctx, isMethod: boolean): Member {
+function readMember(stmt: Node, owner: string, ctx: Ctx, isMethod: boolean): Member {
   const fn = definition(stmt) as Node;
   const name = fn.childForFieldName('name')?.text ?? '';
   const decos = decorators(stmt);
@@ -178,6 +188,10 @@ function readMember(stmt: Node, ctx: Ctx, isMethod: boolean): Member {
     inputs: params.map((p) => readPort(p, ctx)),
     location: location(stmt, ctx.file),
   };
+  member.inputs.forEach((port, i) => {
+    const provider = dependsOn(params[i] as Node, port, ctx);
+    if (provider) ctx.edges.push(edge('injects', { node: provider }, { node: owner, member: name, port: port.name }));
+  });
   if (isMethod && isStatic) member.static = true;
   if (fn.children.some((c) => c.type === 'async')) member.async = true;
   if (name !== '__init__') {
@@ -205,6 +219,18 @@ function readPort(p: Node, ctx: Ctx): Port {
   }
   if (splat) port.variadic = true;
   return port;
+}
+
+// FastAPI: `x: S = Depends(get_s)` или `x: Annotated[S, Depends(get_s)]`. `Depends()` без аргумент ползва типа.
+function dependsOn(p: Node, port: Port, ctx: Ctx): string | undefined {
+  const calls = [p.childForFieldName('value'), ...(p.childForFieldName('type')?.descendantsOfType('call') ?? [])];
+  const call = calls.find(
+    (c) => c?.type === 'call' && /^(\w+\.)?(Depends|Security)$/.test(c.childForFieldName('function')?.text ?? ''),
+  );
+  if (!call) return undefined;
+  const arg = call.childForFieldName('arguments')?.namedChildren[0];
+  const ref = arg && arg.type !== 'keyword_argument' ? named(arg.text, ctx) : port.type;
+  return ref.kind === 'named' ? ref.id : undefined;
 }
 
 function typeRef(t: Node, ctx: Ctx): TypeRef {
