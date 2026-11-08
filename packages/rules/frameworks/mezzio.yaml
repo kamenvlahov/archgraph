@@ -1,0 +1,32 @@
+framework: mezzio
+language: php
+detect:
+  composer.json: ['"mezzio/mezzio"']
+
+roles: # първото съвпадение печели
+  controller:
+    any:
+      - implements: 'Psr\Http\Server\RequestHandlerInterface'
+      - implements: 'Psr\Http\Server\MiddlewareInterface'
+  factory:
+    all:
+      - name_suffix: Factory
+      - has_method: __invoke
+  entity:
+    attribute: 'Doctrine\ORM\Mapping\Entity'
+  dto:
+    any:
+      - name_suffix: [Dto, Data, Request, Command]
+      - readonly_class: true
+  repository:
+    name_suffix: [Repository, RepositoryInterface]
+  service:
+    any:
+      - namespace_contains: '\Service\'
+      - name_suffix: [Service, ServiceInterface]
+
+wiring:
+  routes:
+    calls: ['$app->get', '$app->post', '$app->put', '$app->patch', '$app->delete', '$app->any', '$app->route']
+    handlerMethods: [handle, process, __invoke]
+  services: { invokables: [invokables], factories: [factories], aliases: [aliases] }

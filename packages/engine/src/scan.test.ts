@@ -489,3 +489,45 @@ class Factory {
   const { graph } = await scan(dir, { scip: false });
   expect(graph.edges.map((e) => e.id)).toContain('calls:php:Factory#__invoke->php:Repo#find');
 });
+
+describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi'])('роли: %s', (name) => {
+  test('ролята и framework-ът на всеки нод като expected.json', async () => {
+    const expected = JSON.parse(readFileSync(join(fixtures, name, 'expected.json'), 'utf8')) as GraphModel;
+    const { graph } = await scan(join(fixtures, name), { scip: false });
+    const roles = (g: GraphModel) =>
+      Object.fromEntries(g.nodes.map((n) => [n.id, `${n.role ?? '-'}/${n.framework ?? '-'}`]));
+    expect(roles(graph)).toEqual(roles(expected));
+  });
+});
+
+test('правила на проекта от .archgraph/rules: условия any/all/not и external implements', async () => {
+  const dir = project({
+    '.archgraph/rules/shop.yaml': `framework: shop
+language: php
+roles:
+  job:
+    all:
+      - implements: 'Queue\\JobInterface'
+      - not: { name_prefix: Abstract }
+  command:
+    any:
+      - name_suffix: Command
+      - attribute: 'Console\\AsCommand'
+`,
+    'Jobs.php': `<?php
+use Console\\AsCommand;
+abstract class AbstractJob implements Queue\\JobInterface {}
+class SendMail extends AbstractJob {}
+#[AsCommand('x')]
+class Cleanup {}
+class Plain {}`,
+  });
+  const { graph } = await scan(dir, { scip: false });
+  expect(Object.fromEntries(graph.nodes.map((n) => [n.name, n.role ?? '-']))).toEqual({
+    AbstractJob: '-',
+    SendMail: 'job',
+    Cleanup: 'command',
+    Plain: '-',
+  });
+  expect(graph.nodes.every((n) => n.framework === 'shop')).toBe(true);
+});

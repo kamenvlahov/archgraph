@@ -3,7 +3,15 @@ import { extname, join, resolve } from 'node:path';
 import { nodeAdapter } from '@archgraph/lang-node';
 import { phpAdapter } from '@archgraph/lang-php';
 import { pythonAdapter } from '@archgraph/lang-python';
-import { FRAMEWORKS, routes, services, type FrameworkRules } from '@archgraph/rules';
+import {
+  assignRoles,
+  FRAMEWORKS,
+  loadFrameworks,
+  routes,
+  services,
+  type FrameworkRules,
+  type RoleFacts,
+} from '@archgraph/rules';
 import {
   MODEL_VERSION,
   type Annotation,
@@ -127,7 +135,11 @@ export class Project {
     const renamed = renameDuplicates(graph.nodes);
     graph.nodes = renamed.nodes;
     report.duplicates = renamed.duplicates;
-    const frameworks = detect(root, FRAMEWORKS);
+    // вградените правила и тези на проекта (.archgraph/rules/*.yaml)
+    const frameworks = detect(root, [...loadFrameworks(join(root, '.archgraph/rules')), ...FRAMEWORKS]);
+    // наследяването е от адаптерите, преди ребрата към външни типове да отпаднат: `implements` в
+    // правилата сочи и външни интерфейси (PSR RequestHandlerInterface, pydantic.BaseModel)
+    const heritage = graph.edges.filter((e) => e.kind === 'extends' || e.kind === 'implements');
     report.frameworks = frameworks.map((f) => f.framework);
     const registered = services(annotations, frameworks, graph.nodes);
     const routed = routes(annotations, frameworks, graph.nodes, registered.services);
@@ -140,12 +152,48 @@ export class Project {
     const called = new Map([...inferred.edges, ...exact.edges].map((e) => [e.id, e]));
     graph.edges = graph.edges.concat([...called.values()], routed.edges, registered.edges);
     if (inferred.unresolved.length > 0) graph.unresolved = inferred.unresolved;
+    graph.nodes = assignRoles(graph.nodes, frameworks, roleFacts(heritage, annotations, graph.edges));
 
     const result = validate(graph);
     if (!result.ok) throw new InvalidGraphError(result.errors);
     this.graph = graph;
     this.report = report;
   }
+}
+
+function roleFacts(heritage: Edge[], annotations: Annotation[], edges: Edge[]): RoleFacts {
+  const closure = (kinds: string[]) => {
+    const parents = Map.groupBy(
+      heritage.filter((e) => kinds.includes(e.kind)),
+      (e) => e.from.node,
+    );
+    const all = new Map<string, Set<string>>();
+    const walk = (id: string, seen: Set<string>) => {
+      for (const e of parents.get(id) ?? [])
+        if (!seen.has(e.to.node)) {
+          seen.add(e.to.node);
+          walk(e.to.node, seen);
+        }
+      return seen;
+    };
+    for (const id of parents.keys()) all.set(id, walk(id, new Set()));
+    return all;
+  };
+  const decorators = new Map<string, string[]>();
+  for (const a of annotations)
+    if (
+      a.kind === 'decorator' &&
+      a.on &&
+      (!a.on.member || a.on.node.endsWith(`.${a.on.member}`) || a.on.node.endsWith(`#${a.on.member}`))
+    )
+      decorators.set(a.on.node, [...(decorators.get(a.on.node) ?? []), a.name]);
+  return {
+    ancestors: closure(['extends', 'implements']),
+    extending: closure(['extends']),
+    decorators,
+    injected: new Set(edges.filter((e) => e.kind === 'injects').map((e) => e.from.node)),
+    handlers: new Set(edges.filter((e) => e.kind === 'routes-to').map((e) => e.to.node)),
+  };
 }
 
 function adapterFor(file: string): LanguageAdapter | undefined {
@@ -155,7 +203,9 @@ function adapterFor(file: string): LanguageAdapter | undefined {
 // Framework-ите, чийто manifest в корена ги споменава (`composer.json`, `package.json`, `pyproject.toml`).
 function detect(root: string, all: FrameworkRules[]): FrameworkRules[] {
   const read = (file: string) => (existsSync(join(root, file)) ? readFileSync(join(root, file), 'utf8') : '');
-  return all.filter((f) => f.detect.some((d) => read(d.file).toLowerCase().includes(d.contains.toLowerCase())));
+  return all.filter(
+    (f) => f.detect.length === 0 || f.detect.some((d) => read(d.file).toLowerCase().includes(d.contains.toLowerCase())),
+  );
 }
 
 // Пуска инсталираните SCIP индексатори. Връща точните ребра и извикванията, които остават за евристиката.

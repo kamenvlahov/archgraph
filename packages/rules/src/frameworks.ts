@@ -1,14 +1,39 @@
-// Правилата по framework (D-002, docs/RULES.md). Засега само `wiring.routes`, като данни със
-// същата форма като YAML-а. Зареждането от `.yaml` идва с двигателя на правилата (TASK-020).
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { parse } from 'yaml';
+
+// Правилата по framework (D-002, docs/RULES.md): кога се включват, роли, route-ове и регистрация на услуги.
 
 export interface FrameworkRules {
   framework: string;
   language: string;
-  // правилата важат, ако някой от файловете в корена съдържа низа
+  // правилата важат, ако някой от файловете в корена съдържа низа; празно — винаги (правила на проекта)
   detect: { file: string; contains: string }[];
+  // ролите по ред: първото съвпадение печели
+  roles?: Record<string, Condition>;
   routes?: RouteRules;
   // ключовете на масивите с регистрации на услуги (D-008, форма `array_map`)
   services?: { invokables: string[]; factories: string[]; aliases: string[] };
+}
+
+// Условие за роля (docs/RULES.md). Няколко ключа в един обект трябва да важат всички.
+export interface Condition {
+  any?: Condition[];
+  all?: Condition[];
+  not?: Condition;
+  implements?: string | string[]; // по пълното име, транзитивно; и външни типове
+  extends?: string | string[];
+  name_suffix?: string | string[];
+  name_prefix?: string | string[];
+  namespace_contains?: string | string[]; // в id-то: namespace, модул или път
+  path_glob?: string | string[];
+  decorator?: string | string[]; // TS/Python декоратор
+  attribute?: string | string[]; // PHP атрибут
+  has_method?: string | string[];
+  readonly_class?: boolean;
+  kind?: string | string[]; // class, interface, function…
+  injected?: boolean; // инжектира се някъде (конструктор, Depends)
+  route_handler?: boolean; // към него сочи route
 }
 
 export interface RouteRules {
@@ -32,78 +57,35 @@ export interface RouteRules {
   segments?: { route: string; defaults: string; controller: string; action: string; suffix: string };
 }
 
-export const FRAMEWORKS: FrameworkRules[] = [
-  {
-    framework: 'mezzio',
-    language: 'php',
-    detect: [{ file: 'composer.json', contains: '"mezzio/mezzio"' }],
-    routes: {
-      calls: ['$app->get', '$app->post', '$app->put', '$app->patch', '$app->delete', '$app->any', '$app->route'],
-      handlerMethods: ['handle', 'process', '__invoke'],
-    },
-    services: { invokables: ['invokables'], factories: ['factories'], aliases: ['aliases'] },
-  },
-  {
-    framework: 'zf2',
-    language: 'php',
-    detect: [
-      { file: 'composer.json', contains: '"zendframework/zendframework"' },
-      { file: 'composer.json', contains: '"zendframework/zend-mvc"' },
-      { file: 'composer.json', contains: '"laminas/laminas-mvc"' },
-    ],
-    routes: {
-      segments: { route: 'route', defaults: 'defaults', controller: 'controller', action: 'action', suffix: 'Action' },
-    },
-    services: { invokables: ['invokables'], factories: ['factories'], aliases: ['aliases'] },
-  },
-  {
-    framework: 'nestjs',
-    language: 'node',
-    detect: [{ file: 'package.json', contains: '"@nestjs/core"' }],
-    routes: {
-      decorators: ['Get', 'Post', 'Put', 'Patch', 'Delete', 'All'],
-      prefix: { decorator: 'Controller' },
-    },
-  },
-  {
-    framework: 'fastapi',
-    language: 'python',
-    detect: [
-      { file: 'pyproject.toml', contains: 'fastapi' },
-      { file: 'requirements.txt', contains: 'fastapi' },
-    ],
-    routes: {
-      decorators: ['get', 'post', 'put', 'patch', 'delete', 'api_route'],
-      prefix: { assign: 'APIRouter', keyword: 'prefix' },
-      mount: { keyword: 'prefix' },
-    },
-  },
-  {
-    framework: 'angular',
-    language: 'node',
-    detect: [{ file: 'package.json', contains: '"@angular/router"' }],
-    routes: { objects: { path: 'path', handler: ['component', 'loadComponent'], method: 'PAGE' } },
-  },
-  {
-    // `@routes.get("/prompt")`, често във вложена функция в метод (ComfyUI `PromptServer.__init__`)
-    framework: 'aiohttp',
-    language: 'python',
-    detect: [
-      { file: 'requirements.txt', contains: 'aiohttp' },
-      { file: 'pyproject.toml', contains: 'aiohttp' },
-    ],
-    routes: { decorators: ['get', 'post', 'put', 'patch', 'delete', 'head', 'view'] },
-  },
-  {
-    framework: 'flask',
-    language: 'python',
-    detect: [
-      { file: 'requirements.txt', contains: 'flask' },
-      { file: 'pyproject.toml', contains: 'flask' },
-    ],
-    routes: {
-      decorators: ['route', 'get', 'post', 'put', 'patch', 'delete'],
-      prefix: { assign: 'Blueprint', keyword: 'url_prefix' },
-    },
-  },
-];
+// Вградените правила са YAML файлове в packages/rules/frameworks/ (формат: docs/RULES.md).
+export const FRAMEWORKS: FrameworkRules[] = loadFrameworks(join(import.meta.dirname, '../frameworks'));
+
+// Всички `*.yaml` в папката. Липсваща папка не е грешка: проектът може да няма свои правила.
+export function loadFrameworks(dir: string): FrameworkRules[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'))
+    .sort()
+    .map((f) => fromYaml(parse(readFileSync(join(dir, f), 'utf8')) as YamlRules, f));
+}
+
+interface YamlRules {
+  framework?: string;
+  language?: string;
+  detect?: Record<string, string[]>; // файл в корена → низове, някой от които трябва да е в него
+  roles?: Record<string, Condition>;
+  wiring?: { routes?: RouteRules; services?: FrameworkRules['services'] };
+}
+
+function fromYaml(y: YamlRules, file: string): FrameworkRules {
+  if (!y.framework || !y.language) throw new Error(`${file}: липсва framework или language`);
+  const rules: FrameworkRules = {
+    framework: y.framework,
+    language: y.language,
+    detect: Object.entries(y.detect ?? {}).flatMap(([f, values]) => values.map((contains) => ({ file: f, contains }))),
+  };
+  if (y.roles) rules.roles = y.roles;
+  if (y.wiring?.routes) rules.routes = y.wiring.routes;
+  if (y.wiring?.services) rules.services = y.wiring.services;
+  return rules;
+}

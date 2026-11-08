@@ -1,0 +1,31 @@
+framework: fastapi
+language: python
+detect:
+  pyproject.toml: [fastapi]
+  requirements.txt: [fastapi]
+
+roles:
+  endpoint:
+    route_handler: true
+  dependency:
+    all:
+      - kind: function
+      - injected: true # подава се в Depends(...)
+  schema:
+    extends: pydantic.BaseModel
+  entity:
+    any:
+      - extends: sqlalchemy.orm.DeclarativeBase
+      - all:
+          - decorator: dataclass
+          - path_glob: ['**/models.py', '**/models/**', '**/entities/**']
+  repository:
+    name_suffix: Repository
+  service:
+    name_suffix: Service
+
+wiring:
+  routes:
+    decorators: [get, post, put, patch, delete, api_route]
+    prefix: { assign: APIRouter, keyword: prefix }
+    mount: { keyword: prefix }

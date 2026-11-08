@@ -7,6 +7,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@archgraph/model": "workspace:*"
+    "@archgraph/model": "workspace:*",
+    "yaml": "2.9.1"
   }
 }

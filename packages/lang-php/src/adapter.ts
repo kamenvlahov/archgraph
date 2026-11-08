@@ -86,6 +86,24 @@ function readFile(root: Node, file: string, out: Out): GraphNode[] {
   return nodes;
 }
 
+// PHP атрибутите като факти за правилата: `#[ORM\Entity]` → `Doctrine\ORM\Mapping\Entity` през `use`.
+function attributes(decl: Node, on: { node: string; member?: string }, scope: Scope, file: string, out: Out) {
+  for (const a of decl.childForFieldName('attributes')?.descendantsOfType('attribute') ?? []) {
+    const name = a.namedChildren.find((c) => c.type === 'name' || c.type === 'qualified_name');
+    const args = a.childForFieldName('parameters')?.namedChildren.filter((x) => x.type === 'argument') ?? [];
+    out.annotations.push({
+      kind: 'decorator',
+      name: resolveClass(name?.text ?? '', scope),
+      args: args.map((x) => ({
+        ...argValue(x.namedChildren.at(-1), scope),
+        ...(x.childForFieldName('name') ? { name: x.childForFieldName('name')?.text ?? '' } : {}),
+      })),
+      on,
+      location: location(a, file),
+    });
+  }
+}
+
 // Масиви с низови ключове като факти: регистрация на услуги (`'invokables' => [...]`,
 // `'aliases' => [I::class => C::class]`) и ZF2 route таблици. Смисълът им го дават правилата (D-012).
 function arrayFacts(root: Node, file: string, scope: Scope, out: Out) {
@@ -220,6 +238,8 @@ function readClass(n: Node, file: string, outer: Scope, out: Out): GraphNode {
   if (fields.length > 0) out.types[node.id] = { id: node.id, name, nodeId: node.id, fields };
   const props = new Map(fields.filter((f) => f.type.kind !== 'unknown').map((f) => [f.name, f.type]));
   const methods = (body?.namedChildren ?? []).filter((c) => c.type === 'method_declaration');
+  attributes(n, { node: node.id }, scope, file, out);
+  methods.forEach((m, i) => attributes(m, { node: node.id, member: members[i]?.name ?? '' }, scope, file, out));
   methods.forEach((m, i) => readCalls(m, members[i] as Member, { node: node.id, scope, props, out }));
   return node;
 }

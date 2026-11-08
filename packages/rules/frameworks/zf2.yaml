@@ -1,0 +1,30 @@
+framework: zf2
+language: php
+detect:
+  composer.json: ['"zendframework/zendframework"', '"zendframework/zend-mvc"', '"laminas/laminas-mvc"']
+
+roles: # namespace-ът е по-силен от базовия клас: в стар код моделите наследяват контролер за service locator-а
+  model:
+    namespace_contains: '\Model\'
+  form:
+    any:
+      - extends: 'Zend\Form\Form'
+      - namespace_contains: '\Form\'
+  helper:
+    namespace_contains: '\View\Helper\'
+  factory:
+    any:
+      - implements: 'Zend\ServiceManager\FactoryInterface'
+      - name_suffix: Factory
+  service:
+    namespace_contains: '\Service\'
+  controller:
+    any:
+      - extends: 'Zend\Mvc\Controller\AbstractActionController'
+      - extends: 'Laminas\Mvc\Controller\AbstractActionController'
+      - name_suffix: Controller
+
+wiring:
+  routes:
+    segments: { route: route, defaults: defaults, controller: controller, action: action, suffix: Action }
+  services: { invokables: [invokables], factories: [factories], aliases: [aliases] }

@@ -1,0 +1,20 @@
+framework: angular
+language: node
+detect:
+  package.json: ['"@angular/router"']
+
+roles:
+  page:
+    route_handler: true # компонентът на route
+  component:
+    decorator: Component
+  guard:
+    name_suffix: [Guard, guard]
+  service:
+    any:
+      - decorator: Injectable
+      - name_suffix: Service
+
+wiring:
+  routes:
+    objects: { path: path, handler: [component, loadComponent], method: PAGE }

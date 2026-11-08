@@ -1,0 +1,16 @@
+# `@routes.get("/prompt")`, често във вложена функция в метод (ComfyUI `PromptServer.__init__`)
+framework: aiohttp
+language: python
+detect:
+  requirements.txt: [aiohttp]
+  pyproject.toml: [aiohttp]
+
+roles:
+  endpoint:
+    route_handler: true
+  service:
+    name_suffix: [Service, Manager]
+
+wiring:
+  routes:
+    decorators: [get, post, put, patch, delete, head, view]

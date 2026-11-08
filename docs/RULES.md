@@ -46,15 +46,22 @@ wiring: # откъде идват връзките извън кода на кл
 
 ### Условия
 
-| Условие                            | Значение                             |
-| ---------------------------------- | ------------------------------------ |
-| `implements`, `extends`            | по пълното име на типа, транзитивно  |
-| `name_suffix`, `name_prefix`       | по името на класа, низ или списък    |
-| `namespace_contains` / `path_glob` | по namespace/модул или път на файла  |
-| `attribute` / `decorator`          | PHP атрибут, TS/Python декоратор     |
-| `has_method`                       | има метод с това име                 |
-| `readonly_class`                   | PHP readonly class, frozen dataclass |
-| `any` / `all` / `not`              | комбиниране                          |
+| Условие                            | Значение                                     |
+| ---------------------------------- | -------------------------------------------- |
+| `implements`, `extends`            | по пълното име на типа, транзитивно          |
+| `name_suffix`, `name_prefix`       | по името на класа, низ или списък            |
+| `namespace_contains` / `path_glob` | по namespace/модул или път на файла          |
+| `attribute` / `decorator`          | PHP атрибут, TS/Python декоратор             |
+| `has_method`                       | има метод с това име                         |
+| `readonly_class`                   | PHP readonly class, frozen dataclass         |
+| `kind`                             | class, interface, function…                  |
+| `injected`                         | инжектира се някъде (конструктор, `Depends`) |
+| `route_handler`                    | към него сочи route                          |
+| `any` / `all` / `not`              | комбиниране                                  |
+
+Няколко ключа в един обект трябва да важат всички. `implements` и `extends` гледат и външни типове (`Psr\Http\Server\RequestHandlerInterface`, `pydantic.BaseModel`). Кратко име (`Controller`, `dataclass`) съвпада с последната част на пълното.
+
+Вградените правила са в `packages/rules/frameworks/*.yaml`. `detect` е речник файл в корена → низове, някой от които трябва да е в него. Правилата на проекта в `.archgraph/rules/*.yaml` са със същия формат; без `detect` важат винаги и са преди вградените.
 
 ## Първоначални frameworks
 
@@ -111,7 +118,7 @@ wiring:
     mount: { keyword: 'prefix' } # app.include_router(router, prefix="/api")
 ```
 
-> Засега правилата за route-ове са TS данни със същата форма в `packages/rules/src/frameworks.ts` ([D-012](DECISIONS.md)). Зареждането от YAML идва с двигателя на правилата.
+> Правилата са YAML файлове в `packages/rules/frameworks/` (mezzio, zf2, nestjs, fastapi, aiohttp, flask, angular). Route-овете и регистрацията на услуги са под `wiring` ([D-012](DECISIONS.md)).
 
 ## Регистрация на услуги (`bindings`)
 

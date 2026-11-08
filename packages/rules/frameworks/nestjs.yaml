@@ -1,0 +1,26 @@
+framework: nestjs
+language: node
+detect:
+  package.json: ['"@nestjs/core"']
+
+roles:
+  controller:
+    decorator: Controller
+  module:
+    decorator: Module
+  entity:
+    decorator: Entity
+  dto:
+    name_suffix: Dto
+  repository:
+    name_suffix: Repository
+  service:
+    any:
+      - decorator: Injectable
+      - name_suffix: Service
+      - injected: true # всичко, което Nest инжектира в конструктор, е provider
+
+wiring:
+  routes:
+    decorators: [Get, Post, Put, Patch, Delete, All]
+    prefix: { decorator: Controller }

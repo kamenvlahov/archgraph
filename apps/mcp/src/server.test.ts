@@ -90,7 +90,7 @@ describe('инструменти върху php-mezzio', () => {
 
   test('describe_node и find_by_role', async () => {
     const { text } = await call(server, 'describe_node', { target: 'PlaceOrderDto' });
-    expect(text).toContain('PlaceOrderDto  (class, final, readonly)  src/Order/Dto/PlaceOrderDto.php:7');
+    expect(text).toContain('PlaceOrderDto  (class, dto, mezzio, final, readonly)  src/Order/Dto/PlaceOrderDto.php:7');
     expect(text).toContain('  items: {sku: string, quantity: int, price: float}[]');
     expect((await call(server, 'find_by_role', { role: 'interface' })).text.split('\n')).toHaveLength(2);
   });

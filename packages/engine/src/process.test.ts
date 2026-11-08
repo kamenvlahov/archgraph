@@ -21,7 +21,7 @@ test('процесът от POST /orders в Mezzio: колони, роли, уч
   };
   expect(row('POST /orders')).toEqual([0, 'route', '']);
   expect(row('PlaceOrderHandler')).toEqual([1, 'controller', 'handle']);
-  expect(row('OrderServiceInterface')).toEqual([2, 'interface', 'place']);
+  expect(row('OrderServiceInterface')).toEqual([2, 'service', 'place']); // роля от правилата, вид interface
   // имплементацията е в колоната на договора
   expect(row('OrderService')).toEqual([2, 'service', 'place']);
   expect(row('DoctrineOrderRepository')).toEqual([3, 'repository', 'save']);
@@ -47,9 +47,9 @@ test('портовете носят цвета на типа и DTO полета
   expect(place?.output).toMatchObject({ type: 'Order', kind: 'entity' });
 });
 
-test('FastAPI: функцията на route-а е controller, models.py дава entity', async () => {
+test('FastAPI: функцията на route-а е endpoint, models.py дава entity', async () => {
   const v = await view('python-fastapi', 'POST /orders');
-  expect(v.nodes.find((n) => n.name === 'place_order')?.role).toBe('controller');
+  expect(v.nodes.find((n) => n.name === 'place_order')?.role).toBe('endpoint');
   expect(v.nodes.find((n) => n.name === 'Order')?.role).toBe('entity');
 });
 

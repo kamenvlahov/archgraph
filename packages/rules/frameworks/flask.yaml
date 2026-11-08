@@ -1,0 +1,16 @@
+framework: flask
+language: python
+detect:
+  requirements.txt: [flask]
+  pyproject.toml: [flask]
+
+roles:
+  endpoint:
+    route_handler: true
+  service:
+    name_suffix: Service
+
+wiring:
+  routes:
+    decorators: [route, get, post, put, patch, delete]
+    prefix: { assign: Blueprint, keyword: url_prefix }
