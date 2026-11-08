@@ -37,6 +37,10 @@ export function plan(query: GraphQuery, task: string, targets: Target[]): string
   const shapes = dataTypes(targets, query);
   if (shapes.length) lines.push('## Типове в сигнатурите', '', ...shapes, '');
 
+  // нарушенията, в които участват засегнатите: промяната не бива да ги задълбочава
+  const broken = (graph.violations ?? []).filter((v) => v.nodes.some((id) => nodes.some((n) => n.id === id)));
+  if (broken.length)
+    lines.push('## Нарушения на архитектурата', '', ...broken.map((v) => `- ${v.kind}: ${v.message}`), '');
   const rules = nodes.filter((n) => n.role || n.layer || n.context);
   if (rules.length)
     lines.push(

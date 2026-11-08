@@ -24,6 +24,16 @@ export interface GraphModel {
   edges: Edge[];
   types: Record<TypeId, TypeShape>;
   unresolved?: UnresolvedCall[];
+  violations?: Violation[];
+}
+
+// Нарушение на архитектурата (етап 7): зависимост извън `allow` между слоеве или контексти, цикъл
+// между класове, имплементация, която не спазва интерфейса си.
+export interface Violation {
+  kind: 'layer' | 'context' | 'cycle' | 'contract';
+  message: string;
+  nodes: string[]; // участниците: от → до, членовете на цикъла, имплементация и интерфейс
+  edge?: string; // реброто, което нарушава (слой, контекст)
 }
 
 // Извикване, което графът не може да свърже: получателят е без тип (service locator, нетипизирана

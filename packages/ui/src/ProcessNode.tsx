@@ -24,6 +24,11 @@ export function ProcessNode({ data, selected }: NodeProps<FlowNode>) {
         <span className="nm" title={view.name}>
           {view.name}
         </span>
+        {view.violations.length > 0 && (
+          <span className="bad" title={view.violations.join('\n')}>
+            ⚠ {view.violations.length}
+          </span>
+        )}
         {view.usedBy.length > 0 && (
           <span className="used" title={`ползва се от ${view.usedBy.length} места в проекта`}>
             ↙{view.usedBy.length}

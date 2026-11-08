@@ -568,5 +568,51 @@ test('без architecture.yaml слоят е от каталога на роли
   expect([layer('PlaceOrderHandler'), layer('OrderService'), layer('Order'), layer('DoctrineOrderRepository')]).toEqual(
     ['presentation', 'application', 'domain', 'infrastructure'],
   );
-  expect(report.layers).toEqual(['presentation', 'application', 'domain', 'infrastructure']);
+  expect(report.layers).toEqual(['presentation', 'application', 'domain', 'infrastructure', 'composition']);
+});
+
+test('нарушения: controller вика repository (layered по подразбиране), фабриката не е нарушение', async () => {
+  const dir = project({
+    'composer.json': '{"require": {"mezzio/mezzio": "^3"}}',
+    'Repo.php': '<?php\nclass OrderRepository { public function save(): void {} }',
+    'Handler.php': `<?php
+class ShipHandler implements \\Psr\\Http\\Server\\RequestHandlerInterface {
+    public function __construct(private OrderRepository $orders) {}
+    public function handle(): void { $this->orders->save(); }
+}`,
+    'Factory.php':
+      '<?php\nclass ShipHandlerFactory { public function __invoke() { return new ShipHandler(new OrderRepository()); } }',
+  });
+  const { graph } = await scan(dir, { scip: false });
+  expect((graph.violations ?? []).map((v) => `${v.kind}: ${v.message}`).sort()).toEqual([
+    'layer: ShipHandler (presentation) calls OrderRepository (infrastructure): presentation не може да зависи от infrastructure',
+    'layer: ShipHandler (presentation) injects OrderRepository (infrastructure): presentation не може да зависи от infrastructure',
+  ]);
+});
+
+test('нарушения: контекст извън allow_cross, цикъл и договор', async () => {
+  const dir = project({
+    '.archgraph/architecture.yaml': `style: none
+contexts: { from: namespace_segment, index: 1, allow_cross: [injects] }
+`,
+    'Billing.php': `<?php
+namespace App\\Billing;
+class Invoice { public function send(): void { (new \\App\\Order\\Order())->total(); } }`,
+    'Order.php': `<?php
+namespace App\\Order;
+interface Payable { public function pay(int $amount): void; public function refund(): void; }
+class Order implements Payable {
+    public function total(): int { return (new Cart())->sum(); }
+    public function pay(int $amount, string $currency): void {}
+}
+class Cart { public function sum(): int { return (new Order())->total(); } }`,
+  });
+  const { graph } = await scan(dir, { scip: false });
+  expect((graph.violations ?? []).map((v) => `${v.kind}: ${v.message}`).sort()).toEqual([
+    'context: Invoice (Billing) calls Order (Order): между контексти само injects',
+    'context: Invoice (Billing) creates Order (Order): между контексти само injects',
+    'contract: Order няма refund() от Payable',
+    'contract: Order.pay() иска 2 параметъра, а Payable дава 1',
+    'cycle: цикъл: Cart, Order зависят един от друг',
+  ]);
 });

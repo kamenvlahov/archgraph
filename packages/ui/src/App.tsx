@@ -57,7 +57,7 @@ function LaneNode({ data }: { data: { name: string } }) {
     </div>
   );
 }
-const LAYERS = ['presentation', 'application', 'domain', 'infrastructure'];
+const LAYERS = ['presentation', 'application', 'domain', 'infrastructure', 'composition'];
 
 interface RoleInfo {
   layer: string;
@@ -328,7 +328,11 @@ function Process({
     .filter((e) => e.from.node !== e.to.node)
     .map((e) => {
       const vertical = e.kind === 'implements';
-      const color = vertical ? 'var(--r-interface)' : `var(--r-${roles.get(e.to.node) ?? 'class'}, var(--r-class))`;
+      const color = e.violation
+        ? 'var(--bad)'
+        : vertical
+          ? 'var(--r-interface)'
+          : `var(--r-${roles.get(e.to.node) ?? 'class'}, var(--r-class))`;
       const dim = neighbours && !(neighbours.has(e.from.node) && neighbours.has(e.to.node));
       return {
         id: e.id,
@@ -338,9 +342,13 @@ function Process({
         target: e.to.node,
         sourceHandle: vertical ? 'bottom' : e.from.member ? `out-${e.from.member}` : 'out',
         targetHandle: vertical ? 'top' : e.to.member ? `in-${e.to.member}` : 'in',
+        // нарушение на слой или контекст: червен проводник с ⚠ и съобщението в подсказка
+        ...(e.violation
+          ? { label: '⚠', labelStyle: { fill: 'var(--bad)' }, labelBgStyle: { fill: 'var(--panel)' } }
+          : {}),
         style: {
           stroke: color,
-          strokeWidth: 2.2,
+          strokeWidth: e.violation ? 3 : 2.2,
           opacity: dim ? 0.08 : 0.85,
           strokeDasharray: vertical || e.kind === 'maybe' ? '6 5' : undefined,
         },
@@ -532,6 +540,18 @@ function Inspector({ node, marked, toggle }: { node: ProcessNodeView; marked: bo
               <div key={f.name} className="on">
                 {f.name}
                 {f.optional ? '?' : ''}: {short(f.type)}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      {node.violations.length > 0 && (
+        <>
+          <h4 className="bad">Нарушения ({node.violations.length})</h4>
+          <div className="list">
+            {node.violations.map((v) => (
+              <div key={v} className="bad">
+                {v}
               </div>
             ))}
           </div>

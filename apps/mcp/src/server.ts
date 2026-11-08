@@ -79,6 +79,12 @@ const TOOLS = [
     },
   },
   {
+    name: 'violations',
+    description:
+      'Нарушенията на архитектурата: зависимост извън позволените посоки между слоеве (presentation → infrastructure) или контексти, цикли между класове, имплементация без метод на интерфейса. С target — само за този клас.',
+    inputSchema: { type: 'object', properties: { target, project } },
+  },
+  {
     name: 'rescan',
     description: 'Сканира проекта отново след промени в кода. Другите инструменти ползват последното сканиране.',
     inputSchema: { type: 'object', properties: { project } },
@@ -160,6 +166,8 @@ export class Server {
           targets.map((t) => one(query, t)),
         );
       }
+      case 'violations':
+        return query.violations(args['target'] === undefined ? undefined : one(query, args['target']).node);
       case 'find_by_role': {
         const role = String(args['role'] ?? '');
         const nodes = query.findBy(role);

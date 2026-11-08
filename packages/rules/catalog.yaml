@@ -1,5 +1,7 @@
 # Каталогът на ролите (D-007): слой по подразбиране и цвят. Слоят важи, докато проектът няма
 # .archgraph/architecture.yaml (D-009). Цветовете са тези от docs/mockup.html.
+# composition е DI връзването (фабрики, модули, доставчици): то по право вижда всички слоеве и не се
+# проверява за нарушения.
 roles:
   route: { layer: presentation, color: '#4aa8ff' }
   controller: { layer: presentation, color: '#5b8def' }
@@ -9,9 +11,9 @@ roles:
   guard: { layer: presentation, color: '#9a8cf0' }
   form: { layer: presentation, color: '#7aa2ff' }
   helper: { layer: presentation, color: '#8aa4c8' }
-  module: { layer: application, color: '#c27cf0' }
-  factory: { layer: application, color: '#c27cf0' }
-  dependency: { layer: application, color: '#c27cf0' }
+  module: { layer: composition, color: '#c27cf0' }
+  factory: { layer: composition, color: '#c27cf0' }
+  dependency: { layer: composition, color: '#c27cf0' }
   service: { layer: application, color: '#4cc38a' }
   dto: { layer: application, color: '#3fb6a8' }
   schema: { layer: application, color: '#3fb6a8' }

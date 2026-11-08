@@ -265,6 +265,21 @@ export class GraphQuery {
   }
 
   // По роля (от правилата, етап 6), вид (`class`, `interface`) или таг (`abstract`).
+  // Нарушенията на архитектурата (всички или за един нод), с file:line на участниците.
+  violations(node?: Node): string {
+    const found = (this.graph.violations ?? []).filter((v) => !node || v.nodes.includes(node.id));
+    if (!found.length) return node ? `${node.name}: няма нарушения` : 'няма нарушения';
+    return found
+      .map((v) => {
+        const at = v.nodes.flatMap((id) => {
+          const n = this.byId.get(id);
+          return n ? [where({ node: n })] : [];
+        });
+        return `${v.kind}: ${v.message}\n  ${at.join('  ')}`;
+      })
+      .join('\n');
+  }
+
   findBy(value: string): Node[] {
     return this.graph.nodes.filter((n) => n.role === value || n.kind === value || n.tags?.includes(value));
   }

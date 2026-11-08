@@ -11,8 +11,47 @@ import { matches, type RoleFacts } from './roles.ts';
 export interface Architecture {
   style: string;
   layers: { name: string; match: Condition }[]; // отвън навътре; първото съвпадение печели
-  allow: Record<string, string[]>; // за нарушенията (етап 7)
-  contexts?: { from: 'namespace_segment' | 'path_segment'; index: number };
+  allow: Record<string, string[]>; // кой слой от кои може да зависи; празно — по стила
+  ignore_edges?: string[]; // видове ребра, които не се проверяват
+  contexts?: { from: 'namespace_segment' | 'path_segment'; index: number; allow_cross?: string[] };
+}
+
+// Позволените посоки по стил (docs/RULES.md): всеки слой зависи само от по-вътрешните.
+// Изключенията от строгия ред са обичайните: presentation вижда domain, infrastructure — domain.
+export const STYLE_ALLOW: Record<string, Record<string, string[]>> = {
+  layered: {
+    presentation: ['application', 'domain'],
+    application: ['domain', 'infrastructure'],
+    domain: [],
+    infrastructure: ['domain'],
+  },
+  clean: {
+    frameworks: ['interface-adapters', 'use-cases', 'entities'],
+    'interface-adapters': ['use-cases', 'entities'],
+    'use-cases': ['entities'],
+    entities: [],
+  },
+  onion: {
+    infrastructure: ['application-services', 'domain-services', 'domain-model'],
+    'application-services': ['domain-services', 'domain-model'],
+    'domain-services': ['domain-model'],
+    'domain-model': [],
+  },
+  hexagonal: {
+    adapters: ['application', 'ports', 'domain'],
+    application: ['ports', 'domain'],
+    ports: ['domain'],
+    domain: [],
+  },
+  mvc: { controller: ['model', 'view'], model: [], view: ['model'] },
+  none: {},
+};
+
+// Позволените посоки за проекта: изричните, иначе тези на стила; без architecture.yaml — layered
+// върху слоевете от каталога на ролите.
+export function allowOf(arch: Architecture | undefined): Record<string, string[]> {
+  if (arch && Object.keys(arch.allow).length) return arch.allow;
+  return STYLE_ALLOW[arch?.style ?? 'layered'] ?? {};
 }
 
 // Слоевете на стиловете отвън навътре (docs/RULES.md). Без изрични `layers` стилът дава само реда.
@@ -32,6 +71,7 @@ export function loadArchitecture(root: string): Architecture | undefined {
   const style = y.style ?? 'none';
   if (!(style in STYLES)) throw new Error(`.archgraph/architecture.yaml: непознат стил „${style}“`);
   const arch: Architecture = { style, layers: y.layers ?? [], allow: y.allow ?? {} };
+  if (y.ignore_edges) arch.ignore_edges = y.ignore_edges;
   if (y.contexts) arch.contexts = y.contexts;
   return arch;
 }

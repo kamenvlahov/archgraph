@@ -160,6 +160,7 @@ test('протокол: initialize, tools/list, известия и непозн
     'describe_node',
     'find_by_role',
     'plan',
+    'violations',
     'rescan',
   ]);
   expect(await server.handle({ jsonrpc: '2.0', id: 3, method: 'resources/list' })).toEqual({
@@ -191,4 +192,11 @@ test('stdio: по едно JSON съобщение на ред', async () => {
     '  →? to_out  app/orders/router.py:21',
     '  →? OrderService#get  app/orders/service.py:20',
   ]);
+});
+
+test('violations: няма нарушения в примера, а грешен target е грешка', async () => {
+  const server = new Server({ cwd: join(fixtures, 'php-mezzio'), scip: false });
+  expect((await call(server, 'violations', {})).text).toBe('няма нарушения');
+  expect((await call(server, 'violations', { target: 'OrderService' })).text).toBe('OrderService: няма нарушения');
+  expect((await call(server, 'violations', { target: 'Nope' })).isError).toBe(true);
 });

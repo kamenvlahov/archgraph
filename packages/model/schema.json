@@ -35,6 +35,12 @@
       "items": {
         "$ref": "#/$defs/unresolvedCall"
       }
+    },
+    "violations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/violation"
+      }
     }
   },
   "$defs": {
@@ -385,6 +391,29 @@
         "line": {
           "type": "integer",
           "minimum": 1
+        }
+      }
+    },
+    "violation": {
+      "type": "object",
+      "required": ["kind", "message", "nodes"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": ["layer", "context", "cycle", "contract"]
+        },
+        "message": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "nodes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/nonEmpty"
+          }
+        },
+        "edge": {
+          "$ref": "#/$defs/nonEmpty"
         }
       }
     }

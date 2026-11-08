@@ -27,6 +27,7 @@
   --r-function: #8aa4c8;
   --r-class: #9a9ca3;
   --r-enum: #b083f0;
+  --bad: #ff5a5a;
 }
 
 * {
@@ -705,4 +706,22 @@ nav .hint {
 }
 .stats label input {
   vertical-align: middle;
+}
+
+/* Нарушенията на архитектурата (етап 7). */
+.node .hd .bad {
+  color: var(--bad);
+  font-size: 11px;
+  font-weight: 700;
+  flex: none;
+  cursor: help;
+}
+.node .hd .bad + .used {
+  margin-left: 6px;
+}
+.node .hd .bad {
+  margin-left: auto;
+}
+.insp .bad {
+  color: var(--bad);
 }

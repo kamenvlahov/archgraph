@@ -29,6 +29,7 @@ import {
 } from '@archgraph/model';
 import { callEdges } from './calls.ts';
 import { linkEdges } from './edges.ts';
+import { violations } from './violations.ts';
 import { exactCalls, findCommand, runIndexer } from './exact.ts';
 import { DEFAULT_EXCLUDES, isExcluded, isTooBig, listFiles, MAX_FILE_SIZE } from './files.ts';
 
@@ -49,7 +50,7 @@ export interface ScanReport {
   layers: string[]; // редът на слоевете отвън навътре
 }
 
-const CATALOG_LAYERS = ['presentation', 'application', 'domain', 'infrastructure'];
+const CATALOG_LAYERS = ['presentation', 'application', 'domain', 'infrastructure', 'composition'];
 
 export class InvalidGraphError extends Error {
   readonly errors: ValidationError[];
@@ -171,6 +172,8 @@ export class Project {
     const architecture = loadArchitecture(root);
     graph.nodes = assignLayers(graph.nodes, architecture, facts);
     report.layers = layerOrder(architecture, CATALOG_LAYERS);
+    const found = violations(graph.nodes, graph.edges, architecture);
+    if (found.length > 0) graph.violations = found;
 
     const result = validate(graph);
     if (!result.ok) throw new InvalidGraphError(result.errors);

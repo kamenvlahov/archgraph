@@ -27,6 +27,7 @@ export interface ProcessNode {
   deps: Slot[]; // инжектирани зависимости (параметри на конструктора с тип от проекта)
   fields: Slot[]; // собствените полета без зависимостите
   usedBy: Usage[]; // кой ползва класа в целия проект (извиква, инжектира, създава, наследява)
+  violations: string[]; // нарушенията на архитектурата, в които участва (етап 7)
 }
 
 export interface ProcessMember {
@@ -62,6 +63,7 @@ export interface ProcessEdge {
   from: { node: string; member?: string };
   to: { node: string; member?: string };
   inferred: boolean;
+  violation?: string; // зависимостта е извън `allow` между слоеве или контексти
 }
 
 const ARROWS: Record<string, ProcessEdge['kind']> = {
@@ -103,6 +105,7 @@ export function processView(query: GraphQuery, start: Target, depth: number): Pr
       deps: deps(n),
       fields: [],
       usedBy: usedBy(n),
+      violations: (graph.violations ?? []).filter((v) => v.nodes.includes(n.id)).map((v) => v.message),
     };
     nodes.set(n.id, view);
     return view;
@@ -207,6 +210,12 @@ export function processView(query: GraphQuery, start: Target, depth: number): Pr
       .map((f) => slot(f.name, f.type, f.optional));
     const shown = new Set(n.members.map((m) => m.name));
     n.others = (byId.get(n.id)?.members ?? []).filter((m) => !shown.has(m.name)).map(member);
+  }
+  // Проводник между два нода с нарушение на слой или контекст се оцветява.
+  for (const v of graph.violations ?? []) {
+    if (v.kind !== 'layer' && v.kind !== 'context') continue;
+    const [a, b] = v.nodes;
+    for (const e of edges.values()) if (e.from.node === a && e.to.node === b) e.violation = v.message;
   }
   const startName = start.member ? `${start.node.name}#${start.member.name}` : start.node.name;
   return { title: startName, nodes: [...nodes.values()], edges: [...edges.values()] };
