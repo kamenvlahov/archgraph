@@ -1,7 +1,16 @@
 import { existsSync, readFileSync, watch } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { basename, extname, join, normalize, relative, sep } from 'node:path';
-import { DEFAULT_EXCLUDES, GraphQuery, processView, Project, roleOf, type ScanOptions } from '@archgraph/engine';
+import {
+  DEFAULT_EXCLUDES,
+  GraphQuery,
+  layers,
+  layerView,
+  processView,
+  Project,
+  roleOf,
+  type ScanOptions,
+} from '@archgraph/engine';
 import type { GraphModel, Node } from '@archgraph/model';
 import { plan } from '@archgraph/planner';
 import { CATALOG } from '@archgraph/rules';
@@ -12,6 +21,8 @@ import { CATALOG } from '@archgraph/rules';
 //   GET  /api/project                  име, корен, файлове по език, framework-и
 //   GET  /api/roles                    каталогът на ролите: слой и цвят
 //   GET  /api/endpoints                входните точки: route-овете (без тях controller-ите)
+//   GET  /api/layers                   слоевете с броя единици
+//   GET  /api/layers/{name}            целият слой по модули, компактно
 //   GET  /api/search?q=                класове, функции и методи по име
 //   GET  /api/processes/{target}?depth процесът от ендпойнт, клас или метод (target е URL-encoded)
 //   GET  /api/nodes?file=&line=        нодът и методът на това място (курсорът в редактора)
@@ -86,6 +97,9 @@ export async function serve(path: string, port: number, options: ScanOptions): P
       });
     if (route === 'GET /api/roles') return send(res, 200, CATALOG);
     if (route === 'GET /api/endpoints') return send(res, 200, endpoints(graph));
+    if (route === 'GET /api/layers') return send(res, 200, layers(graph, project.report.layers));
+    if (req.method === 'GET' && url.pathname.startsWith('/api/layers/'))
+      return send(res, 200, layerView(graph, decodeURIComponent(url.pathname.slice('/api/layers/'.length))));
     if (route === 'GET /api/search') return send(res, 200, search(graph.nodes, url.searchParams.get('q') ?? ''));
     if (req.method === 'GET' && url.pathname.startsWith('/api/processes/')) {
       const name = decodeURIComponent(url.pathname.slice('/api/processes/'.length));

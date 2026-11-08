@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
+import { layers, layerView } from './layer.ts';
 import { processView } from './process.ts';
 import { GraphQuery } from './query.ts';
 import { scan } from './scan.ts';
@@ -78,4 +79,27 @@ test('процес от клас: тръгва от всеки негов мет
   const v = processView(query, start, 3);
   expect(v.nodes[0]?.members.map((m) => m.name)).toEqual(['__construct', 'place', 'get']);
   expect(v.nodes.map((n) => n.name)).toContain('OrderRepositoryInterface');
+});
+
+test('изглед на слой: модули, единици, стрелки вътре в слоя и броячи навън', async () => {
+  const { graph, report } = await scan(join(fixtures, 'php-mezzio'), { scip: false });
+  expect(layers(graph, report.layers).map((l) => l.name)).toEqual([
+    'presentation',
+    'application',
+    'domain',
+    'infrastructure',
+    'composition',
+  ]);
+  const v = layerView(graph, 'application');
+  expect(v.groups.map((g) => `${g.name}: ${g.units.map((u) => u.label).join(', ')}`)).toEqual([
+    'Dto: PlaceOrderDto',
+    'Service: OrderService, OrderServiceInterface, PriceCalculator',
+  ]);
+  const unit = v.groups[1]?.units.find((u) => u.label === 'OrderService');
+  // ↑ фабриката (composition); ↓ OrderRepositoryInterface, Order, OrderItem
+  expect([unit?.up, unit?.down, unit?.members.map((m) => m.name)]).toEqual([1, 3, ['__construct', 'place', 'get']]);
+  expect(v.edges.map((e) => e.id).sort()).toEqual([
+    'php:App\\Order\\Service\\OrderService->php:App\\Order\\Service\\OrderServiceInterface',
+    'php:App\\Order\\Service\\OrderService->php:App\\Order\\Service\\PriceCalculator',
+  ]);
 });

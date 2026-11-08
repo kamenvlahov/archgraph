@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ProcessNode as ProcessNodeView, ProcessView } from '@archgraph/engine';
 import { createPlan, get, inEditor, onChange, openInEditor } from './api.ts';
 import { layout, NODE_WIDTH, type Lane } from './layout.ts';
+import { LayerView } from './LayerView.tsx';
 import { ProcessNode, short, type FlowNode } from './ProcessNode.tsx';
 
 interface Entry {
@@ -81,6 +82,13 @@ const LEGEND: [string, string][] = [
 export function App() {
   const [project, setProject] = useState<{ name: string; entries: Entry[]; layers: string[] }>();
   const [lanes, setLanes] = useState(true); // ленти по слой
+  const [layer, setLayer] = useState<string>(); // изгледът „цял слой“ вместо процес
+  const [layerList, setLayerList] = useState<{ name: string; units: number }[]>([]);
+  // ендпойнт, клас или метод: процесът от него (и излизане от изгледа на слой)
+  const openProcess = (id: string) => {
+    setLayer(undefined);
+    setEntry(id);
+  };
   const [version, setVersion] = useState(0); // расте при промяна на файл в проекта
   const [entry, setEntry] = useState<string>();
   const [filter, setFilter] = useState('');
@@ -110,6 +118,11 @@ export function App() {
       .catch((e: Error) => setError(e.message));
   }, [version]);
   useEffect(() => onChange(() => setVersion((v) => v + 1)), []);
+  useEffect(() => {
+    get<{ name: string; units: number }[]>('/api/layers')
+      .then(setLayerList)
+      .catch(() => setLayerList([]));
+  }, [version]);
   useEffect(() => {
     if (!entry) return;
     get<ProcessView>(`/api/processes/${encodeURIComponent(entry)}?depth=${depth}`)
@@ -144,7 +157,7 @@ export function App() {
         <div className="proj">{project?.name}</div>
         {/* ролите в показания процес, по слоеве отвън навътре */}
         <div className="chips">
-          {[...new Set(view?.nodes.map((n) => n.role))]
+          {[...new Set(layer ? [] : view?.nodes.map((n) => n.role))]
             .sort((a, b) => layerIndex(catalog, a) - layerIndex(catalog, b) || a.localeCompare(b))
             .map((r) => (
               <span className="chip" key={r} title={catalog[r]?.layer}>
@@ -153,7 +166,7 @@ export function App() {
               </span>
             ))}
         </div>
-        {view && (
+        {view && !layer && (
           <div className="stats">
             <span>
               {view.nodes.length} нода · {view.edges.length} връзки
@@ -174,6 +187,19 @@ export function App() {
       </header>
       <nav>
         <input placeholder="ендпойнт, клас или метод…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        {layerList.length > 0 && (
+          <>
+            <h3>Слоеве</h3>
+            <ul>
+              {layerList.map((l) => (
+                <li key={l.name} className={l.name === layer ? 'on' : ''} onClick={() => setLayer(l.name)}>
+                  {l.name}
+                  <small>{l.units} класа и файла</small>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
         <h3>Ендпойнти</h3>
         {shown.length === 0 && (
           <div className="hint">
@@ -182,7 +208,12 @@ export function App() {
         )}
         <ul>
           {shown.map((e) => (
-            <li key={e.id} className={e.id === entry ? 'on' : ''} onClick={() => setEntry(e.id)} title={e.label}>
+            <li
+              key={e.id}
+              className={e.id === entry && !layer ? 'on' : ''}
+              onClick={() => openProcess(e.id)}
+              title={e.label}
+            >
               <EntryLabel entry={e} />
               <small>
                 {e.file}:{e.line}
@@ -195,7 +226,12 @@ export function App() {
             <h3>Класове и методи</h3>
             <ul>
               {found.map((e) => (
-                <li key={e.id} className={e.id === entry ? 'on' : ''} onClick={() => setEntry(e.id)} title={e.label}>
+                <li
+                  key={e.id}
+                  className={e.id === entry && !layer ? 'on' : ''}
+                  onClick={() => openProcess(e.id)}
+                  title={e.label}
+                >
                   <i className="dot-role" style={{ background: `var(--r-${e.role}, var(--r-class))` }} />
                   {e.label}
                   <small>
@@ -207,8 +243,12 @@ export function App() {
           </>
         )}
       </nav>
-      <ReactFlowProvider>
-        <Process view={view} error={error} lanes={lanes ? project?.layers : undefined} />
+      <ReactFlowProvider key={layer ? `layer:${layer}` : 'process'}>
+        {layer ? (
+          <LayerView layer={layer} onProcess={openProcess} />
+        ) : (
+          <Process view={view} error={error} lanes={lanes ? project?.layers : undefined} />
+        )}
       </ReactFlowProvider>
     </>
   );

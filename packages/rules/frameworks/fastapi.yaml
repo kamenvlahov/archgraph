@@ -27,9 +27,11 @@ roles:
       - name_suffix: Repository
       - path_glob: ['**/repository.py', '**/repositories.py', '**/*_repository.py', '**/repositories/**']
   service:
-    any:
-      - name_suffix: Service
-      - path_glob: ['**/services.py', '**/service.py', '**/*_services.py', '**/*_service.py', '**/services/**']
+    all:
+      - any:
+          - name_suffix: Service
+          - path_glob: ['**/services.py', '**/service.py', '**/*_services.py', '**/*_service.py', '**/services/**']
+      - not: { path_glob: ['**/test_*.py', '**/tests/**', '**/*_test.py'] } # тестовете не са услуги
 
 wiring:
   routes:
