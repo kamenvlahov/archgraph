@@ -67,7 +67,9 @@ export type Expr =
 export interface LanguageAdapter {
   language: string;
   extensions: string[];
-  read(files: SourceFile[]): Promise<GraphFragment>;
+  // `all`: пътищата на всички файлове на езика в проекта, когато се препрочитат само някои
+  // (импортите към файл, който не е в `files`, пак трябва да се разрешат)
+  read(files: SourceFile[], all?: string[]): Promise<GraphFragment>;
   indexer?: Indexer;
 }
 

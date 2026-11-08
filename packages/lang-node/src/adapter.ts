@@ -42,9 +42,9 @@ export const nodeAdapter: LanguageAdapter = {
     command: 'scip-typescript',
     args: (out) => ['index', '--infer-tsconfig', '--no-progress-bar', '--output', out],
   },
-  async read(files: SourceFile[]): Promise<GraphFragment> {
+  async read(files: SourceFile[], all = files.map((f) => f.path)): Promise<GraphFragment> {
     const parser = await typescriptParser();
-    const known = new Set(files.map((f) => f.path));
+    const known = new Set(all);
     const edges: Edge[] = [];
     const calls: CallSite[] = [];
     const types: Record<string, TypeShape> = {};

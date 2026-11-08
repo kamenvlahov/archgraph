@@ -10,11 +10,12 @@
     "archgraph": "node packages/cli/src/main.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p tsconfig.json && tsc -p packages/ui",
+    "typecheck": "tsc -p tsconfig.json && tsc -p packages/ui && tsc -p apps/vscode",
     "lint": "eslint .",
     "format": "prettier --write .",
     "check": "pnpm typecheck && pnpm lint && prettier --check . && pnpm test",
-    "ui": "pnpm --filter @archgraph/ui build"
+    "ui": "pnpm --filter @archgraph/ui build",
+    "vscode": "pnpm ui && pnpm --filter archgraph-vscode build"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -10,6 +10,7 @@ import {
   validate,
   type GraphModel,
   type CallSite,
+  type GraphFragment,
   type Edge,
   type LanguageAdapter,
   type Node,
@@ -18,7 +19,7 @@ import {
 import { callEdges } from './calls.ts';
 import { linkEdges } from './edges.ts';
 import { exactCalls, findCommand, runIndexer } from './exact.ts';
-import { DEFAULT_EXCLUDES, isTooBig, listFiles, MAX_FILE_SIZE } from './files.ts';
+import { DEFAULT_EXCLUDES, isExcluded, isTooBig, listFiles, MAX_FILE_SIZE } from './files.ts';
 
 export const ADAPTERS: LanguageAdapter[] = [phpAdapter, nodeAdapter, pythonAdapter];
 
@@ -49,56 +50,106 @@ export async function scan(
   path: string,
   options: ScanOptions = {},
 ): Promise<{ graph: GraphModel; report: ScanReport }> {
-  const root = resolve(path);
-  const maxFileSize = options.maxFileSize ?? MAX_FILE_SIZE;
-  const report: ScanReport = { files: {}, tooBig: [], duplicates: [], scip: {}, frameworks: [] };
-  const byAdapter = new Map<LanguageAdapter, { path: string; text: string }[]>();
+  const project = await Project.open(path, options);
+  return { graph: project.graph, report: project.report };
+}
 
-  for (const file of listFiles(root, [...DEFAULT_EXCLUDES, ...(options.exclude ?? [])])) {
-    const adapter = ADAPTERS.find((a) => a.extensions.includes(extname(file)));
-    if (!adapter) continue;
-    if (isTooBig(join(root, file), maxFileSize)) {
-      report.tooBig.push(file);
-      continue;
+// Проектът в паметта: прочетеното се пази по файл, затова промяна на файл препрочита само него,
+// а свързването (правила, ребра, извиквания) минава наново върху всичко. SCIP се пуска само при
+// отварянето; след промяна извикванията са по евристика, докато не се отвори наново.
+export class Project {
+  readonly root: string;
+  graph: GraphModel;
+  report: ScanReport;
+  private readonly options: ScanOptions;
+  private readonly fragments = new Map<string, { adapter: LanguageAdapter; part: GraphFragment }>();
+
+  private constructor(root: string, options: ScanOptions) {
+    this.root = root;
+    this.options = options;
+    this.graph = { version: MODEL_VERSION, root, nodes: [], edges: [], types: {} };
+    this.report = { files: {}, tooBig: [], duplicates: [], scip: {}, frameworks: [] };
+  }
+
+  static async open(path: string, options: ScanOptions = {}): Promise<Project> {
+    const project = new Project(resolve(path), options);
+    const files = listFiles(project.root, project.excludes());
+    for (const file of files) await project.read(file, files);
+    project.link(options.scip !== false);
+    return project;
+  }
+
+  // Препрочита променените файлове (относителни пътища) и свързва наново. Изтрит или вече
+  // изключен файл изчезва от графа. Връща дали нещо от поддържаните езици е засегнато.
+  async update(changed: string[]): Promise<boolean> {
+    const relevant = changed.filter((f) => this.fragments.has(f) || (adapterFor(f) && !isExcluded(f, this.excludes())));
+    if (!relevant.length) return false;
+    const all = [...new Set([...this.fragments.keys(), ...relevant])];
+    for (const file of relevant) {
+      this.fragments.delete(file);
+      if (existsSync(join(this.root, file))) await this.read(file, all);
     }
-    const files = byAdapter.get(adapter) ?? [];
-    files.push({ path: file, text: readFileSync(join(root, file), 'utf8') });
-    byAdapter.set(adapter, files);
-    report.files[adapter.language] = (report.files[adapter.language] ?? 0) + 1;
+    this.link(false);
+    return true;
   }
 
-  const graph: GraphModel = { version: MODEL_VERSION, root, nodes: [], edges: [], types: {} };
-  let calls: CallSite[] = [];
-  let annotations: Annotation[] = [];
-  for (const [adapter, files] of byAdapter) {
-    const part = await adapter.read(files);
-    // concat, а не push(...): голям проект има повече нодове, отколкото стекът побира като аргументи.
-    graph.nodes = graph.nodes.concat(part.nodes);
-    graph.edges = graph.edges.concat(part.edges);
-    Object.assign(graph.types, part.types);
-    calls = calls.concat(part.calls ?? []);
-    annotations = annotations.concat(part.annotations ?? []);
+  private excludes(): string[] {
+    return [...DEFAULT_EXCLUDES, ...(this.options.exclude ?? [])];
   }
-  report.duplicates = renameDuplicates(graph.nodes);
-  const frameworks = detect(root, FRAMEWORKS);
-  report.frameworks = frameworks.map((f) => f.framework);
-  const registered = services(annotations, frameworks, graph.nodes);
-  const routed = routes(annotations, frameworks, graph.nodes, registered.services);
-  graph.nodes = graph.nodes.concat(routed.nodes);
-  graph.edges = linkEdges(graph.nodes, graph.edges);
-  const exact =
-    options.scip === false
-      ? { edges: [], rest: calls }
-      : scipCalls(root, graph.nodes, [...byAdapter.keys()], calls, report);
-  const inferred = callEdges(graph.nodes, graph.edges, graph.types, exact.rest, registered.services);
-  // Едно и също извикване може да се среща няколко пъти в метода, а реброто е едно.
-  const called = new Map([...inferred.edges, ...exact.edges].map((e) => [e.id, e]));
-  graph.edges = graph.edges.concat([...called.values()], routed.edges, registered.edges);
-  if (inferred.unresolved.length > 0) graph.unresolved = inferred.unresolved;
 
-  const result = validate(graph);
-  if (!result.ok) throw new InvalidGraphError(result.errors);
-  return { graph, report };
+  private async read(file: string, all: string[]) {
+    const adapter = adapterFor(file);
+    if (!adapter) return;
+    if (isTooBig(join(this.root, file), this.options.maxFileSize ?? MAX_FILE_SIZE)) {
+      this.report.tooBig.push(file);
+      return;
+    }
+    const text = readFileSync(join(this.root, file), 'utf8');
+    const paths = all.filter((f) => adapterFor(f) === adapter);
+    this.fragments.set(file, { adapter, part: await adapter.read([{ path: file, text }], paths) });
+  }
+
+  private link(scip: boolean) {
+    const { root } = this;
+    const report: ScanReport = { files: {}, tooBig: this.report.tooBig, duplicates: [], scip: {}, frameworks: [] };
+    const graph: GraphModel = { version: MODEL_VERSION, root, nodes: [], edges: [], types: {} };
+    let calls: CallSite[] = [];
+    let annotations: Annotation[] = [];
+    for (const { adapter, part } of this.fragments.values()) {
+      // concat, а не push(...): голям проект има повече нодове, отколкото стекът побира като аргументи.
+      graph.nodes = graph.nodes.concat(part.nodes);
+      graph.edges = graph.edges.concat(part.edges);
+      Object.assign(graph.types, part.types);
+      calls = calls.concat(part.calls ?? []);
+      annotations = annotations.concat(part.annotations ?? []);
+      report.files[adapter.language] = (report.files[adapter.language] ?? 0) + 1;
+    }
+    const renamed = renameDuplicates(graph.nodes);
+    graph.nodes = renamed.nodes;
+    report.duplicates = renamed.duplicates;
+    const frameworks = detect(root, FRAMEWORKS);
+    report.frameworks = frameworks.map((f) => f.framework);
+    const registered = services(annotations, frameworks, graph.nodes);
+    const routed = routes(annotations, frameworks, graph.nodes, registered.services);
+    graph.nodes = graph.nodes.concat(routed.nodes);
+    graph.edges = linkEdges(graph.nodes, graph.edges);
+    const adapters = [...new Set([...this.fragments.values()].map((f) => f.adapter))];
+    const exact = scip ? scipCalls(root, graph.nodes, adapters, calls, report) : { edges: [], rest: calls };
+    const inferred = callEdges(graph.nodes, graph.edges, graph.types, exact.rest, registered.services);
+    // Едно и също извикване може да се среща няколко пъти в метода, а реброто е едно.
+    const called = new Map([...inferred.edges, ...exact.edges].map((e) => [e.id, e]));
+    graph.edges = graph.edges.concat([...called.values()], routed.edges, registered.edges);
+    if (inferred.unresolved.length > 0) graph.unresolved = inferred.unresolved;
+
+    const result = validate(graph);
+    if (!result.ok) throw new InvalidGraphError(result.errors);
+    this.graph = graph;
+    this.report = report;
+  }
+}
+
+function adapterFor(file: string): LanguageAdapter | undefined {
+  return ADAPTERS.find((a) => a.extensions.includes(extname(file)));
 }
 
 // Framework-ите, чийто manifest в корена ги споменава (`composer.json`, `package.json`, `pyproject.toml`).
@@ -135,17 +186,18 @@ function scipCalls(
 
 // Два класа с едно и също пълно име се срещат (copy-paste между модули, тестови `Foo`).
 // И двата остават в графа с таг `duplicate`. Първият по път пази id-то, останалите получават `@файл`.
-function renameDuplicates(nodes: Node[]): string[] {
+// Нодовете не се променят на място: прочетеното по файл се ползва отново при следващото свързване.
+function renameDuplicates(nodes: Node[]): { nodes: Node[]; duplicates: string[] } {
   const groups = Map.groupBy(nodes, (n) => n.id);
+  const renamed = new Map<Node, Node>();
   const duplicates: string[] = [];
   for (const [id, group] of groups) {
     if (group.length < 2) continue;
     duplicates.push(id);
     group.sort((a, b) => a.location.file.localeCompare(b.location.file));
-    group.forEach((n, i) => {
-      n.tags = [...(n.tags ?? []), 'duplicate'];
-      if (i > 0) n.id = `${id}@${n.location.file}`;
-    });
+    group.forEach((n, i) =>
+      renamed.set(n, { ...n, id: i > 0 ? `${id}@${n.location.file}` : id, tags: [...(n.tags ?? []), 'duplicate'] }),
+    );
   }
-  return duplicates;
+  return { nodes: duplicates.length ? nodes.map((n) => renamed.get(n) ?? n) : nodes, duplicates };
 }

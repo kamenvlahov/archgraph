@@ -80,6 +80,15 @@ pnpm archgraph serve ~/projects/shop      # http://127.0.0.1:8790
 
 Вляво са ендпойнтите. Избраният показва процеса си отляво надясно като нодове: роля, методи с параметри и резултат, разгъваеми DTO-та. Клик върху нод го фокусира и показва всичко за него. Сървърът слуша само локално.
 
+### VS Code
+
+```sh
+pnpm vscode                                                     # build на UI-а и разширението
+code --extensionDevelopmentPath=$PWD/apps/vscode ~/projects/shop
+```
+
+Команда **archgraph: Покажи процеса**. Двоен клик върху нод отваря файла, а курсорът в редактора маркира нода. Графът се обновява при запис на файл. Ако VS Code не намира `node` (24+), задай пътя в `archgraph.node`.
+
 ### MCP сървър
 
 За Claude Code и всеки MCP клиент. Инструменти: `trace`, `dependents`, `describe_node`, `find_by_role`, `plan`, `rescan`. Отговорите са кратък текст с `file:line`.

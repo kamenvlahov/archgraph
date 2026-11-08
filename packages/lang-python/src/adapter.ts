@@ -68,10 +68,10 @@ export const pythonAdapter: LanguageAdapter = {
     ],
     files: { 'env.json': '[]' },
   },
-  async read(files: SourceFile[]): Promise<GraphFragment> {
+  async read(files: SourceFile[], all = files.map((f) => f.path)): Promise<GraphFragment> {
     const parser = await pythonParser();
     // С src/__init__.py `src` е пакет и импортите са `from src.x import Y`.
-    const srcIsPackage = files.some((f) => f.path === 'src/__init__.py');
+    const srcIsPackage = all.includes('src/__init__.py');
     const edges: Edge[] = [];
     const calls: CallSite[] = [];
     const types: Record<string, TypeShape> = {};

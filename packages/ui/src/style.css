@@ -668,3 +668,10 @@ nav .hint {
   border-radius: 50%;
   margin-right: 6px;
 }
+
+.insp .list .link {
+  cursor: pointer;
+}
+.insp .list .link:hover {
+  color: var(--accent);
+}

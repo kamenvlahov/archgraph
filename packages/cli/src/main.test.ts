@@ -1,5 +1,6 @@
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import type { Server } from 'node:http';
 import { join } from 'node:path';
 import { expect, test, vi } from 'vitest';
 import { validate } from '@archgraph/model';
@@ -34,32 +35,74 @@ test('plan: Markdown план и грешка при непознат нод', a
   log.mockRestore();
 });
 
-test('serve: ендпойнти, процес и план по HTTP', async () => {
+test('serve: REST ресурсите', async () => {
   const { serve } = await import('./serve.ts');
-  const server = await serve(join(import.meta.dirname, '../../../fixtures/php-mezzio'), 0, { scip: false });
-  const address = server.address();
-  const base = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`;
+  const root = join(import.meta.dirname, '../../../fixtures/php-mezzio');
+  const server = await serve(root, 0, { scip: false });
+  const base = url(server);
   try {
-    const project = (await (await fetch(`${base}/api/project`)).json()) as { entries: { label: string }[] };
-    expect(project.entries.map((e) => e.label)).toEqual(['GET /orders/{id:\\d+}', 'POST /orders']);
+    const project = (await (await fetch(`${base}/api/project`)).json()) as { name: string; frameworks: string[] };
+    expect(project).toMatchObject({ name: 'php-mezzio', frameworks: ['mezzio'] });
+    const endpoints = (await (await fetch(`${base}/api/endpoints`)).json()) as { label: string }[];
+    expect(endpoints.map((e) => e.label)).toEqual(['GET /orders/{id:\\d+}', 'POST /orders']);
     const view = (await (
-      await fetch(`${base}/api/process?target=${encodeURIComponent('php:route:POST /orders')}`)
-    ).json()) as {
-      nodes: unknown[];
-    };
+      await fetch(`${base}/api/processes/${encodeURIComponent('php:route:POST /orders')}`)
+    ).json()) as { nodes: unknown[] };
     expect(view.nodes.length).toBe(11);
-    const plan = await (
-      await fetch(`${base}/api/plan?task=x&target=${encodeURIComponent('OrderService#place')}`)
-    ).text();
-    expect(plan).toContain('### OrderService#place');
+    expect((await fetch(`${base}/api/processes/${encodeURIComponent('Nope')}`)).status).toBe(404);
+    const plan = await fetch(`${base}/api/plans`, {
+      method: 'POST',
+      body: JSON.stringify({ task: 'x', targets: ['OrderService#place'] }),
+    });
+    expect(plan.status).toBe(201);
+    expect(await plan.text()).toContain('### OrderService#place');
     const found = (await (await fetch(`${base}/api/search?q=orderserv`)).json()) as { label: string }[];
     expect(found.slice(0, 3).map((e) => e.label)).toEqual([
       'OrderService',
       'OrderServiceFactory',
       'OrderServiceInterface',
     ]);
+    const at = await fetch(
+      `${base}/api/nodes?file=${encodeURIComponent(join(root, 'src/Order/Service/OrderService.php'))}&line=22`,
+    );
+    expect(await at.json()).toEqual({ node: 'php:App\\Order\\Service\\OrderService', member: 'place' });
+    expect((await fetch(`${base}/api/nope`)).status).toBe(404);
     expect((await fetch(`${base}/../../package.json`)).status).toBe(404);
   } finally {
     server.close();
   }
 });
+
+test('serve: промяна на сигнатура се вижда за под секунда', async () => {
+  const { serve } = await import('./serve.ts');
+  const dir = mkdtempSync(join(tmpdir(), 'archgraph-'));
+  writeFileSync(join(dir, 'Svc.php'), '<?php\nclass Svc {\n    public function place(int $id): void {}\n}\n');
+  const server = await serve(dir, 0, { scip: false });
+  const base = url(server);
+  const controller = new AbortController();
+  try {
+    const events = await fetch(`${base}/api/events`, { signal: controller.signal });
+    const reader = events.body?.getReader();
+    await reader?.read(); // коментарът при свързване
+    const started = performance.now();
+    writeFileSync(
+      join(dir, 'Svc.php'),
+      '<?php\nclass Svc {\n    public function place(int $id, string $code): void {}\n}\n',
+    );
+    const chunk = new TextDecoder().decode((await reader?.read())?.value);
+    expect(chunk).toContain('event: changed');
+    expect(performance.now() - started).toBeLessThan(1000);
+    const view = (await (await fetch(`${base}/api/processes/Svc`)).json()) as {
+      nodes: { members: { name: string; inputs: { name: string }[] }[] }[];
+    };
+    expect(view.nodes[0]?.members[0]?.inputs.map((p) => p.name)).toEqual(['id', 'code']);
+  } finally {
+    controller.abort();
+    server.close();
+  }
+});
+
+function url(server: Server): string {
+  const address = server.address();
+  return `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`;
+}

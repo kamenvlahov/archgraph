@@ -44,8 +44,12 @@ export async function main(argv: string[]): Promise<number> {
   }
   if (command === 'serve') {
     const port = Number(values.port ?? 8790);
-    await serve(path, port, { exclude: values.exclude ?? [], scip: values.scip ?? false });
-    console.error(`archgraph: http://127.0.0.1:${port}  (Ctrl+C спира)`);
+    const server = await serve(path, port, { exclude: values.exclude ?? [], scip: values.scip ?? false });
+    const address = server.address();
+    // Редът с адреса е договор с VS Code разширението: то пуска `serve --port 0` и чете порта оттук.
+    console.error(
+      `archgraph: http://127.0.0.1:${typeof address === 'object' && address ? address.port : port}  (Ctrl+C спира)`,
+    );
     return 0;
   }
   if (command === 'plan') {

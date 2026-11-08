@@ -10,8 +10,9 @@ import {
   useReactFlow,
   type Edge,
 } from '@xyflow/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ProcessNode as ProcessNodeView, ProcessView } from '@archgraph/engine';
+import { createPlan, get, inEditor, onChange, openInEditor } from './api.ts';
 import { layout } from './layout.ts';
 import { ProcessNode, short, type FlowNode } from './ProcessNode.tsx';
 
@@ -36,6 +37,7 @@ const LEGEND: [string, string][] = [
 
 export function App() {
   const [project, setProject] = useState<{ name: string; entries: Entry[] }>();
+  const [version, setVersion] = useState(0); // расте при промяна на файл в проекта
   const [entry, setEntry] = useState<string>();
   const [filter, setFilter] = useState('');
   const [view, setView] = useState<ProcessView>();
@@ -44,21 +46,23 @@ export function App() {
   const [found, setFound] = useState<Entry[]>([]);
 
   useEffect(() => {
-    fetch('/api/project')
-      .then((r) => r.json())
-      .then((p: { name: string; entries: Entry[] }) => {
-        setProject(p);
-        setEntry(p.entries[0]?.id);
+    Promise.all([get<{ name: string }>('/api/project'), get<Entry[]>('/api/endpoints')])
+      .then(([p, entries]) => {
+        setProject({ name: p.name, entries });
+        setEntry((current) => current ?? entries[0]?.id);
       })
       .catch((e: Error) => setError(e.message));
-  }, []);
+  }, [version]);
+  useEffect(() => onChange(() => setVersion((v) => v + 1)), []);
   useEffect(() => {
     if (!entry) return;
-    fetch(`/api/process?target=${encodeURIComponent(entry)}&depth=${depth}`)
-      .then((r) => r.json())
-      .then((v: ProcessView & { error?: string }) => (v.error ? setError(v.error) : setView(v)))
+    get<ProcessView>(`/api/processes/${encodeURIComponent(entry)}?depth=${depth}`)
+      .then((v) => {
+        setError(undefined);
+        setView(v);
+      })
       .catch((e: Error) => setError(e.message));
-  }, [entry, depth]);
+  }, [entry, depth, version]);
 
   // Търсенето показва и класове и методи: начало на процес, когато ендпойнтът липсва.
   useEffect(() => {
@@ -67,8 +71,7 @@ export function App() {
       return;
     }
     const timer = setTimeout(() => {
-      fetch(`/api/search?q=${encodeURIComponent(filter)}`)
-        .then((r) => r.json())
+      get<Entry[]>(`/api/search?q=${encodeURIComponent(filter)}`)
         .then(setFound)
         .catch(() => setFound([]));
     }, 150);
@@ -167,11 +170,16 @@ function Process({ view, error }: { view: ProcessView | undefined; error: string
   const initialized = useNodesInitialized();
   const flow = useReactFlow();
 
-  // Нов процес: приблизителни позиции, после истинските след измерване на нодовете.
+  // Нов процес: приблизителни позиции, после истинските след измерване на нодовете. Същият процес
+  // след промяна на файл пази избора, маркираните и изгледа на екрана.
+  const shownTitle = useRef<string>(undefined);
+  const sameProcess = view?.title === shownTitle.current;
   useEffect(() => {
     if (!view) return;
-    setSelected(undefined);
-    setMarked(new Set());
+    if (view.title !== shownTitle.current) {
+      setSelected(undefined);
+      setMarked(new Set());
+    }
     const positions = layout(view, new Map());
     setNodes(
       view.nodes.map((n) => ({
@@ -192,6 +200,8 @@ function Process({ view, error }: { view: ProcessView | undefined; error: string
   useEffect(() => {
     if (!initialized || !view) return;
     relayout();
+    if (sameProcess) return;
+    shownTitle.current = view.title;
     // Мащабът не пада под 80%, за да се четат портовете; процесът започва от левия ръб, а остатъкът
     // се вижда с влачене (както в ComfyUI).
     requestAnimationFrame(() => {
@@ -202,7 +212,28 @@ function Process({ view, error }: { view: ProcessView | undefined; error: string
       const y = bounds.height * zoom < stage.height - 80 ? (stage.height - bounds.height * zoom) / 2 : 40;
       flow.setViewport({ x: 40 - bounds.x * zoom, y: y - bounds.y * zoom, zoom });
     });
-  }, [initialized, view, flow, relayout]);
+  }, [initialized, view, flow, relayout, sameProcess]);
+
+  // Курсорът в редактора (VS Code) маркира нода, ако е в процеса.
+  useEffect(() => {
+    const reveal = (e: MessageEvent<{ type?: string; file?: string; line?: number }>) => {
+      if (e.data.type !== 'reveal') return;
+      get<{ node: string }>(`/api/nodes?file=${encodeURIComponent(e.data.file ?? '')}&line=${e.data.line ?? 0}`)
+        .then(({ node }) => {
+          if (!view?.nodes.some((n) => n.id === node)) return;
+          setSelected(node);
+          const n = flow.getNode(node);
+          if (n)
+            flow.setCenter(n.position.x + 145, n.position.y + (n.measured?.height ?? 0) / 2, {
+              duration: 300,
+              zoom: flow.getZoom(),
+            });
+        })
+        .catch(() => undefined);
+    };
+    window.addEventListener('message', reveal);
+    return () => window.removeEventListener('message', reveal);
+  }, [view, flow]);
 
   const neighbours = useMemo(() => {
     if (!selected || !view) return undefined;
@@ -260,6 +291,10 @@ function Process({ view, error }: { view: ProcessView | undefined; error: string
               if (initialized && changes.some((c) => c.type === 'dimensions')) requestAnimationFrame(relayout);
             }}
             onNodeClick={(_, n) => setSelected(n.id === selected ? undefined : n.id)}
+            onNodeDoubleClick={(_, n) => {
+              const v = view.nodes.find((x) => x.id === n.id);
+              if (v) openInEditor(v.file, v.line);
+            }}
             onPaneClick={() => setSelected(undefined)}
             minZoom={0.15}
             proOptions={{ hideAttribution: true }}
@@ -305,8 +340,7 @@ function Aside({
     const targets = (view?.nodes ?? [])
       .filter((n) => marked.has(n.id))
       .flatMap((n) => (n.members.length ? n.members.map((m) => `${n.id}#${m.name}`) : [n.id]));
-    const query = new URLSearchParams([['task', task], ...targets.map((t) => ['target', t])]);
-    const text = await (await fetch(`/api/plan?${query}`)).text();
+    const text = await createPlan(task, targets);
     setPlan(text);
     await navigator.clipboard?.writeText(text).catch(() => undefined);
   };
@@ -350,7 +384,9 @@ function Aside({
 function Inspector({ node, marked, toggle }: { node: ProcessNodeView; marked: boolean; toggle: (id: string) => void }) {
   const [copied, setCopied] = useState(false);
   const where = `${node.file}:${node.line}`;
+  // Във VS Code отваря файла; в браузъра копира пътя.
   const copy = () => {
+    if (inEditor) return openInEditor(node.file, node.line);
     void navigator.clipboard?.writeText(where).then(() => setCopied(true));
     setTimeout(() => setCopied(false), 1200);
   };
@@ -368,7 +404,7 @@ function Inspector({ node, marked, toggle }: { node: ProcessNodeView; marked: bo
           </span>
         ))}
       </div>
-      <div className="loc mono" onClick={copy} title="копирай пътя">
+      <div className="loc mono" onClick={copy} title={inEditor ? 'отвори' : 'копирай пътя'}>
         {copied ? 'копирано' : where}
       </div>
       {node.bases.map((b) => (
@@ -381,7 +417,12 @@ function Inspector({ node, marked, toggle }: { node: ProcessNodeView; marked: bo
           <h4>Методи ({methods.length})</h4>
           <div className="list mono">
             {methods.map(([m, inProcess]) => (
-              <div key={m.name} className={inProcess ? 'on' : 'off'} title={inProcess ? 'участва в процеса' : ''}>
+              <div
+                key={m.name}
+                className={`${inProcess ? 'on' : 'off'}${inEditor ? ' link' : ''}`}
+                title={inProcess ? 'участва в процеса' : ''}
+                onClick={() => openInEditor(node.file, m.line)}
+              >
                 {m.visibility !== 'public' ? `${m.visibility} ` : ''}
                 {m.static ? 'static ' : ''}
                 {m.name}({m.inputs.map((p) => `${p.name}: ${short(p.type)}`).join(', ')})

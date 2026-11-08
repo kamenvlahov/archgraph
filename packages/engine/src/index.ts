@@ -9,4 +9,4 @@ export {
   type ProcessView,
   type Slot,
 } from './process.ts';
-export { ADAPTERS, InvalidGraphError, scan, type ScanOptions, type ScanReport } from './scan.ts';
+export { ADAPTERS, InvalidGraphError, Project, scan, type ScanOptions, type ScanReport } from './scan.ts';

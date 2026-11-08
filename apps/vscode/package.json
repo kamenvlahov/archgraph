@@ -1,0 +1,44 @@
+{
+  "name": "archgraph-vscode",
+  "displayName": "archgraph",
+  "description": "Процесът от ендпойнт като нодове: кой кого вика, с параметри и типове.",
+  "version": "0.0.1",
+  "private": true,
+  "publisher": "kamen",
+  "type": "module",
+  "main": "./dist/extension.cjs",
+  "engines": {
+    "vscode": "^1.140.0"
+  },
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "archgraph.show",
+        "title": "archgraph: Покажи процеса"
+      }
+    ],
+    "configuration": {
+      "title": "archgraph",
+      "properties": {
+        "archgraph.node": {
+          "type": "string",
+          "default": "node",
+          "description": "Node 24+, с който се пуска engine-ът (archgraph serve)."
+        },
+        "archgraph.scip": {
+          "type": "boolean",
+          "default": false,
+          "description": "Точни извиквания от SCIP индексаторите. На голям проект първото сканиране е минута."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "@types/vscode": "1.140.0",
+    "vite": "8.3.5"
+  }
+}
