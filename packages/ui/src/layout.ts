@@ -7,42 +7,85 @@ import type { ProcessView } from '@archgraph/engine';
 export const NODE_WIDTH = 290;
 const COLUMN_GAP = 110;
 const ROW_GAP = 36;
+const LANE_GAP = 70;
+export const OTHER = 'друго';
 
-export function layout(view: ProcessView, heights: Map<string, number>): Map<string, { x: number; y: number }> {
+export interface Lane {
+  name: string;
+  y: number;
+  height: number;
+}
+
+// С `lanes` процесът е на хоризонтални ленти по слой (отвън навътре), а колоните остават по дълбочина.
+// Route-ът е в първата лента; нод без слой е в последната, „друго“.
+export function layout(
+  view: ProcessView,
+  heights: Map<string, number>,
+  lanes?: string[],
+): { positions: Map<string, { x: number; y: number }>; lanes: Lane[] } {
   const callers = new Map<string, string[]>();
   const implOf = new Map<string, string>();
   for (const e of view.edges) {
     if (e.kind === 'implements') implOf.set(e.to.node, e.from.node);
     else callers.set(e.to.node, [...(callers.get(e.to.node) ?? []), e.from.node]);
   }
+  const laneOf = (n: ProcessView['nodes'][number]) => {
+    if (!lanes) return '';
+    if (n.kind === 'route') return lanes[0] ?? OTHER;
+    return n.layer && lanes.includes(n.layer) ? n.layer : OTHER;
+  };
   const column = columnsOf(view);
-  const columns = Map.groupBy(view.nodes, (n) => column.get(n.id) ?? n.column);
-  const positions = new Map<string, { x: number; y: number }>();
-  for (const col of [...columns.keys()].sort((a, b) => a - b)) {
-    const nodes = columns.get(col) ?? [];
-    const order = new Map(nodes.map((n, i) => [n.id, i]));
-    const center = (id: string) => {
-      const ys = (callers.get(id) ?? []).flatMap((c) => {
-        const p = positions.get(c);
-        return p ? [p.y + (heights.get(c) ?? 0) / 2] : [];
-      });
-      return ys.length ? ys.reduce((a, b) => a + b, 0) / ys.length : (order.get(id) ?? 0) * 1000;
-    };
-    const sorted = nodes.filter((n) => !implOf.has(n.id)).sort((a, b) => center(a.id) - center(b.id));
-    // Имплементациите след договора си; ако договорът е в друга колона, в края.
-    for (const n of nodes.filter((n) => implOf.has(n.id))) {
-      const at = sorted.findIndex((x) => x.id === implOf.get(n.id));
-      sorted.splice(at < 0 ? sorted.length : at + 1, 0, n);
-    }
-    let y = 0;
-    for (const n of sorted) {
-      // Нодът се стреми към височината на извикващите си, но не застъпва предишния.
-      const wanted = implOf.has(n.id) ? y : Math.max(y, center(n.id) - (heights.get(n.id) ?? estimate(n)) / 2);
-      positions.set(n.id, { x: col * (NODE_WIDTH + COLUMN_GAP), y: wanted });
-      y = wanted + (heights.get(n.id) ?? estimate(n)) + ROW_GAP;
+  const height = (n: ProcessView['nodes'][number]) => heights.get(n.id) || estimate(n);
+  // позициите вътре в лентата; отместването на лентата се знае едва накрая
+  const relative = new Map<string, { col: number; y: number; lane: string }>();
+  const bottom = new Map<string, number>();
+  const byLane = Map.groupBy(view.nodes, laneOf);
+  for (const [lane, inLane] of byLane) {
+    const columns = Map.groupBy(inLane, (n) => column.get(n.id) ?? n.column);
+    for (const col of [...columns.keys()].sort((a, b) => a - b)) {
+      const nodes = columns.get(col) ?? [];
+      const order = new Map(nodes.map((n, i) => [n.id, i]));
+      const center = (id: string) => {
+        const ys = (callers.get(id) ?? []).flatMap((c) => {
+          const p = relative.get(c);
+          const n = view.nodes.find((x) => x.id === c);
+          return p && p.lane === lane && n ? [p.y + height(n) / 2] : [];
+        });
+        // без извикващ в лентата (той е в друга лента): без предпочитание, веднага след предишния
+        return ys.length ? ys.reduce((a, b) => a + b, 0) / ys.length : undefined;
+      };
+      const key = (id: string) => center(id) ?? (order.get(id) ?? 0) * 1e6;
+      const sorted = nodes.filter((n) => !implOf.has(n.id)).sort((a, b) => key(a.id) - key(b.id));
+      // Имплементациите след договора си; ако договорът е в друга колона или лента, в края.
+      for (const n of nodes.filter((n) => implOf.has(n.id))) {
+        const at = sorted.findIndex((x) => x.id === implOf.get(n.id));
+        sorted.splice(at < 0 ? sorted.length : at + 1, 0, n);
+      }
+      let y = 0;
+      for (const n of sorted) {
+        // Нодът се стреми към височината на извикващите си, но не застъпва предишния.
+        const c = center(n.id);
+        const wanted = implOf.has(n.id) || c === undefined ? y : Math.max(y, c - height(n) / 2);
+        relative.set(n.id, { col, y: wanted, lane });
+        y = wanted + height(n) + ROW_GAP;
+      }
+      bottom.set(lane, Math.max(bottom.get(lane) ?? 0, y - ROW_GAP));
     }
   }
-  return positions;
+  const order = lanes ? [...lanes, OTHER] : [''];
+  const result: Lane[] = [];
+  let offset = 0;
+  for (const name of order) {
+    if (!byLane.has(name)) continue;
+    const h = bottom.get(name) ?? 0;
+    result.push({ name, y: offset, height: h });
+    offset += h + LANE_GAP;
+  }
+  const offsets = new Map(result.map((l) => [l.name, l.y]));
+  const positions = new Map(
+    [...relative].map(([id, p]) => [id, { x: p.col * (NODE_WIDTH + COLUMN_GAP), y: (offsets.get(p.lane) ?? 0) + p.y }]),
+  );
+  return { positions, lanes: lanes ? result : [] };
 }
 
 // Всеки нод е вдясно от всички, които го викат (най-дългият път), за да не се връщат проводници

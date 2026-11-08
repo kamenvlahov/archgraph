@@ -9,11 +9,13 @@ import {
   useNodesInitialized,
   useReactFlow,
   type Edge,
+  type Node,
+  type NodeChange,
 } from '@xyflow/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ProcessNode as ProcessNodeView, ProcessView } from '@archgraph/engine';
 import { createPlan, get, inEditor, onChange, openInEditor } from './api.ts';
-import { layout } from './layout.ts';
+import { layout, NODE_WIDTH, type Lane } from './layout.ts';
 import { ProcessNode, short, type FlowNode } from './ProcessNode.tsx';
 
 interface Entry {
@@ -24,7 +26,37 @@ interface Entry {
   line: number;
 }
 
-const nodeTypes = { process: ProcessNode };
+const nodeTypes = { process: ProcessNode, lane: LaneNode };
+const LANE = 'lane:';
+
+// Лентите са фонови нодове под процеса: по една за слой, през всички колони.
+function laneNodes(bands: Lane[], nodes: FlowNode[]): Node[] {
+  const right = Math.max(0, ...nodes.map((n) => n.position.x)) + NODE_WIDTH;
+  return bands.map((b) => {
+    const size = { width: right + 140, height: b.height + 68 };
+    // размерът е известен, затова и измерването: иначе React Flow крие нода и чака да го измери
+    return {
+      id: `${LANE}${b.name}`,
+      type: 'lane',
+      position: { x: -70, y: b.y - 34 },
+      data: { name: b.name },
+      style: size,
+      measured: size,
+      draggable: false,
+      selectable: false,
+      focusable: false,
+      zIndex: -1,
+    };
+  });
+}
+
+function LaneNode({ data }: { data: { name: string } }) {
+  return (
+    <div className="lane">
+      <span>{data.name}</span>
+    </div>
+  );
+}
 const LAYERS = ['presentation', 'application', 'domain', 'infrastructure'];
 
 interface RoleInfo {
@@ -47,7 +79,8 @@ const LEGEND: [string, string][] = [
 ];
 
 export function App() {
-  const [project, setProject] = useState<{ name: string; entries: Entry[] }>();
+  const [project, setProject] = useState<{ name: string; entries: Entry[]; layers: string[] }>();
+  const [lanes, setLanes] = useState(true); // ленти по слой
   const [version, setVersion] = useState(0); // расте при промяна на файл в проекта
   const [entry, setEntry] = useState<string>();
   const [filter, setFilter] = useState('');
@@ -69,9 +102,9 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    Promise.all([get<{ name: string }>('/api/project'), get<Entry[]>('/api/endpoints')])
+    Promise.all([get<{ name: string; layers: string[] }>('/api/project'), get<Entry[]>('/api/endpoints')])
       .then(([p, entries]) => {
-        setProject({ name: p.name, entries });
+        setProject({ name: p.name, entries, layers: p.layers });
         setEntry((current) => current ?? entries[0]?.id);
       })
       .catch((e: Error) => setError(e.message));
@@ -126,6 +159,9 @@ export function App() {
               {view.nodes.length} нода · {view.edges.length} връзки
             </span>
             <label>
+              <input type="checkbox" checked={lanes} onChange={(e) => setLanes(e.target.checked)} /> слоеве
+            </label>
+            <label>
               дълбочина{' '}
               <select value={depth} onChange={(e) => setDepth(Number(e.target.value))}>
                 {[2, 3, 4, 6, 8, 12].map((d) => (
@@ -172,7 +208,7 @@ export function App() {
         )}
       </nav>
       <ReactFlowProvider>
-        <Process view={view} error={error} />
+        <Process view={view} error={error} lanes={lanes ? project?.layers : undefined} />
       </ReactFlowProvider>
     </>
   );
@@ -189,7 +225,16 @@ function EntryLabel({ entry }: { entry: Entry }) {
   );
 }
 
-function Process({ view, error }: { view: ProcessView | undefined; error: string | undefined }) {
+function Process({
+  view,
+  error,
+  lanes,
+}: {
+  view: ProcessView | undefined;
+  error: string | undefined;
+  lanes: string[] | undefined;
+}) {
+  const [bands, setBands] = useState<Lane[]>([]);
   const [nodes, setNodes] = useState<FlowNode[]>([]);
   const [selected, setSelected] = useState<string>();
   const [marked, setMarked] = useState<Set<string>>(new Set());
@@ -206,7 +251,7 @@ function Process({ view, error }: { view: ProcessView | undefined; error: string
       setSelected(undefined);
       setMarked(new Set());
     }
-    const positions = layout(view, new Map());
+    const { positions } = layout(view, new Map(), lanes);
     setNodes(
       view.nodes.map((n) => ({
         id: n.id,
@@ -215,14 +260,15 @@ function Process({ view, error }: { view: ProcessView | undefined; error: string
         data: { view: n, dim: false, marked: false },
       })),
     );
-  }, [view]);
+  }, [view, lanes]);
   // Подреждане по измерените височини: след първото измерване и когато нод смени размера си (▸).
   const relayout = useCallback(() => {
     if (!view) return;
     const heights = new Map(flow.getNodes().map((n) => [n.id, n.measured?.height ?? 0]));
-    const positions = layout(view, heights);
-    setNodes((ns) => ns.map((n) => ({ ...n, position: positions.get(n.id) ?? n.position })));
-  }, [view, flow]);
+    const placed = layout(view, heights, lanes);
+    setNodes((ns) => ns.map((n) => ({ ...n, position: placed.positions.get(n.id) ?? n.position })));
+    setBands(placed.lanes);
+  }, [view, flow, lanes]);
   useEffect(() => {
     if (!initialized || !view) return;
     relayout();
@@ -309,14 +355,19 @@ function Process({ view, error }: { view: ProcessView | undefined; error: string
         {!error && !view && <div className="empty">Избери ендпойнт отляво</div>}
         {view && (
           <ReactFlow
-            nodes={shownNodes}
+            nodes={[...laneNodes(bands, nodes), ...shownNodes]}
             edges={edges}
             nodeTypes={nodeTypes}
             onNodesChange={(changes) => {
-              setNodes((ns) => applyNodeChanges(changes, ns));
+              setNodes((ns) =>
+                applyNodeChanges(
+                  changes.filter((c) => !('id' in c) || !c.id.startsWith(LANE)) as NodeChange<FlowNode>[],
+                  ns,
+                ),
+              );
               if (initialized && changes.some((c) => c.type === 'dimensions')) requestAnimationFrame(relayout);
             }}
-            onNodeClick={(_, n) => setSelected(n.id === selected ? undefined : n.id)}
+            onNodeClick={(_, n) => !n.id.startsWith(LANE) && setSelected(n.id === selected ? undefined : n.id)}
             onNodeDoubleClick={(_, n) => {
               const v = view.nodes.find((x) => x.id === n.id);
               if (v) openInEditor(v.file, v.line);

@@ -71,7 +71,7 @@
 
 > 🧪 **Проверка с истински проект.** Пускаме го върху твой реален проект. Ако не помага, тук коригираме курса.
 
-## Етап 6 – Роли и frameworks ⬜
+## Етап 6 – Роли и frameworks 🟨
 
 - Двигател за правилата от [RULES.md](RULES.md): YAML, условия, `any`/`all`/`not`.
 - Правила за Mezzio, Laravel, Symfony, NestJS, Express, FastAPI и Django.
@@ -79,6 +79,8 @@
 - Route нодове като входни точки на графа.
 - Слоеве и контексти от `.archgraph/architecture.yaml` (стилове layered, clean, onion, hexagonal, mvc) ([D-009](DECISIONS.md)).
 - Каталог на ролите: слой по подразбиране, цвят и икона за всяка роля ([D-007](DECISIONS.md)). Интерфейсът и плановете четат от него.
+
+Направено (2026-11-08): YAML правила в `packages/rules/frameworks/` за твоите framework-и първо (Mezzio, ZF2, NestJS, FastAPI, aiohttp, Flask, Angular), правила на проекта в `.archgraph/rules/`, каталог на ролите (слой и цвят), `.archgraph/architecture.yaml` (слоеве по условия и роли, контексти), лентите по слой в интерфейса. Остава: Laravel, Symfony, Django, Express; `binds` за Nest `useClass` и FastAPI доставчици.
 
 **Готово когато:** за всеки от седемте frameworks има fixture и ролите се разпознават без ръчна намеса.
 

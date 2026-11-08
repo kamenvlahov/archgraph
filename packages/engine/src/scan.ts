@@ -4,8 +4,11 @@ import { nodeAdapter } from '@archgraph/lang-node';
 import { phpAdapter } from '@archgraph/lang-php';
 import { pythonAdapter } from '@archgraph/lang-python';
 import {
+  assignLayers,
   assignRoles,
   FRAMEWORKS,
+  layerOrder,
+  loadArchitecture,
   loadFrameworks,
   routes,
   services,
@@ -43,7 +46,10 @@ export interface ScanReport {
   duplicates: string[];
   scip: Record<string, string>; // по език: 'exact', 'няма <команда>' или грешката на индексатора
   frameworks: string[];
+  layers: string[]; // редът на слоевете отвън навътре
 }
+
+const CATALOG_LAYERS = ['presentation', 'application', 'domain', 'infrastructure'];
 
 export class InvalidGraphError extends Error {
   readonly errors: ValidationError[];
@@ -76,7 +82,7 @@ export class Project {
     this.root = root;
     this.options = options;
     this.graph = { version: MODEL_VERSION, root, nodes: [], edges: [], types: {} };
-    this.report = { files: {}, tooBig: [], duplicates: [], scip: {}, frameworks: [] };
+    this.report = { files: {}, tooBig: [], duplicates: [], scip: {}, frameworks: [], layers: [] };
   }
 
   static async open(path: string, options: ScanOptions = {}): Promise<Project> {
@@ -119,7 +125,14 @@ export class Project {
 
   private link(scip: boolean) {
     const { root } = this;
-    const report: ScanReport = { files: {}, tooBig: this.report.tooBig, duplicates: [], scip: {}, frameworks: [] };
+    const report: ScanReport = {
+      files: {},
+      tooBig: this.report.tooBig,
+      duplicates: [],
+      scip: {},
+      frameworks: [],
+      layers: [],
+    };
     const graph: GraphModel = { version: MODEL_VERSION, root, nodes: [], edges: [], types: {} };
     let calls: CallSite[] = [];
     let annotations: Annotation[] = [];
@@ -152,7 +165,12 @@ export class Project {
     const called = new Map([...inferred.edges, ...exact.edges].map((e) => [e.id, e]));
     graph.edges = graph.edges.concat([...called.values()], routed.edges, registered.edges);
     if (inferred.unresolved.length > 0) graph.unresolved = inferred.unresolved;
-    graph.nodes = assignRoles(graph.nodes, frameworks, roleFacts(heritage, annotations, graph.edges));
+    const facts = roleFacts(heritage, annotations, graph.edges);
+    graph.nodes = assignRoles(graph.nodes, frameworks, facts);
+    // слоеве и контексти от .archgraph/architecture.yaml; без него слоят е от каталога на ролите
+    const architecture = loadArchitecture(root);
+    graph.nodes = assignLayers(graph.nodes, architecture, facts);
+    report.layers = layerOrder(architecture, CATALOG_LAYERS);
 
     const result = validate(graph);
     if (!result.ok) throw new InvalidGraphError(result.errors);

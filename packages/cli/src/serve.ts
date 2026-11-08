@@ -82,6 +82,7 @@ export async function serve(path: string, port: number, options: ScanOptions): P
         root: graph.root,
         files: project.report.files,
         frameworks: project.report.frameworks,
+        layers: project.report.layers,
       });
     if (route === 'GET /api/roles') return send(res, 200, CATALOG);
     if (route === 'GET /api/endpoints') return send(res, 200, endpoints(graph));

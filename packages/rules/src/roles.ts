@@ -31,7 +31,7 @@ export function assignRoles(nodes: Node[], frameworks: FrameworkRules[], facts: 
   });
 }
 
-function matches(n: Node, c: Condition, facts: RoleFacts): boolean {
+export function matches(n: Node, c: Condition, facts: RoleFacts): boolean {
   const list = <T>(v: T | T[] | undefined): T[] => (v === undefined ? [] : Array.isArray(v) ? v : [v]);
   const checks: boolean[] = [];
   if (c.any) checks.push(c.any.some((x) => matches(n, x, facts)));
@@ -53,6 +53,7 @@ function matches(n: Node, c: Condition, facts: RoleFacts): boolean {
   if (c.kind) checks.push(list(c.kind).includes(n.kind));
   if (c.injected !== undefined) checks.push(facts.injected.has(n.id) === c.injected);
   if (c.route_handler !== undefined) checks.push(facts.handlers.has(n.id) === c.route_handler);
+  if (c.role) checks.push(n.role !== undefined && list(c.role).includes(n.role));
   return checks.length > 0 && checks.every(Boolean);
 }
 

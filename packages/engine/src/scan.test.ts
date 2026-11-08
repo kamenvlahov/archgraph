@@ -531,3 +531,42 @@ class Plain {}`,
   });
   expect(graph.nodes.every((n) => n.framework === 'shop')).toBe(true);
 });
+
+test('architecture.yaml: слой по условие и роля, контекст по namespace, ред от стила', async () => {
+  const dir = project({
+    'composer.json': '{"require": {"mezzio/mezzio": "^3"}}',
+    '.archgraph/architecture.yaml': `style: hexagonal
+layers:
+  - name: adapters
+    match: { any: [{ role: controller }, { name_suffix: Repository }] }
+  - name: application
+    match: { role: service }
+  - name: domain
+    match: { namespace_contains: '\\Domain\\' }
+contexts: { from: namespace_segment, index: 1 }
+`,
+    'src/Order/Http/PlaceHandler.php': `<?php
+namespace App\\Order\\Http;
+class PlaceHandler implements \\Psr\\Http\\Server\\RequestHandlerInterface {}`,
+    'src/Order/Service/OrderService.php': '<?php\nnamespace App\\Order\\Service;\nclass OrderService {}',
+    'src/Billing/Domain/Invoice.php': '<?php\nnamespace App\\Billing\\Domain;\nclass Invoice {}',
+    'src/Billing/Infra/InvoiceRepository.php': '<?php\nnamespace App\\Billing\\Infra;\nclass InvoiceRepository {}',
+  });
+  const { graph, report } = await scan(dir, { scip: false });
+  expect(Object.fromEntries(graph.nodes.map((n) => [n.name, `${n.layer}/${n.context}`]))).toEqual({
+    PlaceHandler: 'adapters/Order',
+    OrderService: 'application/Order',
+    Invoice: 'domain/Billing',
+    InvoiceRepository: 'adapters/Billing',
+  });
+  expect(report.layers).toEqual(['adapters', 'application', 'domain']);
+});
+
+test('без architecture.yaml слоят е от каталога на ролите', async () => {
+  const { graph, report } = await scan(join(fixtures, 'php-mezzio'), { scip: false });
+  const layer = (name: string) => graph.nodes.find((n) => n.name === name)?.layer;
+  expect([layer('PlaceOrderHandler'), layer('OrderService'), layer('Order'), layer('DoctrineOrderRepository')]).toEqual(
+    ['presentation', 'application', 'domain', 'infrastructure'],
+  );
+  expect(report.layers).toEqual(['presentation', 'application', 'domain', 'infrastructure']);
+});

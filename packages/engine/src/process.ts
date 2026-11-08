@@ -239,10 +239,12 @@ function slotKind(t: TypeRef, kindOf: (id: string) => Slot['kind']): Slot['kind'
   }
 }
 
-// Временна роля по вида и името, докато правилата за framework (етап 6) не дадат истинската.
+// Роля за проекти без правила за framework: по вида, името и мястото.
 export function roleOf(n: Node, hasFields: boolean): string {
   if (n.role) return n.role;
   if (n.kind === 'route' || n.kind === 'interface' || n.kind === 'function' || n.kind === 'enum') return n.kind;
+  // Правилата на framework-а са минали и не са дали роля: без отгатване по име.
+  if (n.framework) return 'class';
   const rules: [RegExp, string][] = [
     [/(Controller|Handler|Action|Resource)$/, 'controller'],
     [/Repository$/, 'repository'],

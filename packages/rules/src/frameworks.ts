@@ -34,6 +34,7 @@ export interface Condition {
   kind?: string | string[]; // class, interface, function…
   injected?: boolean; // инжектира се някъде (конструктор, Depends)
   route_handler?: boolean; // към него сочи route
+  role?: string | string[]; // за слоевете в architecture.yaml: ролята, вече дадена от правилата
 }
 
 export interface RouteRules {
