@@ -3,7 +3,7 @@ import { extname, join, resolve } from 'node:path';
 import { nodeAdapter } from '@archgraph/lang-node';
 import { phpAdapter } from '@archgraph/lang-php';
 import { pythonAdapter } from '@archgraph/lang-python';
-import { FRAMEWORKS, routes, type FrameworkRules } from '@archgraph/rules';
+import { FRAMEWORKS, routes, services, type FrameworkRules } from '@archgraph/rules';
 import {
   MODEL_VERSION,
   type Annotation,
@@ -82,17 +82,18 @@ export async function scan(
   report.duplicates = renameDuplicates(graph.nodes);
   const frameworks = detect(root, FRAMEWORKS);
   report.frameworks = frameworks.map((f) => f.framework);
-  const routed = routes(annotations, frameworks, graph.nodes);
+  const registered = services(annotations, frameworks, graph.nodes);
+  const routed = routes(annotations, frameworks, graph.nodes, registered.services);
   graph.nodes = graph.nodes.concat(routed.nodes);
   graph.edges = linkEdges(graph.nodes, graph.edges);
   const exact =
     options.scip === false
       ? { edges: [], rest: calls }
       : scipCalls(root, graph.nodes, [...byAdapter.keys()], calls, report);
-  const inferred = callEdges(graph.nodes, graph.edges, graph.types, exact.rest);
+  const inferred = callEdges(graph.nodes, graph.edges, graph.types, exact.rest, registered.services);
   // Едно и също извикване може да се среща няколко пъти в метода, а реброто е едно.
   const called = new Map([...inferred.edges, ...exact.edges].map((e) => [e.id, e]));
-  graph.edges = graph.edges.concat([...called.values()], routed.edges);
+  graph.edges = graph.edges.concat([...called.values()], routed.edges, registered.edges);
   if (inferred.unresolved.length > 0) graph.unresolved = inferred.unresolved;
 
   const result = validate(graph);

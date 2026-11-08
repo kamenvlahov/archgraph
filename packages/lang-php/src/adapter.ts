@@ -82,7 +82,36 @@ function readFile(root: Node, file: string, out: Out): GraphNode[] {
     }
   };
   visit(root.namedChildren);
+  arrayFacts(root, file, scope, out);
   return nodes;
+}
+
+// Масиви с низови ключове като факти: регистрация на услуги (`'invokables' => [...]`,
+// `'aliases' => [I::class => C::class]`) и ZF2 route таблици. Смисълът им го дават правилата (D-012).
+function arrayFacts(root: Node, file: string, scope: Scope, out: Out) {
+  for (const arr of root.descendantsOfType('array_creation_expression')) {
+    const args = arr.namedChildren.flatMap((el): Arg[] => {
+      const [k, v] = el.namedChildren;
+      if (el.type !== 'array_element_initializer' || !v) return [];
+      const key = argValue(k, scope);
+      const name = key.kind === 'string' ? key.value : key.kind === 'class' ? key.id : undefined;
+      return name === undefined ? [] : [{ ...argValue(v, scope), name, line: el.startPosition.row + 1 }];
+    });
+    if (!args.length) continue;
+    // `'invokables' => array(...)`: ключът на масива и масивът, в който е
+    const holder = arr.parent?.type === 'array_element_initializer' ? arr.parent : undefined;
+    const key =
+      holder?.namedChildren[1]?.startIndex === arr.startIndex ? argValue(holder.namedChildren[0], scope) : undefined;
+    const outer = holder?.parent?.type === 'array_creation_expression' ? holder.parent : undefined;
+    out.annotations.push({
+      kind: 'object',
+      name: '',
+      args,
+      ...(key?.kind === 'string' ? { key: key.value } : {}),
+      ...(outer ? { parent: location(outer, file) } : {}),
+      location: location(arr, file),
+    });
+  }
 }
 
 const CALLS = ['member_call_expression', 'scoped_call_expression', 'function_call_expression'];
@@ -111,9 +140,12 @@ function outsideCalls(n: Node, file: string, scope: Scope, out: Out) {
 function argValue(v: Node | undefined, scope: Scope): Arg {
   if (
     (v?.type === 'string' || v?.type === 'encapsed_string') &&
-    v.namedChildren.every((c) => c.type === 'string_content')
+    v.namedChildren.every((c) => c.type === 'string_content' || c.type === 'escape_sequence')
   )
-    return { kind: 'string', value: v.namedChildren.map((c) => c.text).join('') };
+    return {
+      kind: 'string',
+      value: v.namedChildren.map((c) => (c.type === 'escape_sequence' ? c.text.slice(1) : c.text)).join(''),
+    };
   if (v?.type === 'class_constant_access_expression' && v.namedChildren[1]?.text.toLowerCase() === 'class')
     return { kind: 'class', id: `php:${resolveClass(v.namedChildren[0]?.text ?? '', scope)}` };
   return { kind: 'other' };
@@ -346,6 +378,13 @@ function readCalls(fn: Node, member: Member, b: Body) {
       }
       case 'member_call_expression':
       case 'nullsafe_member_call_expression': {
+        // $sm->get('OrderMap'): типът е в регистрацията на услугите; $container->get(X::class) е X (PSR-11)
+        const only = n.childForFieldName('arguments')?.namedChildren;
+        if (name === 'get' && only?.length === 1) {
+          const arg = argValue(only[0]?.namedChildren[0], b.scope);
+          if (arg.kind === 'string') return { kind: 'service', key: arg.value };
+          if (arg.kind === 'class') return { kind: 'type', type: { kind: 'named', id: arg.id } };
+        }
         const of = expr(obj);
         return of && { kind: 'result', of, name };
       }

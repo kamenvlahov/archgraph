@@ -23,6 +23,8 @@ export interface GraphFragment {
 // и присвояванията на ниво модул от такова извикване (`router = APIRouter(prefix="/orders")`).
 export interface Annotation {
   kind: 'decorator' | 'call' | 'assign' | 'object';
+  // object: ключът, под който обектът стои в родителя си (`'invokables' => [...]`), ако има такъв
+  key?: string;
   name: string; // както е в кода, без `@` и `#[`: `router.post`, `Post`, `$app->post`, `APIRouter`
   args: Arg[];
   on?: { node: string; member?: string }; // decorator: класът или методът
@@ -33,7 +35,8 @@ export interface Annotation {
   location: Location;
 }
 
-export type Arg = { name?: string } & (
+// `line` е редът на елемента в обект (PHP масив): регистрацията на услуга е ред в конфигурацията.
+export type Arg = { name?: string; line?: number } & (
   | { kind: 'string'; value: string }
   | { kind: 'class'; id: TypeId } // `X::class`, `X` в TS/Python
   | { kind: 'other' }
@@ -58,6 +61,7 @@ export type Expr =
   | { kind: 'field'; of: Expr; name: string } // $order->items
   | { kind: 'result'; of: Expr; name: string } // $repo->find($id)
   | { kind: 'call'; id: TypeId } // f() или X()
+  | { kind: 'service'; key: string } // $container->get('OrderMap'): типът е в регистрацията на услугите
   | { kind: 'element'; of: Expr }; // foreach, for ... in, параметър на callback към map/reduce
 
 export interface LanguageAdapter {

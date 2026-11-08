@@ -7,6 +7,7 @@ export function routes(
   annotations: Annotation[],
   frameworks: FrameworkRules[],
   nodes: Node[],
+  services: Map<string, string> = new Map(),
 ): { nodes: Node[]; edges: Edge[] } {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const found = new Map<string, Node>();
@@ -30,6 +31,39 @@ export function routes(
       });
       edges.push(edge('routes-to', { node: id }, to));
     };
+
+    const seg = rules.segments;
+    if (seg) {
+      const at = (l: { file: string; line: number }) => `${l.file}:${l.line}`;
+      const children = Map.groupBy(
+        annotations.filter((a) => a.kind === 'object' && a.parent),
+        (a) => at(a.parent as { file: string; line: number }),
+      );
+      const str = (a: Annotation | undefined, name: string) => {
+        const v = a?.args.find((x) => x.name === name);
+        return v?.kind === 'string' ? v.value : undefined;
+      };
+      for (const a of annotations) {
+        const pattern = a.kind === 'object' ? str(a, seg.route) : undefined;
+        if (pattern === undefined) continue;
+        const defaults = children.get(at(a.location))?.find((c) => c.key === seg.defaults);
+        const key = str(defaults, seg.controller);
+        const node = key ? byId.get(services.get(key) ?? '') : undefined;
+        if (!node) continue;
+        // `/status[/][:action[/:id]]` → `/status`; с `:action` всеки …Action метод е отделен route
+        const base = pattern.split('[')[0] ?? '';
+        const actions = pattern.includes(`:${seg.action}`)
+          ? node.members.filter((m) => m.name.endsWith(seg.suffix) && m.name !== seg.suffix)
+          : node.members.filter((m) => m.name === `${str(defaults, seg.action) ?? 'index'}${seg.suffix}`);
+        for (const m of actions) {
+          const action = m.name.slice(0, -seg.suffix.length).toLowerCase();
+          add('ANY', join(base, action === 'index' && !pattern.includes(`:${seg.action}`) ? '' : action), a, {
+            node: node.id,
+            member: m.name,
+          });
+        }
+      }
+    }
 
     const objects = rules.objects;
     if (objects) {

@@ -7,6 +7,8 @@ export interface FrameworkRules {
   // правилата важат, ако някой от файловете в корена съдържа низа
   detect: { file: string; contains: string }[];
   routes?: RouteRules;
+  // ключовете на масивите с регистрации на услуги (D-008, форма `array_map`)
+  services?: { invokables: string[]; factories: string[]; aliases: string[] };
 }
 
 export interface RouteRules {
@@ -25,6 +27,9 @@ export interface RouteRules {
   // таблица от обекти: `{ path: 'x', component: X, children: [...] }` (Angular). Пътят на вложения
   // обект започва с пътищата на обектите, в които е; обект без handler само дава префикс.
   objects?: { path: string; handler: string[]; method: string };
+  // ZF2/Laminas MVC: `'options' => ['route' => '/status[/][:action]', 'defaults' => ['controller' => ...]]`.
+  // С `:action` в пътя всеки `…Action` метод на контролера е route; без него — `defaults.action`.
+  segments?: { route: string; defaults: string; controller: string; action: string; suffix: string };
 }
 
 export const FRAMEWORKS: FrameworkRules[] = [
@@ -36,6 +41,20 @@ export const FRAMEWORKS: FrameworkRules[] = [
       calls: ['$app->get', '$app->post', '$app->put', '$app->patch', '$app->delete', '$app->any', '$app->route'],
       handlerMethods: ['handle', 'process', '__invoke'],
     },
+    services: { invokables: ['invokables'], factories: ['factories'], aliases: ['aliases'] },
+  },
+  {
+    framework: 'zf2',
+    language: 'php',
+    detect: [
+      { file: 'composer.json', contains: '"zendframework/zendframework"' },
+      { file: 'composer.json', contains: '"zendframework/zend-mvc"' },
+      { file: 'composer.json', contains: '"laminas/laminas-mvc"' },
+    ],
+    routes: {
+      segments: { route: 'route', defaults: 'defaults', controller: 'controller', action: 'action', suffix: 'Action' },
+    },
+    services: { invokables: ['invokables'], factories: ['factories'], aliases: ['aliases'] },
   },
   {
     framework: 'nestjs',

@@ -22,6 +22,7 @@ export function callEdges(
   edges: Edge[],
   types: Record<string, TypeShape>,
   calls: CallSite[],
+  services: Map<string, string> = new Map(), // ключ на услуга → клас (правилата за framework)
 ): { edges: Edge[]; unresolved: UnresolvedCall[] } {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const parents = new Map<string, string[]>();
@@ -53,6 +54,10 @@ export function callEdges(
     switch (e.kind) {
       case 'type':
         return [e.type];
+      case 'service': {
+        const id = services.get(e.key);
+        return id ? [{ kind: 'named', id }] : [];
+      }
       case 'call': {
         const n = byId.get(e.id);
         if (n?.kind === 'function') return n.members[0]?.output ? [n.members[0].output.type] : [];

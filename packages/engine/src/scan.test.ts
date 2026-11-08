@@ -424,3 +424,68 @@ export const routes: Routes = [
     'node:route:PAGE /operator/plans/:id -> node:src/plans.ts#Plans',
   ]);
 });
+
+test('Mezzio: binds от aliases в ConfigProvider, с реда на регистрацията', async () => {
+  const expected = JSON.parse(readFileSync(join(fixtures, 'php-mezzio', 'expected.json'), 'utf8')) as GraphModel;
+  const { graph } = await scan(join(fixtures, 'php-mezzio'), { scip: false });
+  const key = (e: GraphModel['edges'][number]) => `${e.from.node} -> ${e.to.node} :${e.location?.line}`;
+  expect(graph.edges.filter((e) => e.kind === 'binds').map(key)).toEqual(
+    expected.edges.filter((e) => e.kind === 'binds').map(key),
+  );
+});
+
+test('ZF2: service locator по низ, controllers и segment route с :action', async () => {
+  const dir = project({
+    'composer.json': '{"require": {"zendframework/zendframework": "~2.4"}}',
+    'module/App/config/module.config.php': `<?php
+return array(
+    'router' => array('routes' => array(
+        'status' => array(
+            'type' => 'Segment',
+            'options' => array(
+                'route' => '/status[/][:action[/:id]]',
+                'defaults' => array('controller' => 'AppStatus', 'action' => 'index'),
+            ),
+        ),
+    )),
+    'controllers' => array('invokables' => array('AppStatus' => 'App\\Controller\\StatusController')),
+    'service_manager' => array('invokables' => array('PayMap' => 'App\\Model\\Payments')),
+);`,
+    'module/App/src/App/Controller/StatusController.php': `<?php
+namespace App\\Controller;
+class StatusController {
+    public function indexAction() {}
+    public function addpaymentAction() {
+        $map = $this->getServiceLocator()->get('PayMap');
+        return $map->add([]);
+    }
+}`,
+    'module/App/src/App/Model/Payments.php': `<?php
+namespace App\\Model;
+class Payments { public function add($data) {} }`,
+  });
+  const { graph } = await scan(dir, { scip: false });
+  expect(
+    graph.nodes
+      .filter((n) => n.kind === 'route')
+      .map((n) => n.name)
+      .sort(),
+  ).toEqual(['ANY /status/addpayment', 'ANY /status/index']);
+  const ids = graph.edges.map((e) => e.id);
+  expect(ids).toContain(
+    'routes-to:php:route:ANY /status/addpayment->php:App\\Controller\\StatusController#addpaymentAction',
+  );
+  expect(ids).toContain('calls:php:App\\Controller\\StatusController#addpaymentAction->php:App\\Model\\Payments#add');
+});
+
+test('PSR-11: $container->get(X::class) има тип X', async () => {
+  const dir = project({
+    'Repo.php': '<?php\nclass Repo { public function find(): void {} }',
+    'Factory.php': `<?php
+class Factory {
+    public function __invoke($container) { $container->get(Repo::class)->find(); }
+}`,
+  });
+  const { graph } = await scan(dir, { scip: false });
+  expect(graph.edges.map((e) => e.id)).toContain('calls:php:Factory#__invoke->php:Repo#find');
+});
