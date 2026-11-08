@@ -675,3 +675,9 @@ nav .hint {
 .insp .list .link:hover {
   color: var(--accent);
 }
+
+.insp .badges .layer {
+  color: var(--muted);
+  font-size: 11px;
+  margin-left: auto;
+}

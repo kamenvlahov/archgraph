@@ -25,7 +25,18 @@ interface Entry {
 }
 
 const nodeTypes = { process: ProcessNode };
-const ROLES = ['route', 'controller', 'service', 'repository', 'interface', 'factory', 'entity', 'dto'];
+const LAYERS = ['presentation', 'application', 'domain', 'infrastructure'];
+
+interface RoleInfo {
+  layer: string;
+  color: string;
+}
+
+// Редът на слоевете отвън навътре; роли без слой (class, function) са последни.
+function layerIndex(catalog: Record<string, RoleInfo>, role: string): number {
+  const i = LAYERS.indexOf(catalog[role]?.layer ?? '');
+  return i < 0 ? LAYERS.length : i;
+}
 const LEGEND: [string, string][] = [
   ['primitive', 'примитив'],
   ['dto', 'DTO'],
@@ -44,6 +55,18 @@ export function App() {
   const [error, setError] = useState<string>();
   const [depth, setDepth] = useState(6);
   const [found, setFound] = useState<Entry[]>([]);
+  const [catalog, setCatalog] = useState<Record<string, RoleInfo>>({});
+
+  // Цветовете на ролите идват от каталога (packages/rules/catalog.yaml) като CSS променливи.
+  useEffect(() => {
+    get<Record<string, RoleInfo>>('/api/roles')
+      .then((roles) => {
+        for (const [role, info] of Object.entries(roles))
+          document.documentElement.style.setProperty(`--r-${role}`, info.color);
+        setCatalog(roles);
+      })
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     Promise.all([get<{ name: string }>('/api/project'), get<Entry[]>('/api/endpoints')])
@@ -86,13 +109,16 @@ export function App() {
           arch<b>graph</b>
         </div>
         <div className="proj">{project?.name}</div>
+        {/* ролите в показания процес, по слоеве отвън навътре */}
         <div className="chips">
-          {ROLES.map((r) => (
-            <span className="chip" key={r}>
-              <i style={{ background: `var(--r-${r})` }} />
-              {r}
-            </span>
-          ))}
+          {[...new Set(view?.nodes.map((n) => n.role))]
+            .sort((a, b) => layerIndex(catalog, a) - layerIndex(catalog, b) || a.localeCompare(b))
+            .map((r) => (
+              <span className="chip" key={r} title={catalog[r]?.layer}>
+                <i style={{ background: `var(--r-${r}, var(--r-class))` }} />
+                {r}
+              </span>
+            ))}
         </div>
         {view && (
           <div className="stats">
@@ -403,6 +429,7 @@ function Inspector({ node, marked, toggle }: { node: ProcessNodeView; marked: bo
             {t}
           </span>
         ))}
+        {node.layer && <span className="layer">{node.layer}</span>}
       </div>
       <div className="loc mono" onClick={copy} title={inEditor ? 'отвори' : 'копирай пътя'}>
         {copied ? 'копирано' : where}

@@ -1,5 +1,6 @@
 import { matchesGlob } from 'node:path';
 import type { Node } from '@archgraph/model';
+import { CATALOG } from './catalog.ts';
 import type { Condition, FrameworkRules } from './frameworks.ts';
 
 // Фактите за нодовете, по които се проверяват условията. Engine-ът ги събира след свързването.
@@ -21,7 +22,11 @@ export function assignRoles(nodes: Node[], frameworks: FrameworkRules[], facts: 
     if (!first) return n;
     for (const fw of own)
       for (const [role, condition] of Object.entries(fw.roles ?? {}))
-        if (matches(n, condition, facts)) return { ...n, role, framework: fw.framework };
+        if (matches(n, condition, facts)) {
+          // слоят от каталога, освен ако архитектурата на проекта не го е задала (D-009)
+          const layer = n.layer ?? CATALOG[role]?.layer;
+          return { ...n, role, framework: fw.framework, ...(layer ? { layer } : {}) };
+        }
     return { ...n, framework: first.framework };
   });
 }

@@ -4,11 +4,13 @@ import { basename, extname, join, normalize, relative, sep } from 'node:path';
 import { DEFAULT_EXCLUDES, GraphQuery, processView, Project, roleOf, type ScanOptions } from '@archgraph/engine';
 import type { GraphModel, Node } from '@archgraph/model';
 import { plan } from '@archgraph/planner';
+import { CATALOG } from '@archgraph/rules';
 
 // `archgraph serve`: интерфейсът (packages/ui/dist) и REST API-то му върху един проект.
 // Слуша само на 127.0.0.1: графът съдържа кода на проекта и не е за мрежата.
 //
 //   GET  /api/project                  име, корен, файлове по език, framework-и
+//   GET  /api/roles                    каталогът на ролите: слой и цвят
 //   GET  /api/endpoints                входните точки: route-овете (без тях controller-ите)
 //   GET  /api/search?q=                класове, функции и методи по име
 //   GET  /api/processes/{target}?depth процесът от ендпойнт, клас или метод (target е URL-encoded)
@@ -81,6 +83,7 @@ export async function serve(path: string, port: number, options: ScanOptions): P
         files: project.report.files,
         frameworks: project.report.frameworks,
       });
+    if (route === 'GET /api/roles') return send(res, 200, CATALOG);
     if (route === 'GET /api/endpoints') return send(res, 200, endpoints(graph));
     if (route === 'GET /api/search') return send(res, 200, search(graph.nodes, url.searchParams.get('q') ?? ''));
     if (req.method === 'GET' && url.pathname.startsWith('/api/processes/')) {

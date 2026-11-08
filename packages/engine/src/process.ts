@@ -15,6 +15,7 @@ export interface ProcessNode {
   name: string;
   kind: string;
   role: string; // от правилата (етап 6) или временна по име
+  layer?: string; // от architecture.yaml или от каталога на ролите
   file: string;
   line: number;
   column: number; // дълбочина във веригата; имплементацията е в колоната на договора
@@ -88,6 +89,7 @@ export function processView(query: GraphQuery, start: Target, depth: number): Pr
       name: n.name,
       kind: n.kind,
       role: roleOf(n, graph.types[n.id] !== undefined),
+      ...(n.layer ? { layer: n.layer } : {}),
       file: n.location.file,
       line: n.location.line,
       column,

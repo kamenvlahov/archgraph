@@ -220,6 +220,9 @@ importers:
       '@archgraph/planner':
         specifier: workspace:*
         version: link:../planner
+      '@archgraph/rules':
+        specifier: workspace:*
+        version: link:../rules
 
   packages/engine:
     dependencies:

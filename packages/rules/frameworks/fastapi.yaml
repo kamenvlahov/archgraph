@@ -12,17 +12,24 @@ roles:
       - kind: function
       - injected: true # подава се в Depends(...)
   schema:
-    extends: pydantic.BaseModel
+    any:
+      - extends: pydantic.BaseModel
+      - all: [{ kind: class }, { path_glob: ['**/schemas.py', '**/schemas/**'] }]
   entity:
     any:
       - extends: sqlalchemy.orm.DeclarativeBase
       - all:
           - decorator: dataclass
           - path_glob: ['**/models.py', '**/models/**', '**/entities/**']
+  # конвенцията по файлове: services.py, payment_services.py, repository.py
   repository:
-    name_suffix: Repository
+    any:
+      - name_suffix: Repository
+      - path_glob: ['**/repository.py', '**/repositories.py', '**/*_repository.py', '**/repositories/**']
   service:
-    name_suffix: Service
+    any:
+      - name_suffix: Service
+      - path_glob: ['**/services.py', '**/service.py', '**/*_services.py', '**/*_service.py', '**/services/**']
 
 wiring:
   routes:
