@@ -48,17 +48,16 @@ async function show(context: vscode.ExtensionContext) {
     async (m: { type?: string; file?: string; line?: number }) => {
       if (m.type !== 'open' || !m.file) return;
       const line = Math.max(0, (m.line ?? 1) - 1);
-      const path = join(root, m.file);
-      // Ghost нод от чертежа: файлът още го няма. Отваря се незаписан файл на този път; щом го
-      // запишеш, нодът става истински. Archgraph сам не пише код (D-005, D-014).
-      const ghost = !existsSync(path);
-      const doc = await vscode.workspace.openTextDocument(
-        ghost ? vscode.Uri.file(path).with({ scheme: 'untitled' }) : vscode.Uri.file(path),
-      );
-      if (ghost)
-        void vscode.window.showInformationMessage(
-          `archgraph: ${m.file} още го няма — запиши го (Ctrl+S) и нодът става истински.`,
-        );
+      const path = vscode.Uri.file(join(root, m.file));
+      // Ghost нод от чертежа: файлът още го няма. Създава се (празен) само ако го поискаш;
+      // щом в него има класа, нодът става истински. Archgraph сам не пише код (D-005, D-014).
+      if (!existsSync(path.fsPath)) {
+        const create = 'Създай файла';
+        const answer = await vscode.window.showInformationMessage(`archgraph: ${m.file} още го няма.`, create);
+        if (answer !== create) return;
+        await vscode.workspace.fs.writeFile(path, new Uint8Array());
+      }
+      const doc = await vscode.workspace.openTextDocument(path);
       await vscode.window.showTextDocument(doc, {
         viewColumn: vscode.ViewColumn.One,
         selection: new vscode.Range(line, 0, line, 0),
