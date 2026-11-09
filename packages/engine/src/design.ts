@@ -49,6 +49,8 @@ const VERBS = new Set(
   ),
 );
 const ALIAS: Record<string, string> = { index: 'list', view: 'get', show: 'get', remove: 'delete' };
+// при запис формата (GET /gallery/edit) и записът (PUT /gallery/edit) са различни действия
+const WRITE_ALIAS: Record<string, string> = { edit: 'update', add: 'create', new: 'create' };
 const BY_METHOD: Record<string, string> = { POST: 'create', PUT: 'update', PATCH: 'update', DELETE: 'delete' };
 const CONSTRUCTOR: Record<string, string> = { php: '__construct', node: 'constructor', python: '__init__' };
 
@@ -62,8 +64,10 @@ export function readEndpoint(e: DesignEndpoint): Reading {
   const last = segs.at(-1);
   let resource = words.at(-1) ?? 'home';
   let action: string | undefined;
-  if (last && !isParam(last) && words.length >= 2 && VERBS.has(last.toLowerCase())) {
-    action = ALIAS[last.toLowerCase()] ?? last.toLowerCase();
+  // глаголът е последната дума, след нея може да има само параметри: /gallery/edit/{id}
+  const verb = words.at(-1)?.toLowerCase();
+  if (verb && words.length >= 2 && VERBS.has(verb)) {
+    action = (e.method !== 'GET' && WRITE_ALIAS[verb]) || ALIAS[verb] || verb;
     resource = words.at(-2) as string;
   }
   action ??= BY_METHOD[e.method] ?? (last && isParam(last) ? 'get' : plural(resource) === resource ? 'list' : 'get');
@@ -268,15 +272,13 @@ export function blueprint(design: Design): Blueprint {
         else if (read) found.push(findById);
         else found.push(findById, save);
       }
+      // домейнът не знае за DTO-тата от application: получава полетата им
+      const domainInputs: Port[] = fields(e.input).map((f) => ({ name: f.name, type: f.type }));
       if (part.method === 'domain' && !read && r.action !== 'delete')
         found.push(
           r.action === 'create'
-            ? member(n, cs(['create']), inputs, { name: 'return', type: named(n) }, true)
-            : member(
-                n,
-                vars['action'] as string,
-                inputs.filter((p) => p.type.kind !== 'primitive'),
-              ),
+            ? member(n, cs(['create']), domainInputs, { name: 'return', type: named(n) }, true)
+            : member(n, vars['action'] as string, domainInputs),
         );
       for (const m of found) addMember(n, m);
       methods.set(

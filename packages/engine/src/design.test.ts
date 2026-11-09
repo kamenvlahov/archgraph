@@ -23,6 +23,11 @@ describe('readEndpoint', () => {
     ['GET /admin/profile', 'Profile', 'get'],
     ['GET /admin/categories/index', 'Category', 'list'],
     ['POST /line-items', 'LineItem', 'create'],
+    ['PUT /gallery/edit/{id}', 'Gallery', 'update'],
+    ['GET /gallery/edit/{id}', 'Gallery', 'edit'],
+    ['DELETE /gallery/delete/{id}', 'Gallery', 'delete'],
+    ['GET /gallery/view/{id}', 'Gallery', 'get'],
+    ['POST /gallery/add', 'Gallery', 'create'],
   ])('%s → %s %s', (e, entity, action) => {
     expect(readEndpoint(ep(e))).toMatchObject({ entity, action });
   });
@@ -146,6 +151,14 @@ test('входът става полета на DTO (или параметри �
     bp.types[id]?.fields.map((f) => `${f.name}:${f.type.kind === 'primitive' ? f.type.name : f.type.kind}`);
   expect(text('python:app.invoices.schemas.CreateInvoiceDto')).toEqual(['customer_id:int', 'due:date']);
   expect(text('python:app.invoices.models.Invoice')).toEqual(['total:float', 'lines:array']);
+  const ddd = blueprint({
+    stack: 'php-mezzio',
+    style: 'ddd',
+    endpoints: [{ method: 'PUT', path: '/invoices/{id}', input: { total: 'float' } }],
+  });
+  // методът на домейна получава полетата, не command-а от application
+  const update = ddd.nodes.find((n) => n.name === 'Invoice')?.members.find((m) => m.name === 'update');
+  expect(update?.inputs.map((p) => p.name)).toEqual(['total']);
   const service = bp.nodes.find((n) => n.name === 'InvoiceService');
   expect(service?.members.find((m) => m.name === 'list')?.inputs.map((p) => p.name)).toEqual(['status']);
 });
