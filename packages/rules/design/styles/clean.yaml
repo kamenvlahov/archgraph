@@ -1,0 +1,35 @@
+style: clean
+label: Clean Architecture
+about: Use case за всяко действие. Той знае само интерфейса на repository-то; имплементацията е навън.
+entry: interface-adapters
+parts:
+  input: { layer: use-cases, role: dto, name: '{Action}{Entity}Input', file: dto, per: endpoint, when: body }
+  usecase:
+    { layer: use-cases, role: service, name: '{Action}{Target}UseCase', file: use-case, per: endpoint, method: execute }
+  gateway:
+    {
+      layer: use-cases,
+      role: repository,
+      kind: interface,
+      name: '{Entity}Repository',
+      file: repository,
+      per: entity,
+      method: storage,
+    }
+  store:
+    {
+      layer: frameworks,
+      role: repository,
+      name: 'Sql{Entity}Repository',
+      file: store,
+      per: entity,
+      method: storage,
+      implements: gateway,
+    }
+  entity: { layer: entities, role: entity, name: '{Entity}', file: entity, per: entity }
+flow:
+  - { from: entry, to: input, kind: creates }
+  - { from: entry, to: usecase }
+  - { from: usecase, to: gateway }
+  - { from: usecase, to: entity, kind: creates, when: create }
+  - { from: store, to: entity, kind: creates }

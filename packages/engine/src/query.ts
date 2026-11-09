@@ -130,6 +130,7 @@ export class GraphQuery {
       if (!to) continue;
       if (e.kind === 'calls') result.push([to, e.confidence === 'exact' ? '→ ' : '→? ']);
       else if (e.kind === 'creates') result.push([to, 'new ']);
+      else if (e.kind === 'renders') result.push([to, '▭ ']);
     }
     // Неразрешено извикване с един кандидат по име: показва се като възможно продължение.
     for (const u of this.unresolvedFrom.get(targetId(t)) ?? []) {

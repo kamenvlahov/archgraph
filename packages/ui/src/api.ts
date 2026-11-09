@@ -42,6 +42,39 @@ export async function createPattern(example: string, to: string): Promise<Shape>
   return body;
 }
 
+export interface DesignEndpoint {
+  method: string;
+  path: string;
+  entity?: string;
+  action?: string;
+}
+export interface Design {
+  stack: string;
+  style: string;
+  endpoints: DesignEndpoint[];
+}
+export interface DesignInfo {
+  design: Design | null;
+  progress: { done: number; total: number } | null;
+  stacks: { stack: string; label: string; language: string }[];
+  styles: { style: string; label: string; about: string; layers: string[]; allow: Record<string, string[]> }[];
+}
+
+// Чертежът (етап 11): записва се целият; отговорът идва след като графът е свързан наново.
+export async function saveDesign(design: Design): Promise<void> {
+  const res = await fetch(`${BASE}/api/design`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(design),
+  });
+  if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? `${res.status}`);
+}
+
+export async function designPlan(): Promise<string> {
+  const res = await fetch(`${BASE}/api/design/plan`);
+  return res.text();
+}
+
 // Известие при промяна на файл: процесът се презарежда.
 export function onChange(listener: () => void): () => void {
   const events = new EventSource(`${BASE}/api/events`);

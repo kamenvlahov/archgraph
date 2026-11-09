@@ -10,12 +10,14 @@ roles:
   component: { layer: presentation, color: '#7aa2ff' }
   guard: { layer: presentation, color: '#9a8cf0' }
   form: { layer: presentation, color: '#7aa2ff' }
+  view: { layer: presentation, color: '#8fb3e8' }
   helper: { layer: presentation, color: '#8aa4c8' }
   module: { layer: composition, color: '#c27cf0' }
   factory: { layer: composition, color: '#c27cf0' }
   dependency: { layer: composition, color: '#c27cf0' }
   service: { layer: application, color: '#4cc38a' }
   dto: { layer: application, color: '#3fb6a8' }
+  port: { layer: application, color: '#e0c050' }
   schema: { layer: application, color: '#3fb6a8' }
   entity: { layer: domain, color: '#f06a6a' }
   model: { layer: domain, color: '#f06a6a' }

@@ -12,3 +12,15 @@ export {
   STYLES,
   type Architecture,
 } from './architecture.ts';
+export {
+  DESIGN_STACKS,
+  DESIGN_STYLES,
+  loadDesign,
+  saveDesign,
+  type Condition as DesignCondition,
+  type Design,
+  type DesignEndpoint,
+  type Stack,
+  type Style,
+  type StylePart,
+} from './design.ts';

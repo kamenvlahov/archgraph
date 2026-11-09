@@ -241,3 +241,20 @@ wiring:
 Шаблонът създава **ghost нодове**, полупрозрачни в графа. Те показват какво ще се появи. Файловете ги пишеш ти или AI по генерирания план. Когато файлът се появи в кода, ghost нодът става истински.
 
 Начални патерни: Factory, Repository + Interface, Service + Interface, DTO, Strategy, Adapter, Decorator, Observer/Event + Listener, CQRS Command + Handler.
+
+## Чертеж (етап 11)
+
+`.archgraph/design.yaml` описва проект, който още го няма (или го допълва):
+
+```yaml
+stack: php-mezzio # php-mezzio | ts-nestjs | python-fastapi
+style: ddd # layered | mvc | clean | hexagonal | onion | ddd
+endpoints:
+  - POST /invoices
+  - POST /invoices/{id}/cancel
+  - { method: GET, path: /reports/monthly, entity: Invoice, action: report }
+```
+
+Ресурсът и действието идват от пътя: `POST /invoices` е `Invoice` + `create`, `GET /invoices` е `list`, а последната дума от списък с глаголи е действие (`/invoices/{id}/cancel`, `/admin/profile/edit`). Когато пътят подвежда, `entity` и `action` се дават изрично.
+
+Стилът (`packages/rules/design/styles/*.yaml`) изрежда участниците на един ендпойнт: слой, роля, име, вид файл, дали са по един за ендпойнт или общи за ресурса, условие (`read`, `write`, `body`, `create`) и какви методи получават (`action`, `execute`, `handle`, `storage`, `domain`). `flow` казва кой кого вика, създава или рисува. Стекът (`packages/rules/design/stacks/*.yaml`) казва формата на входа (handler на ендпойнт, controller на ресурс, функция), id-то, файла, папките и реда за регистрация на route-а.

@@ -34,6 +34,9 @@ export const CORE_REGISTRY: Registry = {
   edgeKinds: new Set(CORE_EDGE_KINDS),
 };
 
+// Изгледите (D-007, етап 10): засега само от чертежа (етап 11), адаптерите за шаблони идват по-късно.
+export const VIEWS: Extension = { name: 'views', nodeKinds: ['template'], edgeKinds: ['renders'] };
+
 export const KIND_NAME = /^[a-z][a-z0-9-]*$/;
 
 // Две разширения с едно и също име на вид са грешка, а не тихо сливане:

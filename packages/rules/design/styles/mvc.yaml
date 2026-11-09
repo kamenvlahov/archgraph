@@ -1,0 +1,10 @@
+style: mvc
+label: MVC
+about: Controller взима данните от модела и ги дава на изгледа. Моделът сам се чете и записва (Active Record).
+entry: controller
+parts:
+  model: { layer: model, role: model, name: '{Entity}', file: entity, per: entity, method: storage }
+  view: { layer: view, role: view, kind: template, name: '{entities}/{action}', per: endpoint, when: read }
+flow:
+  - { from: entry, to: model }
+  - { from: entry, to: view, kind: renders }

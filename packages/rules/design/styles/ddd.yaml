@@ -1,0 +1,42 @@
+style: ddd
+label: DDD
+about: Всеки ресурс е bounded context. Входът праща command или query; handler-ът работи с агрегата през repository.
+entry: interfaces
+parts:
+  message: { layer: application, role: dto, name: '{Action}{Target}{Message}', file: message, per: endpoint }
+  handler:
+    {
+      layer: application,
+      role: service,
+      name: '{Action}{Target}{Message}Handler',
+      file: handler,
+      per: endpoint,
+      method: handle,
+    }
+  aggregate: { layer: domain, role: entity, name: '{Entity}', file: entity, per: entity, method: domain }
+  repository:
+    {
+      layer: domain,
+      role: repository,
+      kind: interface,
+      name: '{Entity}Repository',
+      file: repository,
+      per: entity,
+      method: storage,
+    }
+  store:
+    {
+      layer: infrastructure,
+      role: repository,
+      name: 'Sql{Entity}Repository',
+      file: store,
+      per: entity,
+      method: storage,
+      implements: repository,
+    }
+flow:
+  - { from: entry, to: message, kind: creates }
+  - { from: entry, to: handler }
+  - { from: handler, to: repository }
+  - { from: handler, to: aggregate, when: write }
+  - { from: store, to: aggregate, kind: creates }

@@ -1,0 +1,29 @@
+# Участниците на един ендпойнт по слоеве (docs/RULES.md, „Чертеж“). `entry` е входът (handler,
+# controller, функция); формата му е от стека. Имената са без стека: стекът дава папка, файл и id.
+#   per: endpoint — по един за ендпойнт; entity — общ за ресурса (методите се събират)
+#   when: read (GET), write (останалите), body (POST/PUT/PATCH), create (POST без действие)
+#   method: action — метод с името на действието; execute/handle — един метод; storage — findAll,
+#           findById, save, delete според действието; domain — само за промените (create е static)
+style: layered
+label: Layered
+about: Класическите слоеве. Входът вика service, той вика repository, данните са entity.
+entry: presentation
+parts:
+  dto: { layer: application, role: dto, name: '{Action}{Entity}Dto', file: dto, per: endpoint, when: body }
+  service: { layer: application, role: service, name: '{Entity}Service', file: service, per: entity, method: action }
+  repository:
+    {
+      layer: infrastructure,
+      role: repository,
+      name: '{Entity}Repository',
+      file: repository,
+      per: entity,
+      method: storage,
+    }
+  entity: { layer: domain, role: entity, name: '{Entity}', file: entity, per: entity }
+flow:
+  - { from: entry, to: dto, kind: creates }
+  - { from: entry, to: service }
+  - { from: service, to: repository }
+  - { from: service, to: entity, kind: creates, when: create }
+  - { from: repository, to: entity, kind: creates }

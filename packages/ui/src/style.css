@@ -224,40 +224,9 @@ aside {
   color: #0b1020;
   font-weight: 600;
 }
-.plan .btn {
-  flex: none;
-}
 .btn:disabled {
   opacity: 0.4;
   cursor: default;
-}
-.plan {
-  flex: 1;
-  overflow: auto;
-  padding: 0 16px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.plan textarea {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  color: var(--text);
-  font: inherit;
-  padding: 8px;
-  resize: vertical;
-  min-height: 54px;
-}
-.plan pre {
-  white-space: pre-wrap;
-  background: #141518;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px;
-  font-size: 11.5px;
-  color: #cfd2d8;
-  margin: 0;
 }
 .marked {
   color: var(--muted);
@@ -301,11 +270,6 @@ aside {
 .node.sel {
   box-shadow:
     0 0 0 2px var(--accent),
-    0 6px 20px rgba(0, 0, 0, 0.35);
-}
-.node.marked {
-  box-shadow:
-    0 0 0 2px var(--t-contract),
     0 6px 20px rgba(0, 0, 0, 0.35);
 }
 .node .hd {
@@ -860,4 +824,132 @@ nav li.crumbs > ul {
   padding: 0 0 0 6px;
   border-left: 1px solid var(--border);
   overflow: visible;
+}
+
+/* Проектиране от нулата (етап 11): изборът в празна папка, слоевете на стила, секцията в менюто. */
+#start {
+  position: absolute;
+  top: 48px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: auto;
+  padding: 28px max(24px, calc(50% - 460px)) 48px;
+}
+#start h1 {
+  margin: 0 0 6px;
+  font-size: 22px;
+}
+#start .lead {
+  color: var(--muted);
+  max-width: 640px;
+}
+#start h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+  margin: 22px 0 8px;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+.card {
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 10px 12px;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.card span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.card:hover {
+  border-color: var(--muted);
+}
+.card.on {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+#start > .btn {
+  margin-top: 20px;
+}
+.layers {
+  margin: 18px 0 0;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.layers .band {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.layers .band span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.blank {
+  padding: 40px;
+  max-width: 640px;
+}
+.blank h2 {
+  margin: 0 0 6px;
+}
+.blank p {
+  color: var(--muted);
+}
+nav .design {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+}
+nav .design .sub {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 0 16px 6px;
+}
+nav .design form {
+  display: flex;
+}
+nav .design form input {
+  flex: 1;
+  margin-top: 0;
+}
+nav .design .btn {
+  margin: 0 12px;
+}
+nav li.ghost {
+  color: var(--muted);
+  font-style: italic;
+}
+nav li.ghost .method {
+  opacity: 0.6;
+}
+nav li .x {
+  float: right;
+  visibility: hidden;
+  color: var(--muted);
+  padding: 0 2px;
+}
+nav li:hover .x {
+  visibility: visible;
+}
+nav li .x:hover {
+  color: var(--bad);
 }

@@ -2,6 +2,7 @@ import { existsSync, readFileSync, watch } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { basename, extname, join, normalize, relative, sep } from 'node:path';
 import {
+  blueprint,
   DEFAULT_EXCLUDES,
   GraphQuery,
   layers,
@@ -13,8 +14,16 @@ import {
   type ScanOptions,
 } from '@archgraph/engine';
 import type { GraphModel, Node } from '@archgraph/model';
-import { patternPlan, plan } from '@archgraph/planner';
-import { CATALOG } from '@archgraph/rules';
+import { designPlan, patternPlan, plan } from '@archgraph/planner';
+import {
+  CATALOG,
+  DESIGN_STACKS,
+  DESIGN_STYLES,
+  loadDesign,
+  saveDesign,
+  STYLE_ALLOW,
+  type Design,
+} from '@archgraph/rules';
 
 // `archgraph serve`: интерфейсът (packages/ui/dist) и REST API-то му върху един проект.
 // Слуша само на 127.0.0.1: графът съдържа кода на проекта и не е за мрежата.
@@ -29,6 +38,9 @@ import { CATALOG } from '@archgraph/rules';
 //   GET  /api/nodes?file=&line=        нодът и методът на това място (курсорът в редактора)
 //   POST /api/plans  {task, targets}   Markdown план за AI
 //   POST /api/patterns {example, to, from?}  „като този“: ghost нодове, регистрации и план
+//   GET  /api/design                   чертежът (етап 11), стековете и стиловете за избор
+//   PUT  /api/design {stack, style, endpoints}  записва .archgraph/design.yaml
+//   GET  /api/design/plan              Markdown план: какво още да се напише по чертежа
 //   GET  /api/events                   Server-Sent Events: `changed`, когато файл се промени
 
 const DIST = join(import.meta.dirname, '../../ui/dist');
@@ -46,6 +58,7 @@ export interface Entry {
   role: string;
   file: string;
   line: number;
+  ghost?: boolean; // от чертежа, още го няма в кода
 }
 
 export async function serve(path: string, port: number, options: ScanOptions): Promise<Server> {
@@ -65,10 +78,14 @@ export async function serve(path: string, port: number, options: ScanOptions): P
       const files = [...pending];
       pending.clear();
       if (!(await project.update(files).catch(() => false))) return;
-      query = new GraphQuery(project.graph);
-      for (const res of listeners) res.write(`event: changed\ndata: ${JSON.stringify({ files })}\n\n`);
+      changed(files);
     }, DEBOUNCE);
   });
+
+  const changed = (files: string[]) => {
+    query = new GraphQuery(project.graph);
+    for (const res of listeners) res.write(`event: changed\ndata: ${JSON.stringify({ files })}\n\n`);
+  };
 
   const server = createServer((req, res) => {
     handle(req, res).catch((e: Error) => send(res, 500, { error: e.message }));
@@ -96,6 +113,7 @@ export async function serve(path: string, port: number, options: ScanOptions): P
         files: project.report.files,
         frameworks: project.report.frameworks,
         layers: project.report.layers,
+        ...(project.report.design ? { design: project.report.design } : {}),
       });
     if (route === 'GET /api/roles') return send(res, 200, CATALOG);
     if (route === 'GET /api/endpoints') return send(res, 200, endpoints(graph));
@@ -131,6 +149,37 @@ export async function serve(path: string, port: number, options: ScanOptions): P
         return send(res, 400, { error: 'трябват example (съществуващ клас) и to (новото име)' });
       const result = pattern(graph, example, body.to, body.from || undefined);
       return send(res, 201, { ...result, plan: patternPlan(result, example.node.name) });
+    }
+    if (route === 'GET /api/design')
+      return send(res, 200, {
+        design: loadDesign(graph.root) ?? null,
+        progress: project.report.design ?? null,
+        stacks: DESIGN_STACKS.map((x) => ({ stack: x.stack, label: x.label, language: x.language })),
+        styles: DESIGN_STYLES.map((x) => ({
+          style: x.style,
+          label: x.label,
+          about: x.about,
+          layers: x.layers,
+          allow: STYLE_ALLOW[x.style] ?? {},
+        })),
+      });
+    if (route === 'PUT /api/design') {
+      const body = JSON.parse((await text(req)) || '{}') as Partial<Design>;
+      const design: Design = { stack: body.stack ?? '', style: body.style ?? '', endpoints: body.endpoints ?? [] };
+      if (!DESIGN_STACKS.some((x) => x.stack === design.stack) || !DESIGN_STYLES.some((x) => x.style === design.style))
+        return send(res, 400, { error: 'трябват познати stack и style' });
+      const bad = design.endpoints.find((e) => !/^[A-Z]+$/.test(e.method ?? '') || !e.path?.startsWith('/'));
+      if (bad) return send(res, 400, { error: `ендпойнтът трябва да е МЕТОД /път: ${JSON.stringify(bad)}` });
+      saveDesign(graph.root, design);
+      await project.update(['.archgraph/design.yaml']);
+      changed(['.archgraph/design.yaml']);
+      return send(res, 200, { design: loadDesign(graph.root), progress: project.report.design ?? null });
+    }
+    if (route === 'GET /api/design/plan') {
+      const design = loadDesign(graph.root);
+      if (!design || !project.report.design) return send(res, 404, { error: 'проектът няма чертеж' });
+      res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' });
+      return res.end(designPlan(graph, blueprint(design), project.report.design));
     }
     if (route === 'GET /api/events') {
       res.writeHead(200, {
@@ -179,6 +228,7 @@ function endpoints(graph: GraphModel): Entry[] {
       role: n.kind === 'route' ? 'route' : 'controller',
       file: n.location.file,
       line: n.location.line,
+      ...((n.tags ?? []).includes('ghost') ? { ghost: true } : {}),
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
 }

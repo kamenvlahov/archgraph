@@ -288,6 +288,9 @@ importers:
       '@archgraph/model':
         specifier: workspace:*
         version: link:../model
+      '@archgraph/rules':
+        specifier: workspace:*
+        version: link:../rules
 
   packages/rules:
     dependencies:

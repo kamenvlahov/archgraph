@@ -2,14 +2,14 @@ import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import { useState, type CSSProperties } from 'react';
 import type { ProcessMember, ProcessNode as Data, Slot } from '@archgraph/engine';
 
-export type FlowNode = Node<{ view: Data; dim: boolean; marked: boolean }, 'process'>;
+export type FlowNode = Node<{ view: Data; dim: boolean }, 'process'>;
 
 const VISIBILITY: Record<string, string> = { private: '−', protected: '#' };
 
 // Нодът по mockup-а: заглавие с роля, методите от процеса като редове, параметрите като входове
 // отляво, резултатът като изход отдясно. Останалите методи са свити под „още N“.
 export function ProcessNode({ data, selected }: NodeProps<FlowNode>) {
-  const { view, dim, marked } = data;
+  const { view, dim } = data;
   const [more, setMore] = useState(false);
   const classes = [
     'node',
@@ -17,7 +17,6 @@ export function ProcessNode({ data, selected }: NodeProps<FlowNode>) {
     view.tags.includes('ghost') && 'ghost',
     dim && 'dim',
     selected && 'sel',
-    marked && 'marked',
   ];
   const role = { '--role': `var(--r-${view.role}, var(--r-class))` } as CSSProperties;
   return (

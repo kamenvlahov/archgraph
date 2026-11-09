@@ -1,0 +1,35 @@
+style: onion
+label: Onion
+about: Моделът и договорите му са в центъра; приложението е около тях, инфраструктурата и входът са най-отвън.
+entry: infrastructure
+parts:
+  dto: { layer: application-services, role: dto, name: '{Action}{Entity}Dto', file: dto, per: endpoint, when: body }
+  service:
+    { layer: application-services, role: service, name: '{Entity}Service', file: service, per: entity, method: action }
+  repository:
+    {
+      layer: domain-model,
+      role: repository,
+      kind: interface,
+      name: '{Entity}Repository',
+      file: repository,
+      per: entity,
+      method: storage,
+    }
+  store:
+    {
+      layer: infrastructure,
+      role: repository,
+      name: 'Sql{Entity}Repository',
+      file: store,
+      per: entity,
+      method: storage,
+      implements: repository,
+    }
+  entity: { layer: domain-model, role: entity, name: '{Entity}', file: entity, per: entity }
+flow:
+  - { from: entry, to: dto, kind: creates }
+  - { from: entry, to: service }
+  - { from: service, to: repository }
+  - { from: service, to: entity, kind: creates, when: create }
+  - { from: store, to: entity, kind: creates }

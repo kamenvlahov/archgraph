@@ -1,0 +1,45 @@
+style: hexagonal
+label: Hexagonal (Ports & Adapters)
+about: Входният port е договорът на действието, изходният — на съхранението. Адаптерите са отвън.
+entry: adapters
+parts:
+  command: { layer: ports, role: dto, name: '{Action}{Entity}Command', file: dto, per: endpoint, when: body }
+  inport:
+    {
+      layer: ports,
+      role: port,
+      kind: interface,
+      name: '{Action}{Target}UseCase',
+      file: port,
+      per: endpoint,
+      method: execute,
+    }
+  service:
+    {
+      layer: application,
+      role: service,
+      name: '{Action}{Target}Service',
+      file: service,
+      per: endpoint,
+      method: execute,
+      implements: inport,
+    }
+  outport:
+    { layer: ports, role: port, kind: interface, name: '{Entity}Repository', file: port, per: entity, method: storage }
+  adapter:
+    {
+      layer: adapters,
+      role: repository,
+      name: 'Sql{Entity}Repository',
+      file: repository,
+      per: entity,
+      method: storage,
+      implements: outport,
+    }
+  entity: { layer: domain, role: entity, name: '{Entity}', file: entity, per: entity }
+flow:
+  - { from: entry, to: command, kind: creates }
+  - { from: entry, to: inport }
+  - { from: service, to: outport }
+  - { from: service, to: entity, kind: creates, when: create }
+  - { from: adapter, to: entity, kind: creates }

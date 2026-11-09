@@ -1,0 +1,27 @@
+stack: python-fastapi
+label: Python · FastAPI
+language: python
+bootstrap: pip install fastapi uvicorn
+wiring: Router-ът на модула се включва в app/main.py с app.include_router; зависимостите се подават с Depends.
+case: snake
+module: '{entities_snake}'
+class: { id: 'python:app.{Module}.{Folder}.{Name}', file: 'app/{Module}/{Folder}.py' }
+folders:
+  dto: schemas
+  service: service
+  use-case: use_cases
+  port: ports
+  repository: repository
+  store: store
+  entity: models
+  message: messages
+  handler: handlers
+entry:
+  per: endpoint
+  kind: function
+  name: '{action_snake}_{target_snake}'
+  id: 'python:app.{Module}.router.{Name}'
+  file: 'app/{Module}/router.py'
+route: { param: '{*}' }
+template: 'app/templates/{entities_snake}/{action_snake}.html'
+types: { id: int, void: None }

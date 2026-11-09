@@ -9,6 +9,7 @@ import {
   FRAMEWORKS,
   layerOrder,
   loadArchitecture,
+  loadDesign,
   loadFrameworks,
   routes,
   services,
@@ -16,7 +17,10 @@ import {
   type RoleFacts,
 } from '@archgraph/rules';
 import {
+  CORE_REGISTRY,
+  extendRegistry,
   MODEL_VERSION,
+  VIEWS,
   type Annotation,
   validate,
   type GraphModel,
@@ -28,6 +32,7 @@ import {
   type ValidationError,
 } from '@archgraph/model';
 import { callEdges } from './calls.ts';
+import { blueprint, merge } from './design.ts';
 import { linkEdges } from './edges.ts';
 import { violations } from './violations.ts';
 import { exactCalls, findCommand, runIndexer } from './exact.ts';
@@ -48,6 +53,7 @@ export interface ScanReport {
   scip: Record<string, string>; // по език: 'exact', 'няма <команда>' или грешката на индексатора
   frameworks: string[];
   layers: string[]; // редът на слоевете отвън навътре
+  design?: { stack: string; style: string; done: number; total: number }; // чертежът: готово от всичко
 }
 
 const CATALOG_LAYERS = ['presentation', 'application', 'domain', 'infrastructure', 'composition'];
@@ -97,8 +103,10 @@ export class Project {
   // Препрочита променените файлове (относителни пътища) и свързва наново. Изтрит или вече
   // изключен файл изчезва от графа. Връща дали нещо от поддържаните езици е засегнато.
   async update(changed: string[]): Promise<boolean> {
+    // чертежът, архитектурата и правилата на проекта са в .archgraph/: само свързване наново
+    const config = changed.some((f) => f.startsWith('.archgraph/'));
     const relevant = changed.filter((f) => this.fragments.has(f) || (adapterFor(f) && !isExcluded(f, this.excludes())));
-    if (!relevant.length) return false;
+    if (!relevant.length && !config) return false;
     const all = [...new Set([...this.fragments.keys(), ...relevant])];
     for (const file of relevant) {
       this.fragments.delete(file);
@@ -168,14 +176,29 @@ export class Project {
     if (inferred.unresolved.length > 0) graph.unresolved = inferred.unresolved;
     const facts = roleFacts(heritage, annotations, graph.edges);
     graph.nodes = assignRoles(graph.nodes, frameworks, facts);
-    // слоеве и контексти от .archgraph/architecture.yaml; без него слоят е от каталога на ролите
-    const architecture = loadArchitecture(root);
+    // слоеве и контексти от .archgraph/architecture.yaml; без него от чертежа, иначе от каталога на ролите
+    const design = loadDesign(root);
+    const plan = design ? blueprint(design) : undefined;
+    const architecture = loadArchitecture(root) ?? plan?.architecture;
     graph.nodes = assignLayers(graph.nodes, architecture, facts);
-    report.layers = layerOrder(architecture, CATALOG_LAYERS);
+    report.layers =
+      plan && architecture === plan.architecture ? plan.style.layers : layerOrder(architecture, CATALOG_LAYERS);
+    // чертежът (етап 11): каквото още го няма в кода, е ghost
+    if (design && plan) {
+      // написаното по чертежа без роля от правилата (още няма framework в манифеста) взима ролята от него
+      const roles = new Map(plan.nodes.map((n) => [n.id, n.role]));
+      graph.nodes = graph.nodes.map((n) =>
+        n.role || !roles.get(n.id) ? n : { ...n, role: roles.get(n.id) as string },
+      );
+      const ghosts = merge(root, graph.nodes, plan);
+      graph.nodes = graph.nodes.concat(ghosts.nodes);
+      graph.edges = graph.edges.concat(ghosts.edges);
+      report.design = { stack: design.stack, style: design.style, done: ghosts.done, total: ghosts.total };
+    }
     const found = violations(graph.nodes, graph.edges, architecture);
     if (found.length > 0) graph.violations = found;
 
-    const result = validate(graph);
+    const result = validate(graph, extendRegistry(CORE_REGISTRY, VIEWS));
     if (!result.ok) throw new InvalidGraphError(result.errors);
     this.graph = graph;
     this.report = report;

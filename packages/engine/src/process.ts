@@ -59,7 +59,7 @@ export interface Slot {
 
 export interface ProcessEdge {
   id: string;
-  kind: 'routes-to' | 'calls' | 'creates' | 'implements' | 'maybe';
+  kind: 'routes-to' | 'calls' | 'creates' | 'renders' | 'implements' | 'maybe';
   from: { node: string; member?: string };
   to: { node: string; member?: string };
   inferred: boolean;
@@ -71,6 +71,7 @@ const ARROWS: Record<string, ProcessEdge['kind']> = {
   '→ ': 'calls',
   '→? ': 'calls',
   'new ': 'creates',
+  '▭ ': 'renders',
   '⇒ ': 'implements',
   '?? ': 'maybe',
 };

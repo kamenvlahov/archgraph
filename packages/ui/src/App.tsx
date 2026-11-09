@@ -14,7 +14,17 @@ import {
 } from '@xyflow/react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ProcessNode as ProcessNodeView, ProcessView } from '@archgraph/engine';
-import { createPattern, createPlan, get, inEditor, onChange, openInEditor, type Shape } from './api.ts';
+import {
+  createPattern,
+  createPlan,
+  get,
+  inEditor,
+  onChange,
+  openInEditor,
+  type DesignInfo,
+  type Shape,
+} from './api.ts';
+import { DesignNav, DesignStart, Layers, removeEndpoint, routeKey } from './Design.tsx';
 import { layout, NODE_WIDTH, type Lane } from './layout.ts';
 import { LayerView } from './LayerView.tsx';
 import { routeTree, type RouteGroup } from './routes.ts';
@@ -26,6 +36,7 @@ interface Entry {
   role: string;
   file: string;
   line: number;
+  ghost?: boolean; // от чертежа, още го няма в кода
 }
 
 const nodeTypes = { process: ProcessNode, lane: LaneNode };
@@ -81,7 +92,14 @@ const LEGEND: [string, string][] = [
 ];
 
 export function App() {
-  const [project, setProject] = useState<{ name: string; entries: Entry[]; layers: string[] }>();
+  const [project, setProject] = useState<{
+    name: string;
+    entries: Entry[];
+    layers: string[];
+    files: Record<string, number>;
+  }>();
+  const [design, setDesign] = useState<DesignInfo>(); // чертежът (етап 11)
+  const [pending, setPending] = useState<string>(); // току-що добавеният ендпойнт: отваря се, щом дойде
   const [lanes, setLanes] = useState(true); // ленти по слой
   const [layer, setLayer] = useState<string>(); // изгледът „цял слой“ вместо процес
   const [layerList, setLayerList] = useState<{ name: string; units: number }[]>([]);
@@ -123,13 +141,24 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    Promise.all([get<{ name: string; layers: string[] }>('/api/project'), get<Entry[]>('/api/endpoints')])
-      .then(([p, entries]) => {
-        setProject({ name: p.name, entries, layers: p.layers });
-        setEntry((current) => current ?? entries[0]?.id);
+    Promise.all([
+      get<{ name: string; layers: string[]; files: Record<string, number> }>('/api/project'),
+      get<Entry[]>('/api/endpoints'),
+      get<DesignInfo>('/api/design'),
+    ])
+      .then(([p, entries, d]) => {
+        setProject({ name: p.name, entries, layers: p.layers, files: p.files });
+        setDesign(d);
+        setEntry((current) => (current && entries.some((e) => e.id === current) ? current : entries[0]?.id));
       })
       .catch((e: Error) => setError(e.message));
   }, [version]);
+  useEffect(() => {
+    const added = pending && project?.entries.find((e) => routeKey(e.label) === pending);
+    if (!added) return;
+    setPending(undefined);
+    openProcess(added.id);
+  }, [pending, project]);
   useEffect(() => onChange(() => setVersion((v) => v + 1)), []);
   // Шаблонът се преизчислява при промяна на файл: вече създаденото е истински нод, не ghost.
   const shapedExample = shaped?.example;
@@ -170,6 +199,21 @@ export function App() {
   }, [filter]);
 
   const shown = (project?.entries ?? []).filter((e) => e.label.toLowerCase().includes(filter.toLowerCase()));
+  // Празна папка без чертеж: изборът на стек и архитектура.
+  if (project && design && !design.design && Object.keys(project.files).length === 0)
+    return (
+      <>
+        <header>
+          <div className="logo">
+            arch<b>graph</b>
+          </div>
+          <div className="proj">{project.name}</div>
+        </header>
+        <DesignStart info={design} />
+      </>
+    );
+  const style = design?.styles.find((s) => s.style === design.design?.style);
+  const blank = !!design?.design && !project?.entries.length;
   return (
     <>
       <header>
@@ -208,6 +252,7 @@ export function App() {
         )}
       </header>
       <nav>
+        {design?.design && <DesignNav info={design} onAdded={(m, p) => setPending(routeKey(`${m} ${p}`))} />}
         <input placeholder="ендпойнт, клас или метод…" value={filter} onChange={(e) => setFilter(e.target.value)} />
         {layerList.length > 0 && (
           <>
@@ -228,7 +273,13 @@ export function App() {
             {project?.entries.length ? 'няма съвпадения' : 'няма намерени ендпойнти; потърси клас или метод'}
           </div>
         )}
-        <RouteList entries={shown} current={layer ? undefined : entry} open={filter !== ''} onOpen={openProcess} />
+        <RouteList
+          entries={shown}
+          current={layer ? undefined : entry}
+          open={filter !== ''}
+          onOpen={openProcess}
+          onRemove={design?.design ? (e) => void removeEndpoint(design, e.label) : undefined}
+        />
         {found.length > 0 && (
           <>
             <h3>Класове и методи</h3>
@@ -263,6 +314,17 @@ export function App() {
             />
           ) : layer ? (
             <LayerView layer={layer} onProcess={openProcess} />
+          ) : blank && style ? (
+            <div id="stage">
+              <div className="blank">
+                <h2>Слоевете на {style.label}</h2>
+                <p>{style.about}</p>
+                <Layers style={style} />
+                <p>
+                  Добави първия ендпойнт горе вляво, например <code>POST /invoices</code>.
+                </p>
+              </div>
+            </div>
           ) : (
             <Process view={view} error={error} lanes={lanes ? project?.layers : undefined} />
           )}
@@ -279,11 +341,13 @@ function RouteList({
   current,
   open,
   onOpen,
+  onRemove,
 }: {
   entries: Entry[];
   current: string | undefined;
   open: boolean;
   onOpen: (id: string) => void;
+  onRemove: ((entry: Entry) => void) | undefined; // ендпойнтите от чертежа се махат с ✕
 }) {
   const [flipped, setFlipped] = useState(new Set<string>());
   const tree = useMemo(() => routeTree(entries), [entries]);
@@ -301,11 +365,23 @@ function RouteList({
       {g.leaves.map((l) => (
         <li
           key={l.entry.id}
-          className={l.entry.id === current ? 'on' : ''}
+          className={[l.entry.id === current && 'on', l.entry.ghost && 'ghost'].filter(Boolean).join(' ')}
           onClick={() => onOpen(l.entry.id)}
-          title={`${l.entry.label}\n${l.entry.file}:${l.entry.line}`}
+          title={`${l.entry.label}\n${l.entry.ghost ? 'още го няма в кода' : `${l.entry.file}:${l.entry.line}`}`}
         >
           <EntryLabel entry={l.entry} name={l.name} />
+          {onRemove && l.entry.ghost && (
+            <span
+              className="x"
+              title="махни от чертежа"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(l.entry);
+              }}
+            >
+              ✕
+            </span>
+          )}
         </li>
       ))}
       {g.groups.map((sub) => {
@@ -356,7 +432,6 @@ function Process({
   const [bands, setBands] = useState<Lane[]>([]);
   const [nodes, setNodes] = useState<FlowNode[]>([]);
   const [selected, setSelected] = useState<string>();
-  const [marked, setMarked] = useState<Set<string>>(new Set());
   const initialized = useNodesInitialized();
   const flow = useReactFlow();
 
@@ -366,17 +441,14 @@ function Process({
   const sameProcess = view?.title === shownTitle.current;
   useEffect(() => {
     if (!view) return;
-    if (view.title !== shownTitle.current) {
-      setSelected(undefined);
-      setMarked(new Set());
-    }
+    if (view.title !== shownTitle.current) setSelected(undefined);
     const { positions } = layout(view, new Map(), lanes);
     setNodes(
       view.nodes.map((n) => ({
         id: n.id,
         type: 'process',
         position: positions.get(n.id) ?? { x: 0, y: 0 },
-        data: { view: n, dim: false, marked: false },
+        data: { view: n, dim: false },
       })),
     );
   }, [view, lanes]);
@@ -439,7 +511,7 @@ function Process({
   const shownNodes = nodes.map((n) => ({
     ...n,
     selected: n.id === selected,
-    data: { ...n.data, dim: neighbours ? !neighbours.has(n.id) : false, marked: marked.has(n.id) },
+    data: { ...n.data, dim: neighbours ? !neighbours.has(n.id) : false },
   }));
   const roles = new Map(view?.nodes.map((n) => [n.id, n.role]));
   // Връзка в същия нод (`$this->x()`, `new self`) не е проводник: би била примка.
@@ -515,7 +587,7 @@ function Process({
           </ReactFlow>
         )}
       </div>
-      {aside ?? <Aside view={view} current={current} marked={marked} setMarked={setMarked} />}
+      {aside ?? <Aside view={view} current={current} />}
     </>
   );
 }
@@ -523,52 +595,28 @@ function Process({
 function Aside({
   view,
   current,
-  marked,
-  setMarked,
 }: {
   view: ProcessView | undefined;
   current: ProcessView['nodes'][number] | undefined;
-  marked: Set<string>;
-  setMarked: (s: Set<string>) => void;
 }) {
-  const [task, setTask] = useState('');
-  const [plan, setPlan] = useState('');
-  const toggle = (id: string) => {
-    const next = new Set(marked);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setMarked(next);
-  };
-  // Маркираните нодове влизат в плана с методите, които участват в процеса.
-  const makePlan = async () => {
-    const targets = (view?.nodes ?? [])
-      .filter((n) => marked.has(n.id))
-      .flatMap((n) => (n.members.length ? n.members.map((m) => `${n.id}#${m.name}`) : [n.id]));
-    const text = await createPlan(task, targets);
-    setPlan(text);
-    await navigator.clipboard?.writeText(text).catch(() => undefined);
-  };
+  const nodes = view?.nodes ?? [];
   return (
     <aside>
       <div className="scroll">
         <h3>Нод</h3>
         <div className="insp">
           {current ? (
-            <Inspector node={current} marked={marked.has(current.id)} toggle={toggle} />
+            <Inspector node={current} />
           ) : (
-            <div className="marked">Клик върху нод го фокусира и показва всичко за него.</div>
+            <>
+              <div className="marked">Клик върху нод го фокусира и показва всичко за него.</div>
+              {nodes.length > 0 && (
+                <div className="btns">
+                  <CopyForAI label="Копирай процеса за AI" nodes={nodes} />
+                </div>
+              )}
+            </>
           )}
-        </div>
-        <h3>План за AI</h3>
-        <div className="plan">
-          <div className="marked">
-            {marked.size ? `${marked.size} маркирани нода` : 'Маркирай нодовете, които ще се променят.'}
-          </div>
-          <textarea placeholder="Задачата с думи…" value={task} onChange={(e) => setTask(e.target.value)} />
-          <button className="btn pri" disabled={!marked.size || !task.trim()} onClick={makePlan}>
-            Копирай плана за AI
-          </button>
-          {plan && <pre className="mono">{plan}</pre>}
         </div>
       </div>
       <div className="legend">
@@ -585,7 +633,24 @@ function Aside({
 
 // Всичко за избрания нод: роля, място, наследяване, всички методи (участващите в процеса са ярки),
 // полета, зависимости и кой го ползва в целия проект.
-function Inspector({ node, marked, toggle }: { node: ProcessNodeView; marked: boolean; toggle: (id: string) => void }) {
+// Контекстът за AI агент: сигнатурите, кой вика и от какво зависят нодовете (POST /api/plans).
+// Задачата пишеш в чата с агента, над поставения текст.
+function CopyForAI({ label, nodes }: { label: string; nodes: ProcessNodeView[] }) {
+  const [done, setDone] = useState(false);
+  const copy = async () => {
+    const targets = nodes.flatMap((n) => (n.members.length ? n.members.map((m) => `${n.id}#${m.name}`) : [n.id]));
+    await navigator.clipboard?.writeText(await createPlan('', targets)).catch(() => undefined);
+    setDone(true);
+    setTimeout(() => setDone(false), 1500);
+  };
+  return (
+    <button className="btn" onClick={() => void copy()} title="задачата пиши в чата с AI-а, над поставения текст">
+      {done ? 'Копирано' : label}
+    </button>
+  );
+}
+
+function Inspector({ node }: { node: ProcessNodeView }) {
   const [copied, setCopied] = useState(false);
   const where = `${node.file}:${node.line}`;
   // Във VS Code отваря файла; в браузъра копира пътя.
@@ -688,9 +753,7 @@ function Inspector({ node, marked, toggle }: { node: ProcessNodeView; marked: bo
         {node.usedBy.length > 30 && <div className="off">… още {node.usedBy.length - 30}</div>}
       </div>
       <div className="btns">
-        <button className="btn" onClick={() => toggle(node.id)}>
-          {marked ? 'Махни от плана' : 'Добави в плана'}
-        </button>
+        <CopyForAI label="Копирай за AI" nodes={[node]} />
       </div>
       <SameFor example={node.id} />
     </>

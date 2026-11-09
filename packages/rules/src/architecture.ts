@@ -44,6 +44,12 @@ export const STYLE_ALLOW: Record<string, Record<string, string[]>> = {
     domain: [],
   },
   mvc: { controller: ['model', 'view'], model: [], view: ['model'] },
+  ddd: {
+    interfaces: ['application', 'domain'],
+    application: ['domain'],
+    domain: [],
+    infrastructure: ['application', 'domain'],
+  },
   none: {},
 };
 
@@ -61,6 +67,7 @@ export const STYLES: Record<string, string[]> = {
   onion: ['infrastructure', 'application-services', 'domain-services', 'domain-model'],
   hexagonal: ['adapters', 'application', 'ports', 'domain'],
   mvc: ['controller', 'model', 'view'],
+  ddd: ['interfaces', 'application', 'domain', 'infrastructure'],
   none: [],
 };
 
