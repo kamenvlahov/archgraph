@@ -102,6 +102,42 @@ test('serve: промяна на сигнатура се вижда за под 
   }
 });
 
+test('serve: чертежът от празна папка, и от панела във VS Code (CORS за PUT)', async () => {
+  const { serve } = await import('./serve.ts');
+  const dir = mkdtempSync(join(tmpdir(), 'archgraph-'));
+  const server = await serve(dir, 0, { scip: false });
+  const base = url(server);
+  const origin = 'vscode-webview://panel';
+  try {
+    const preflight = await fetch(`${base}/api/design`, {
+      method: 'OPTIONS',
+      headers: { origin, 'access-control-request-method': 'PUT', 'access-control-request-headers': 'content-type' },
+    });
+    expect(preflight.headers.get('access-control-allow-origin')).toBe(origin);
+    expect(preflight.headers.get('access-control-allow-methods')).toContain('PUT');
+
+    const empty = (await (await fetch(`${base}/api/design`)).json()) as { design: unknown; styles: unknown[] };
+    expect(empty.design).toBeNull();
+    expect(empty.styles.length).toBeGreaterThan(0);
+    const put = await fetch(`${base}/api/design`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', origin },
+      body: JSON.stringify({
+        stack: 'php-mezzio',
+        style: 'layered',
+        endpoints: [{ method: 'POST', path: '/invoices' }],
+      }),
+    });
+    expect(put.status).toBe(200);
+    expect(readFileSync(join(dir, '.archgraph/design.yaml'), 'utf8')).toContain('POST /invoices');
+    const entries = (await (await fetch(`${base}/api/endpoints`)).json()) as { label: string; ghost?: boolean }[];
+    expect(entries).toEqual([expect.objectContaining({ label: 'POST /invoices', ghost: true })]);
+    expect(await (await fetch(`${base}/api/design/plan`)).text()).toContain('CreateInvoiceHandler');
+  } finally {
+    server.close();
+  }
+});
+
 function url(server: Server): string {
   const address = server.address();
   return `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`;

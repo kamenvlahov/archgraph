@@ -102,6 +102,7 @@ export async function serve(path: string, port: number, options: ScanOptions): P
     if (origin.startsWith('vscode-webview://')) {
       res.setHeader('access-control-allow-origin', origin);
       res.setHeader('access-control-allow-headers', 'content-type');
+      res.setHeader('access-control-allow-methods', 'GET, POST, PUT');
     }
     if (req.method === 'OPTIONS') return res.writeHead(204).end();
     const route = `${req.method} ${url.pathname}`;
