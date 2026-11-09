@@ -75,7 +75,9 @@ const ARROWS: Record<string, ProcessEdge['kind']> = {
   '?? ': 'maybe',
 };
 
-export function processView(query: GraphQuery, start: Target, depth: number): ProcessView {
+// `start` може да е и няколко начала (ghost нодовете на шаблон): всички са в първата колона.
+export function processView(query: GraphQuery, start: Target | Target[], depth: number): ProcessView {
+  const starts = Array.isArray(start) ? start : [start];
   const { graph } = query;
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
   const nodes = new Map<string, ProcessNode>();
@@ -171,7 +173,7 @@ export function processView(query: GraphQuery, start: Target, depth: number): Pr
   const seen = new Set<string>();
   // `entry` е клас, който е начало на процеса (избран или сочен от route): тръгва се от всеки негов
   // метод. Клас, стигнат с `new X`, не се разгъва, защото процесът не минава през всичките му методи.
-  let level: [Target, number, boolean][] = [[start, 0, true]];
+  let level: [Target, number, boolean][] = starts.map((s) => [s, 0, true]);
   for (let d = 0; d <= depth && level.length; d++) {
     const next: [Target, number, boolean][] = [];
     for (const [t, column, entry] of level) {
@@ -217,7 +219,8 @@ export function processView(query: GraphQuery, start: Target, depth: number): Pr
     const [a, b] = v.nodes;
     for (const e of edges.values()) if (e.from.node === a && e.to.node === b) e.violation = v.message;
   }
-  const startName = start.member ? `${start.node.name}#${start.member.name}` : start.node.name;
+  const [first] = starts;
+  const startName = !first ? '' : first.member ? `${first.node.name}#${first.member.name}` : first.node.name;
   return { title: startName, nodes: [...nodes.values()], edges: [...edges.values()] };
 }
 

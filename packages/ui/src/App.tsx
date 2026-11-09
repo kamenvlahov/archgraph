@@ -12,9 +12,9 @@ import {
   type Node,
   type NodeChange,
 } from '@xyflow/react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ProcessNode as ProcessNodeView, ProcessView } from '@archgraph/engine';
-import { createPlan, get, inEditor, onChange, openInEditor } from './api.ts';
+import { createPattern, createPlan, get, inEditor, onChange, openInEditor, type Shape } from './api.ts';
 import { layout, NODE_WIDTH, type Lane } from './layout.ts';
 import { LayerView } from './LayerView.tsx';
 import { ProcessNode, short, type FlowNode } from './ProcessNode.tsx';
@@ -84,10 +84,22 @@ export function App() {
   const [lanes, setLanes] = useState(true); // ленти по слой
   const [layer, setLayer] = useState<string>(); // изгледът „цял слой“ вместо процес
   const [layerList, setLayerList] = useState<{ name: string; units: number }[]>([]);
-  // ендпойнт, клас или метод: процесът от него (и излизане от изгледа на слой)
+  const [shaped, setShaped] = useState<{ result: Shape; example: string }>(); // шаблон „като този“
+  // ендпойнт, клас или метод: процесът от него (и излизане от изгледа на слой или шаблон)
   const openProcess = (id: string) => {
     setLayer(undefined);
+    setShaped(undefined);
     setEntry(id);
+  };
+  const openLayer = (name: string) => {
+    setShaped(undefined);
+    setLayer(name);
+  };
+  const startPattern = (example: string, to: string) => {
+    setError(undefined);
+    createPattern(example, to)
+      .then((result) => setShaped({ result, example }))
+      .catch((e: Error) => setError(e.message));
   };
   const [version, setVersion] = useState(0); // расте при промяна на файл в проекта
   const [entry, setEntry] = useState<string>();
@@ -118,6 +130,15 @@ export function App() {
       .catch((e: Error) => setError(e.message));
   }, [version]);
   useEffect(() => onChange(() => setVersion((v) => v + 1)), []);
+  // Шаблонът се преизчислява при промяна на файл: вече създаденото е истински нод, не ghost.
+  const shapedExample = shaped?.example;
+  const shapedTo = shaped?.result.to;
+  useEffect(() => {
+    if (!shapedExample || !shapedTo || version === 0) return;
+    createPattern(shapedExample, shapedTo)
+      .then((result) => setShaped({ result, example: shapedExample }))
+      .catch(() => undefined);
+  }, [version, shapedExample, shapedTo]);
   useEffect(() => {
     get<{ name: string; units: number }[]>('/api/layers')
       .then(setLayerList)
@@ -157,7 +178,7 @@ export function App() {
         <div className="proj">{project?.name}</div>
         {/* ролите в показания процес, по слоеве отвън навътре */}
         <div className="chips">
-          {[...new Set(layer ? [] : view?.nodes.map((n) => n.role))]
+          {[...new Set(layer ? [] : (shaped?.result.view ?? view)?.nodes.map((n) => n.role))]
             .sort((a, b) => layerIndex(catalog, a) - layerIndex(catalog, b) || a.localeCompare(b))
             .map((r) => (
               <span className="chip" key={r} title={catalog[r]?.layer}>
@@ -166,7 +187,7 @@ export function App() {
               </span>
             ))}
         </div>
-        {view && !layer && (
+        {view && !layer && !shaped && (
           <div className="stats">
             <span>
               {view.nodes.length} нода · {view.edges.length} връзки
@@ -192,7 +213,7 @@ export function App() {
             <h3>Слоеве</h3>
             <ul>
               {layerList.map((l) => (
-                <li key={l.name} className={l.name === layer ? 'on' : ''} onClick={() => setLayer(l.name)}>
+                <li key={l.name} className={l.name === layer ? 'on' : ''} onClick={() => openLayer(l.name)}>
                   {l.name}
                   <small>{l.units} класа и файла</small>
                 </li>
@@ -243,12 +264,22 @@ export function App() {
           </>
         )}
       </nav>
-      <ReactFlowProvider key={layer ? `layer:${layer}` : 'process'}>
-        {layer ? (
-          <LayerView layer={layer} onProcess={openProcess} />
-        ) : (
-          <Process view={view} error={error} lanes={lanes ? project?.layers : undefined} />
-        )}
+      <ReactFlowProvider key={shaped ? 'pattern' : layer ? `layer:${layer}` : 'process'}>
+        <PatternStart.Provider value={startPattern}>
+          {shaped ? (
+            <Process
+              key={shaped.result.view.title}
+              view={shaped.result.view}
+              error={error}
+              lanes={lanes ? project?.layers : undefined}
+              aside={<PatternPanel shape={shaped.result} onBack={() => setShaped(undefined)} />}
+            />
+          ) : layer ? (
+            <LayerView layer={layer} onProcess={openProcess} />
+          ) : (
+            <Process view={view} error={error} lanes={lanes ? project?.layers : undefined} />
+          )}
+        </PatternStart.Provider>
       </ReactFlowProvider>
     </>
   );
@@ -269,10 +300,12 @@ function Process({
   view,
   error,
   lanes,
+  aside,
 }: {
   view: ProcessView | undefined;
   error: string | undefined;
   lanes: string[] | undefined;
+  aside?: ReactNode; // друг панел вдясно (шаблон „като този“)
 }) {
   const [bands, setBands] = useState<Lane[]>([]);
   const [nodes, setNodes] = useState<FlowNode[]>([]);
@@ -436,7 +469,7 @@ function Process({
           </ReactFlow>
         )}
       </div>
-      <Aside view={view} current={current} marked={marked} setMarked={setMarked} />
+      {aside ?? <Aside view={view} current={current} marked={marked} setMarked={setMarked} />}
     </>
   );
 }
@@ -613,6 +646,83 @@ function Inspector({ node, marked, toggle }: { node: ProcessNodeView; marked: bo
           {marked ? 'Махни от плана' : 'Добави в плана'}
         </button>
       </div>
+      <SameFor example={node.id} />
     </>
+  );
+}
+
+// „Направи същото за…“: шаблон по образеца на този клас или функция (етап 8).
+export const PatternStart = createContext<(example: string, to: string) => void>(() => undefined);
+
+export function SameFor({ example }: { example: string }) {
+  const start = useContext(PatternStart);
+  const [name, setName] = useState('');
+  return (
+    <form
+      className="same"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (name.trim()) start(example, name.trim());
+      }}
+    >
+      <input placeholder="Направи същото за… (напр. Invoice)" value={name} onChange={(e) => setName(e.target.value)} />
+      <button className="btn" disabled={!name.trim()}>
+        Покажи
+      </button>
+    </form>
+  );
+}
+
+// Шаблонът: новите файлове, регистрациите и планът. Ghost нодовете са в процеса вляво.
+function PatternPanel({ shape, onBack }: { shape: Shape; onBack: () => void }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <aside>
+      <div className="scroll">
+        <h3>Шаблон</h3>
+        <div className="insp">
+          <div className="big">{shape.view.title}</div>
+          <div className="meta">
+            <b>{shape.from}</b> → <b>{shape.to}</b> във всички форми. Пунктирните нодове още ги няма в кода; когато
+            файлът се появи, нодът става истински.
+          </div>
+          <div className="btns">
+            <button className="btn" onClick={onBack}>
+              ← обратно
+            </button>
+            <button
+              className="btn pri"
+              onClick={() => void navigator.clipboard?.writeText(shape.plan).then(() => setCopied(true))}
+            >
+              {copied ? 'Копирано' : 'Копирай плана за AI'}
+            </button>
+          </div>
+          <h4>Нови ({shape.ghosts.length})</h4>
+          <div className="list mono">
+            {shape.ghosts.map((g) => (
+              <div key={g.id} className="on" title={`образец: ${g.exampleFile}`}>
+                {g.name}
+                <span className="where">{g.file}</span>
+              </div>
+            ))}
+          </div>
+          {shape.registrations.length > 0 && (
+            <>
+              <h4>Регистрации ({shape.registrations.length})</h4>
+              <div className="list mono">
+                {shape.registrations.map((r) => (
+                  <div key={`${r.file}:${r.line}`} className="on link" onClick={() => openInEditor(r.file, r.line)}>
+                    {r.suggested}
+                    <span className="where">
+                      {r.file}:{r.line}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </aside>
   );
 }

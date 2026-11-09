@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
-import { GraphQuery, label, scan, where, type Target } from '@archgraph/engine';
-import { plan } from '@archgraph/planner';
+import { GraphQuery, label, pattern, scan, where, type Target } from '@archgraph/engine';
+import { patternPlan, plan } from '@archgraph/planner';
 
 // MCP сървър (JSON-RPC 2.0, по едно съобщение на ред през stdio). Протоколът е малък, затова е
 // написан на ръка, без SDK: initialize, tools/list, tools/call, ping.
@@ -76,6 +76,21 @@ const TOOLS = [
         project,
       },
       required: ['task', 'targets'],
+    },
+  },
+  {
+    name: 'pattern',
+    description:
+      'Нов клас „като този“: от съществуващ образец (OrderService, payment_services) и ново име (Invoice) — кои класове и файлове да се създадат със сигнатурите им, по кои образци, и кои редове за регистрация (DI, route-ове) да се добавят. Markdown план.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        example: { ...target, description: 'Съществуващ клас или функция, който е образецът' },
+        to: { type: 'string', description: 'Новото име: Invoice, invoice' },
+        from: { type: 'string', description: 'По избор: думата в образеца, ако не е очевидна (Order)' },
+        project,
+      },
+      required: ['example', 'to'],
     },
   },
   {
@@ -165,6 +180,11 @@ export class Server {
           String(args['task'] ?? ''),
           targets.map((t) => one(query, t)),
         );
+      }
+      case 'pattern': {
+        const example = one(query, args['example']);
+        const from = typeof args['from'] === 'string' && args['from'] ? args['from'] : undefined;
+        return patternPlan(pattern(query.graph, example, String(args['to'] ?? ''), from), example.node.name);
       }
       case 'violations':
         return query.violations(args['target'] === undefined ? undefined : one(query, args['target']).node);

@@ -160,6 +160,7 @@ test('протокол: initialize, tools/list, известия и непозн
     'describe_node',
     'find_by_role',
     'plan',
+    'pattern',
     'violations',
     'rescan',
   ]);
@@ -199,4 +200,12 @@ test('violations: няма нарушения в примера, а грешен
   expect((await call(server, 'violations', {})).text).toBe('няма нарушения');
   expect((await call(server, 'violations', { target: 'OrderService' })).text).toBe('OrderService: няма нарушения');
   expect((await call(server, 'violations', { target: 'Nope' })).isError).toBe(true);
+});
+
+test('pattern: план „като този“ през MCP', async () => {
+  const server = new Server({ cwd: join(fixtures, 'php-mezzio'), scip: false });
+  const { text, isError } = await call(server, 'pattern', { example: 'OrderService', to: 'Invoice' });
+  expect(isError).toBe(false);
+  expect(text).toContain('# План: Invoice по образеца на OrderService');
+  expect(text).toContain('`src/ConfigProvider.php:27`');
 });

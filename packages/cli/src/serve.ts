@@ -6,13 +6,14 @@ import {
   GraphQuery,
   layers,
   layerView,
+  pattern,
   processView,
   Project,
   roleOf,
   type ScanOptions,
 } from '@archgraph/engine';
 import type { GraphModel, Node } from '@archgraph/model';
-import { plan } from '@archgraph/planner';
+import { patternPlan, plan } from '@archgraph/planner';
 import { CATALOG } from '@archgraph/rules';
 
 // `archgraph serve`: интерфейсът (packages/ui/dist) и REST API-то му върху един проект.
@@ -27,6 +28,7 @@ import { CATALOG } from '@archgraph/rules';
 //   GET  /api/processes/{target}?depth процесът от ендпойнт, клас или метод (target е URL-encoded)
 //   GET  /api/nodes?file=&line=        нодът и методът на това място (курсорът в редактора)
 //   POST /api/plans  {task, targets}   Markdown план за AI
+//   POST /api/patterns {example, to, from?}  „като този“: ghost нодове, регистрации и план
 //   GET  /api/events                   Server-Sent Events: `changed`, когато файл се промени
 
 const DIST = join(import.meta.dirname, '../../ui/dist');
@@ -121,6 +123,14 @@ export async function serve(path: string, port: number, options: ScanOptions): P
       const targets = (body.targets ?? []).flatMap((t) => query.find(t).slice(0, 1));
       res.writeHead(201, { 'content-type': 'text/markdown; charset=utf-8' });
       return res.end(plan(query, body.task ?? '', targets));
+    }
+    if (route === 'POST /api/patterns') {
+      const body = JSON.parse((await text(req)) || '{}') as { example?: string; to?: string; from?: string };
+      const [example] = query.find(body.example ?? '');
+      if (!example || !body.to)
+        return send(res, 400, { error: 'трябват example (съществуващ клас) и to (новото име)' });
+      const result = pattern(graph, example, body.to, body.from || undefined);
+      return send(res, 201, { ...result, plan: patternPlan(result, example.node.name) });
     }
     if (route === 'GET /api/events') {
       res.writeHead(200, {

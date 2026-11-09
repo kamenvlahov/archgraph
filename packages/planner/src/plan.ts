@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { label, signature, typeText, where, type GraphQuery, type Target } from '@archgraph/engine';
+import { label, signature, typeText, where, type GraphQuery, type PatternResult, type Target } from '@archgraph/engine';
 import type { Edge, Member, Node, TypeRef } from '@archgraph/model';
 
 // Маркирани нодове + задача → Markdown план за AI агент. Планът е детерминистичен: не измисля
@@ -250,4 +250,36 @@ function outsideCallers(query: GraphQuery, targets: Target[], nodes: Node[]): st
             `${label(c)}  \`${where(c)}\`${arrow.startsWith('??') ? '  (може би: извикване по име, получателят е неизвестен)' : ''}`,
           );
   return [...out];
+}
+
+// Отвътре навън: първо това, от което другите зависят.
+const INSIDE_OUT = ['domain', 'infrastructure', 'application', 'presentation', 'composition'];
+
+// План за шаблон „като този“: новите файлове със сигнатурите и образеца им, редовете за регистрация
+// с мястото и новата версия, редът на изпълнение.
+export function patternPlan(p: PatternResult, example: string): string {
+  const rank = (layer?: string) => {
+    const i = INSIDE_OUT.indexOf(layer ?? '');
+    return i < 0 ? INSIDE_OUT.length : i;
+  };
+  const ghosts = [...p.ghosts].sort((a, b) => rank(a.layer) - rank(b.layer) || a.file.localeCompare(b.file));
+  const lines = [
+    `# План: ${p.to} по образеца на ${example}`,
+    '',
+    `Всяко ново нещо повтаря структурата на образеца си, като \`${p.from}\` става \`${p.to}\` във всичките форми (име, файл, променливи, множествено число). Отвори образеца и следвай него, не измисляй нова структура.`,
+    '',
+    '## Нови класове и функции (по реда на изпълнение)',
+    '',
+  ];
+  ghosts.forEach((g, i) => {
+    lines.push(
+      `${i + 1}. **${g.name}**${g.role ? ` (${g.role})` : ''} в \`${g.file}\` — образец \`${g.exampleFile}\` (${g.example})`,
+    );
+    for (const m of g.members) lines.push(`   - \`${m}\``);
+  });
+  if (p.registrations.length) {
+    lines.push('', '## Регистрации', '', 'Същите редове като за образеца, в същите файлове:', '');
+    for (const r of p.registrations) lines.push(`- \`${r.file}:${r.line}\`: \`${r.text}\` → \`${r.suggested}\``);
+  }
+  return `${lines.join('\n')}\n`;
 }

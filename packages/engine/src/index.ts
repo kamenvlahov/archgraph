@@ -9,5 +9,6 @@ export {
   type ProcessView,
   type Slot,
 } from './process.ts';
+export { pattern, renamer, type PatternResult } from './pattern.ts';
 export { layers, layerView, type LayerSummary, type LayerView, type Unit } from './layer.ts';
 export { ADAPTERS, InvalidGraphError, Project, scan, type ScanOptions, type ScanReport } from './scan.ts';

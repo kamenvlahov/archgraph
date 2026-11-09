@@ -14,6 +14,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import type { LayerView as Data, Unit } from '@archgraph/engine';
 import { get, openInEditor } from './api.ts';
+import { SameFor } from './App.tsx';
 
 // Целият слой по модули: групите са ленти, а в тях класовете (или файловете с функции) са компактни
 // карти в решетка. Стрелките са само вътре в слоя; ↑/↓ са връзките с другите слоеве.
@@ -188,6 +189,7 @@ function UnitPanel({ unit, onProcess }: { unit: Unit; onProcess: (target: string
           </div>
         </>
       )}
+      {unit.members[0] && <SameFor example={unit.id.startsWith('file:') ? unit.members[0].target : unit.id} />}
       <h4>
         {unit.id.startsWith('file:') ? 'Функции' : 'Методи'} ({unit.members.length}) — клик за процеса
       </h4>

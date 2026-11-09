@@ -11,7 +11,14 @@ const VISIBILITY: Record<string, string> = { private: '−', protected: '#' };
 export function ProcessNode({ data, selected }: NodeProps<FlowNode>) {
   const { view, dim, marked } = data;
   const [more, setMore] = useState(false);
-  const classes = ['node', view.kind === 'interface' && 'iface', dim && 'dim', selected && 'sel', marked && 'marked'];
+  const classes = [
+    'node',
+    view.kind === 'interface' && 'iface',
+    view.tags.includes('ghost') && 'ghost',
+    dim && 'dim',
+    selected && 'sel',
+    marked && 'marked',
+  ];
   const role = { '--role': `var(--r-${view.role}, var(--r-class))` } as CSSProperties;
   return (
     <div className={classes.filter(Boolean).join(' ')} style={role}>

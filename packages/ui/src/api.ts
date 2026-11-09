@@ -1,3 +1,5 @@
+import type { PatternResult } from '@archgraph/engine';
+
 // REST API-то на `archgraph serve` (packages/cli/src/serve.ts). В браузъра адресът е същият като на
 // страницата; във VS Code панелът е на друг произход и разширението подава адреса в `ARCHGRAPH_API`.
 
@@ -24,6 +26,20 @@ export async function createPlan(task: string, targets: string[]): Promise<strin
     body: JSON.stringify({ task, targets }),
   });
   return res.text();
+}
+
+export type Shape = PatternResult & { plan: string };
+
+// Шаблон „като този“: ghost нодове, регистрации и план (POST /api/patterns).
+export async function createPattern(example: string, to: string): Promise<Shape> {
+  const res = await fetch(`${BASE}/api/patterns`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ example, to }),
+  });
+  const body = (await res.json()) as Shape & { error?: string };
+  if (!res.ok) throw new Error(body.error ?? `${res.status}`);
+  return body;
 }
 
 // Известие при промяна на файл: процесът се презарежда.
