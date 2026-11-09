@@ -41,6 +41,8 @@ export const nodeAdapter: LanguageAdapter = {
   indexer: {
     command: 'scip-typescript',
     args: (out) => ['index', '--infer-tsconfig', '--no-progress-bar', '--output', out],
+    // `--infer-tsconfig` записва `{}` в корена, а празен tsconfig.json чупи JS проекта в редактора
+    leaves: ['tsconfig.json'],
   },
   async read(files: SourceFile[], all = files.map((f) => f.path)): Promise<GraphFragment> {
     const parser = await typescriptParser();

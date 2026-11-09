@@ -1,6 +1,9 @@
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import type { CallSite, Node } from '@archgraph/model';
-import { exactCalls, findCommand } from './exact.ts';
+import { exactCalls, findCommand, runIndexer } from './exact.ts';
 import { readScip, type ScipDocument } from './scip.ts';
 
 // Минимален protobuf запис за теста: само varint и length-delimited полета.
@@ -91,3 +94,20 @@ test.skipIf(!findCommand('scip-typescript') || !findCommand('scip-python'))(
   },
   60_000,
 );
+
+test('runIndexer трие файловете, които индексаторът е оставил в проекта, но не и съществуващите', () => {
+  const root = mkdtempSync(join(tmpdir(), 'archgraph-leaves-'));
+  try {
+    writeFileSync(join(root, 'keep.json'), '{"x":1}');
+    const indexer = {
+      command: 'sh',
+      args: () => ['-c', 'echo {} > tsconfig.json; echo {} > keep.json'],
+      leaves: ['tsconfig.json', 'keep.json'],
+    };
+    runIndexer(root, indexer, '/bin/sh');
+    expect(existsSync(join(root, 'tsconfig.json'))).toBe(false);
+    expect(existsSync(join(root, 'keep.json'))).toBe(true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

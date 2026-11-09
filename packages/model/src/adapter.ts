@@ -78,4 +78,5 @@ export interface Indexer {
   command: string;
   args(out: string, tmp: string): string[];
   files?: Record<string, string>; // помощни файлове, които се записват в `tmp` преди пускането
+  leaves?: string[]; // файлове, които индексаторът създава в проекта; трият се след него, ако ги е нямало
 }

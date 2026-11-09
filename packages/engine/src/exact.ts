@@ -20,6 +20,7 @@ export function findCommand(command: string): string | undefined {
 // Пуска индексатора и връща документите му или грешката като текст.
 export function runIndexer(root: string, indexer: Indexer, path: string): ScipDocument[] | string {
   const tmp = mkdtempSync(join(tmpdir(), 'archgraph-scip-'));
+  const left = (indexer.leaves ?? []).map((f) => join(root, f)).filter((f) => !existsSync(f));
   try {
     for (const [name, text] of Object.entries(indexer.files ?? {})) writeFileSync(join(tmp, name), text);
     const out = join(tmp, 'index.scip');
@@ -30,6 +31,7 @@ export function runIndexer(root: string, indexer: Indexer, path: string): ScipDo
     return readScip(readFileSync(out));
   } finally {
     rmSync(tmp, { recursive: true, force: true });
+    for (const f of left) rmSync(f, { force: true });
   }
 }
 
