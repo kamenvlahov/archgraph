@@ -28,8 +28,25 @@ export function skeleton(bp: Blueprint, file: string): string | undefined {
   const own = nodes.filter((n) => n.kind !== 'route');
   if (own.some((n) => n.kind === 'template')) return `<!-- ${own[0]?.name}: изгледът от чертежа -->\n`;
   if (bp.stack.language === 'php') return php(ctx, own[0] as Node);
-  if (bp.stack.language === 'node') return ts(ctx, own);
-  return python(ctx, own);
+  if (bp.stack.language === 'node') return ts(ctx, ordered(ctx, own));
+  return python(ctx, ordered(ctx, own));
+}
+
+// Вложените обекти от същия файл преди класа, който ги ползва в полетата си (Python ги чете при дефиницията).
+function ordered(ctx: Ctx, own: Node[]): Node[] {
+  const here = new Set(own.map((n) => n.id));
+  const seen = new Set<string>();
+  const out: Node[] = [];
+  const visit = (n: Node) => {
+    if (seen.has(n.id)) return;
+    seen.add(n.id);
+    const refs = new Set<string>();
+    for (const f of ctx.bp.types[n.id]?.fields ?? []) named(f.type, ctx, refs);
+    for (const id of refs) if (here.has(id)) visit(ctx.byId.get(id) as Node);
+    out.push(n);
+  };
+  for (const n of own) visit(n);
+  return out;
 }
 
 // Кого вика методът: редовете за коментара в тялото.

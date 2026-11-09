@@ -43,6 +43,7 @@ types:
   bool: bool
   date: \DateTimeImmutable
   datetime: \DateTimeImmutable
+  object: array
 # пълните имена на външните типове от входа: за `use` в скелета
 imports:
   RequestHandlerInterface: Psr\Http\Server\RequestHandlerInterface

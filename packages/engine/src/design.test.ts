@@ -51,6 +51,47 @@ test('GET без id до ендпойнт с id е списък; предупр�
   ]);
 });
 
+test('изходът с полета е клас за отговора, вложените обекти са класове до него', () => {
+  const design: Design = {
+    stack: 'php-mezzio',
+    style: 'ddd',
+    endpoints: [
+      {
+        method: 'GET',
+        path: '/galleries/{id}',
+        output: { name: 'string', tags: ['string'], photos: [{ url: 'string', size: { w: 'int', h: 'int' } }] },
+      },
+    ],
+  };
+  const bp = blueprint(design);
+  const text = (id: string) =>
+    bp.types[id]?.fields.map((f) => `${f.name}:${f.type.kind === 'array' ? `${f.type.of.kind}[]` : f.type.kind}`);
+  expect(text('php:App\\Gallery\\Application\\GetGalleryResult')).toEqual([
+    'name:primitive',
+    'tags:primitive[]',
+    'photos:named[]',
+  ]);
+  expect(text('php:App\\Gallery\\Application\\Photo')).toEqual(['url:primitive', 'size:named']);
+  expect(bp.types['php:App\\Gallery\\Entity\\Gallery']).toBeUndefined(); // entity-то не се пълни от изхода
+  const size = bp.nodes.find((n) => n.name === 'Size');
+  expect([size?.location.file, size?.role, size?.layer]).toEqual([
+    'src/Gallery/Application/Size.php',
+    'dto',
+    'application',
+  ]);
+  expect(skeleton(bp, 'src/Gallery/Application/GetGalleryResult.php')).toContain('/** @var Photo[] */');
+  // методите връщат класа за отговора
+  const handler = bp.nodes.find((n) => n.name === 'GetGalleryQueryHandler');
+  expect(handler?.members.find((m) => m.name === 'handle')?.output?.type).toEqual({
+    kind: 'named',
+    id: 'php:App\\Gallery\\Application\\GetGalleryResult',
+  });
+  // избран тип от падащото меню
+  const picked = blueprint({ ...design, endpoints: [{ method: 'GET', path: '/galleries', output: ['Gallery'] }] });
+  const list = picked.nodes.find((n) => n.name === 'ListGalleriesQueryHandler')?.members[1]?.output?.type;
+  expect(list).toEqual({ kind: 'array', of: { kind: 'named', id: 'php:App\\Gallery\\Entity\\Gallery' } });
+});
+
 // Минимален код за всеки нод от чертежа: само декларацията, както би я написал агентът по плана.
 function write(root: string, design: Design) {
   for (const n of blueprint(design).nodes) {
@@ -107,7 +148,11 @@ describe('чертеж', () => {
     const design: Design = {
       stack,
       style,
-      endpoints: [ep('POST /invoices'), ep('GET /invoices'), ep('POST /invoices/{id}/cancel')],
+      endpoints: [
+        { ...ep('POST /invoices'), input: { lines: [{ sku: 'string', qty: 'int' }] } },
+        { ...ep('GET /invoices'), output: { customer: { name: 'string' }, lines: [{ sku: 'string' }] } },
+        ep('POST /invoices/{id}/cancel'),
+      ],
     };
     saveDesign(root, design);
     const bp = blueprint(design);
@@ -156,7 +201,7 @@ describe('чертеж', () => {
   });
 });
 
-test('входът става полета на DTO (или параметри без DTO), изходът — полета на entity', () => {
+test('входът става полета на DTO (или параметри без DTO), изходът — клас, който методите връщат', () => {
   const bp = blueprint({
     stack: 'python-fastapi',
     style: 'layered',
@@ -168,7 +213,9 @@ test('входът става полета на DTO (или параметри �
   const text = (id: string) =>
     bp.types[id]?.fields.map((f) => `${f.name}:${f.type.kind === 'primitive' ? f.type.name : f.type.kind}`);
   expect(text('python:app.invoices.schemas.CreateInvoiceDto')).toEqual(['customer_id:int', 'due:date']);
-  expect(text('python:app.invoices.models.Invoice')).toEqual(['total:float', 'lines:array']);
+  expect(text('python:app.invoices.schemas.CreateInvoiceResult')).toEqual(['total:float']);
+  // при списък полетата са на един елемент
+  expect(text('python:app.invoices.schemas.InvoiceItem')).toEqual(['lines:array']);
   const ddd = blueprint({
     stack: 'php-mezzio',
     style: 'ddd',
@@ -181,5 +228,10 @@ test('входът става полета на DTO (или параметри �
   const command = ddd.types['php:App\\Invoice\\Application\\UpdateInvoiceCommand'];
   expect(command?.fields.map((f) => f.name)).toEqual(['id', 'total']);
   const service = bp.nodes.find((n) => n.name === 'InvoiceService');
-  expect(service?.members.find((m) => m.name === 'list')?.inputs.map((p) => p.name)).toEqual(['status']);
+  const list = service?.members.find((m) => m.name === 'list');
+  expect(list?.inputs.map((p) => p.name)).toEqual(['status']);
+  expect(list?.output?.type).toEqual({
+    kind: 'array',
+    of: { kind: 'named', id: 'python:app.invoices.schemas.InvoiceItem' },
+  });
 });

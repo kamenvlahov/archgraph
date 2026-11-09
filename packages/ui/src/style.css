@@ -998,6 +998,11 @@ aside .endpoint .btn {
 .fields {
   padding: 0 12px;
 }
+.fields.inner {
+  margin: 0 0 6px 10px;
+  padding: 0 0 0 8px;
+  border-left: 1px solid var(--border);
+}
 .fields h4 {
   margin: 8px 0 4px;
   font-size: 12px;

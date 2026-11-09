@@ -24,3 +24,4 @@ types:
   bool: boolean
   date: Date
   datetime: Date
+  object: 'Record<string, unknown>'

@@ -34,3 +34,4 @@ types:
   bool: bool
   date: date
   datetime: datetime
+  object: dict

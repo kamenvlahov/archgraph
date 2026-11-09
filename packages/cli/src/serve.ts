@@ -13,9 +13,10 @@ import {
   skeleton,
   Project,
   roleOf,
+  type Blueprint,
   type ScanOptions,
 } from '@archgraph/engine';
-import type { GraphModel, Node } from '@archgraph/model';
+import type { GraphModel, Node, TypeRef } from '@archgraph/model';
 import { designPlan, patternPlan, plan } from '@archgraph/planner';
 import {
   CATALOG,
@@ -24,6 +25,8 @@ import {
   loadDesign,
   saveDesign,
   STYLE_ALLOW,
+  validFields,
+  validOutput,
   type Design,
 } from '@archgraph/rules';
 
@@ -160,6 +163,7 @@ export async function serve(path: string, port: number, options: ScanOptions): P
         design: design ?? null,
         progress: project.report.design ?? null,
         warnings: design ? designWarnings(design) : [],
+        objects: design ? objects(blueprint(design)) : [],
         stacks: DESIGN_STACKS.map((x) => ({ stack: x.stack, label: x.label, language: x.language })),
         styles: DESIGN_STYLES.map((x) => ({
           style: x.style,
@@ -177,15 +181,11 @@ export async function serve(path: string, port: number, options: ScanOptions): P
         return send(res, 400, { error: 'трябват познати stack и style' });
       const bad = design.endpoints.find((e) => !/^[A-Z]+$/.test(e.method ?? '') || !e.path?.startsWith('/'));
       if (bad) return send(res, 400, { error: `ендпойнтът трябва да е МЕТОД /път: ${JSON.stringify(bad)}` });
-      const fields = (f: unknown) =>
-        f === undefined ||
-        (typeof f === 'object' &&
-          f !== null &&
-          Object.entries(f).every(([name, t]) => /^[A-Za-z_]\w*$/.test(name) && typeof t === 'string'));
-      const typo = design.endpoints.find((e) => !fields(e.input) || !fields(e.output));
+      const fields = (f: unknown) => f === undefined || validFields(f);
+      const typo = design.endpoints.find((e) => !fields(e.input) || (e.output !== undefined && !validOutput(e.output)));
       if (typo)
         return send(res, 400, {
-          error: `полето е име (букви, цифри, _) и тип; за списък опиши полетата на един елемент: ${JSON.stringify(typo)}`,
+          error: `полето е име (букви, цифри, _) и тип, [тип] за масив или {поле: тип} за обект: ${JSON.stringify(typo)}`,
         });
       saveDesign(graph.root, design);
       await project.update(['.archgraph/design.yaml']);
@@ -297,4 +297,17 @@ function search(nodes: Node[], q: string): Entry[] {
     .sort((a, b) => a[0] - b[0] || a[1].label.localeCompare(b[1].label))
     .slice(0, 40)
     .map(([, e]) => e);
+}
+
+// Обектите за падащото меню на изхода и типовете на полетата: entity-тата, класовете, които методите
+// връщат, и вложените обекти. Входните съобщения (DTO, Query, Command) не са сред тях.
+function objects(bp: Blueprint): string[] {
+  const ids = new Set(bp.nodes.filter((n) => n.role === 'entity' || n.role === 'model').map((n) => n.id));
+  const add = (t?: TypeRef) => {
+    if (t?.kind === 'named') ids.add(t.id);
+    if (t?.kind === 'array') add(t.of);
+  };
+  for (const n of bp.nodes) for (const m of n.members) add(m.output?.type);
+  for (const shape of Object.values(bp.types)) for (const f of shape.fields) add(f.type);
+  return [...new Set(bp.nodes.filter((n) => ids.has(n.id) && n.kind === 'class').map((n) => n.name))];
 }

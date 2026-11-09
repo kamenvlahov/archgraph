@@ -47,8 +47,13 @@ export interface DesignEndpoint {
   path: string;
   entity?: string;
   action?: string;
-  input?: Record<string, string>;
-  output?: Record<string, string>;
+  input?: Fields;
+  output?: FieldSpec;
+}
+// `[тип]` е масив, `{поле: тип}` — вложен обект (става клас)
+export type FieldSpec = string | FieldSpec[] | Fields;
+export interface Fields {
+  [name: string]: FieldSpec;
 }
 export interface Design {
   stack: string;
@@ -59,6 +64,7 @@ export interface DesignInfo {
   design: Design | null;
   progress: { done: number; total: number } | null;
   warnings: string[];
+  objects: string[];
   stacks: { stack: string; label: string; language: string }[];
   styles: { style: string; label: string; about: string; layers: string[]; allow: Record<string, string[]> }[];
 }

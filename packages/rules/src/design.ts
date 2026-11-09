@@ -18,11 +18,36 @@ export interface DesignEndpoint {
   path: string; // `/invoices/{id}`
   entity?: string; // иначе от пътя
   action?: string; // иначе от метода и пътя
-  input?: Record<string, string>; // полетата на заявката: име → тип (string, int, float, bool, date, datetime, клас)
-  output?: Record<string, string>; // полетата на отговора; стават полета на entity-то
+  input?: Fields; // полетата на заявката
+  output?: FieldSpec; // какво връщат методите: тип (Gallery, Gallery[]) или полета на клас за отговора
+}
+
+// Типът на поле: string, int, float, bool, date, datetime или клас; `[тип]` е масив, `{име: тип}` — вложен обект.
+export type FieldSpec = string | FieldSpec[] | Fields;
+export interface Fields {
+  [name: string]: FieldSpec;
+}
+
+export function validOutput(o: unknown): boolean {
+  return typeof o === 'string'
+    ? o.trim() !== ''
+    : Array.isArray(o)
+      ? o.length === 1 && validOutput(o[0])
+      : validFields(o);
 }
 
 export const FIELD_TYPES = ['string', 'int', 'float', 'bool', 'date', 'datetime'];
+
+// Имената са идентификатори, масивът е с един елемент (типа на елементите), обектът — с поне едно поле.
+export function validFields(f: unknown): boolean {
+  if (typeof f !== 'object' || f === null || Array.isArray(f)) return false;
+  return Object.entries(f).every(([name, t]) => /^[A-Za-z_]\w*$/.test(name) && validSpec(t));
+}
+function validSpec(t: unknown): boolean {
+  if (typeof t === 'string') return t.trim() !== '';
+  if (Array.isArray(t)) return t.length === 1 && validSpec(t[0]);
+  return validFields(t) && Object.keys(t as object).length > 0;
+}
 
 export interface StylePart {
   layer: string;
@@ -117,7 +142,9 @@ export function saveDesign(root: string, design: Design) {
   // кратко `POST /invoices`, а с полета или изрични ресурс и действие — като обект
   const endpoints = design.endpoints.map((e) => {
     const full = Object.fromEntries(
-      Object.entries(e).filter(([, v]) => v !== undefined && !(typeof v === 'object' && !Object.keys(v).length)),
+      Object.entries(e).filter(
+        ([, v]) => v !== undefined && v !== '' && !(typeof v === 'object' && !Object.keys(v).length),
+      ),
     );
     return Object.keys(full).length > 2
       ? { ...full, method: e.method.toUpperCase() }

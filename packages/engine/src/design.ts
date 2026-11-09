@@ -17,6 +17,8 @@ import {
   type Design,
   type DesignCondition,
   type DesignEndpoint,
+  type FieldSpec,
+  type Fields,
   type Stack,
   type Style,
   type StylePart,
@@ -137,6 +139,9 @@ export function blueprint(design: Design): Blueprint {
   };
   const globs = new Map<string, Set<string>>(); // слой → файловете му за architecture
 
+  const classVars = new Map<string, Record<string, string>>(); // id → променливите на класа: за вложените обекти
+  const nestedIds = new Set<string>();
+
   const addEdge = (e: Edge) => edges.set(e.id, e);
   const addMember = (n: Node, m: Member) => {
     if (!n.members.some((x) => x.name === m.name)) n.members.push(m);
@@ -186,8 +191,7 @@ export function blueprint(design: Design): Blueprint {
       here.set(key, n);
       return n;
     };
-    const classNode = (key: string, part: StylePart): Node => {
-      const name = fill(part.name, vars);
+    const classNode = (key: string, part: StylePart, name = fill(part.name, vars)): Node => {
       const v = {
         ...vars,
         Name: name,
@@ -195,9 +199,11 @@ export function blueprint(design: Design): Blueprint {
         dotted: dotted(name, part.file),
       };
       const file = fill(part.kind === 'template' ? stack.template : stack.class.file, v);
+      const id = part.kind === 'template' ? `template:${file}` : fill(stack.class.id, { ...v, file });
+      classVars.set(id, v);
       where(part.layer, file);
       return node(key, () => ({
-        id: part.kind === 'template' ? `template:${file}` : fill(stack.class.id, { ...v, file }),
+        id,
         kind: part.kind ?? 'class',
         name,
         language: stack.language,
@@ -248,31 +254,84 @@ export function blueprint(design: Design): Blueprint {
       name: cs(words2(p)),
       type: { kind: 'primitive', name: stack.types.id },
     }));
-    // общият тип (int, date) на езика на стека; друго име е клас от чертежа или остава както е написано
-    const fieldType = (t: string): TypeRef => {
+    // Вложеният обект е клас до собственика си, в неговия слой: PHP — свой файл, Nest и Python — същият.
+    // Името е от полето (photos → Photo); ако е заето от друг клас — с името на собственика отпред.
+    const nested = (owner: Node, field: string, spec: Fields): Node => {
+      const v = classVars.get(owner.id) ?? {};
+      const at = (name: string) => {
+        const file = fill(stack.class.file, { ...v, Name: name });
+        return { name, file, id: fill(stack.class.id, { ...v, Name: name, file }) };
+      };
+      let place = at(pascal(words2(singular(field))));
+      if (nodes.has(place.id) && !nestedIds.has(place.id)) place = at(owner.name + place.name);
+      const n = nodes.get(place.id) ?? {
+        id: place.id,
+        kind: 'class',
+        name: place.name,
+        language: stack.language,
+        ...(owner.role ? { role: owner.role } : {}),
+        ...(owner.layer ? { layer: owner.layer } : {}),
+        ...(owner.context ? { context: owner.context } : {}),
+        location: { file: place.file, line: 1, endLine: 1 },
+        members: [],
+        tags: ['ghost'],
+      };
+      nodes.set(n.id, n);
+      nestedIds.add(n.id);
+      classVars.set(n.id, v);
+      if (owner.layer) where(owner.layer, place.file);
+      addFields(n, fields(spec, n));
+      return n;
+    };
+    // общият тип (int, date) на езика на стека; друго име е клас от чертежа или остава както е написано.
+    // Без собственик (параметри на метод) вложеният обект е просто object на езика.
+    const fieldType = (t: FieldSpec, field: string, owner?: Node): TypeRef => {
+      if (Array.isArray(t)) return { kind: 'array', of: fieldType(t[0] ?? 'string', field, owner) };
+      if (typeof t === 'object')
+        return owner ? named(nested(owner, field, t)) : { kind: 'primitive', name: stack.types['object'] ?? 'object' };
       const entity = [...nodes.values()].find((n) => n.name === t && n.kind !== 'route');
       if (entity) return named(entity);
       const list = /^list\[(.+)\]$|^(.+)\[\]$/.exec(t);
-      if (list) return { kind: 'array', of: fieldType((list[1] ?? list[2]) as string) };
+      if (list) return { kind: 'array', of: fieldType((list[1] ?? list[2]) as string, field, owner) };
       return { kind: 'primitive', name: stack.types[t] ?? t };
     };
-    const fields = (spec: Record<string, string> = {}): Field[] =>
-      Object.entries(spec).map(([name, t]) => ({ name: cs(words2(name)), type: fieldType(t) }));
+    const fields = (spec: Fields = {}, owner?: Node): Field[] =>
+      Object.entries(spec).map(([name, t]) => ({ name: cs(words2(name)), type: fieldType(t, name, owner) }));
     // съобщението (DDD) е единственият вход на handler-а: носи и параметрите от пътя
     const carries = Object.values(style.parts).some((p) => p.method === 'handle');
-    if (dto) addFields(dto, [...(carries ? params : []), ...fields(e.input)]);
-    if (entityNode && e.output) addFields(entityNode, fields(e.output));
+    if (dto) addFields(dto, [...(carries ? params : []), ...fields(e.input, dto)]);
     // без DTO входът са параметри на методите (GET: query параметрите)
     const query: Port[] = dto ? [] : fields(e.input).map((f) => ({ name: f.name, type: f.type }));
     const inputs: Port[] = [...params, ...query, ...(dto ? [{ name: cs(['input']), type: named(dto) }] : [])];
+    // Изходът е какво връщат методите: избран тип (Gallery, Gallery[], int) или полета, от които става
+    // клас за отговора до DTO-тата (при списък — един елемент). Без изход — entity-то.
+    const resultPart =
+      Object.values(style.parts).find((p) => p.role === 'dto') ??
+      Object.values(style.parts).find((p) => p.role === 'entity' || p.role === 'model');
+    // where: 'top' — самият изход, 'item' — елемент на масив (при списък изходът е масив от елементи)
+    const outputType = (spec: FieldSpec, where: 'top' | 'item'): TypeRef => {
+      if (typeof spec === 'string') return fieldType(spec, 'result');
+      if (Array.isArray(spec)) return { kind: 'array', of: outputType(spec[0] ?? 'string', 'item') };
+      if (!resultPart) return { kind: 'primitive', name: stack.types['object'] ?? 'object' };
+      const list = where === 'top' && r.action === 'list';
+      const result = classNode(
+        'result',
+        { ...resultPart, role: 'dto', kind: 'class' },
+        list || where === 'item' ? `${r.entity}Item` : `${vars['Action']}${r.entity}Result`,
+      );
+      addFields(result, fields(spec, result));
+      return list ? { kind: 'array', of: named(result) } : named(result);
+    };
     const output: Port = {
       name: 'return',
       type:
-        r.action === 'list'
-          ? { kind: 'array', of: entityType }
-          : r.action === 'delete'
-            ? { kind: 'primitive', name: stack.types.void }
-            : entityType,
+        e.output !== undefined
+          ? outputType(e.output, 'top')
+          : r.action === 'list'
+            ? { kind: 'array', of: entityType }
+            : r.action === 'delete'
+              ? { kind: 'primitive', name: stack.types.void }
+              : entityType,
     };
     const member = (n: Node, name: string, ins: Port[], out?: Port, isStatic = false): Member => ({
       name,
@@ -318,7 +377,7 @@ export function blueprint(design: Design): Blueprint {
         else found.push(findById, save);
       }
       // домейнът не знае за DTO-тата от application: получава полетата им
-      const domainInputs: Port[] = fields(e.input).map((f) => ({ name: f.name, type: f.type }));
+      const domainInputs: Port[] = fields(e.input, entityNode).map((f) => ({ name: f.name, type: f.type }));
       if (part.method === 'domain' && !read && r.action !== 'delete')
         found.push(
           r.action === 'create'

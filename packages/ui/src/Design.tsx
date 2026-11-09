@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { designPlan, saveDesign, type Design, type DesignInfo } from './api.ts';
+import { designPlan, saveDesign, type Design, type DesignInfo, type FieldSpec, type Fields } from './api.ts';
 
 // Проектиране от нулата (етап 11): изборът на стек и стил в празна папка, слоевете на стила и
 // добавянето на ендпойнти. Чертежът е .archgraph/design.yaml; ghost нодовете ги прави engine-ът.
@@ -62,7 +62,7 @@ export function Layers({ style }: { style: StyleInfo }) {
 }
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
-const TYPES = ['string', 'int', 'float', 'bool', 'date', 'datetime'];
+const TYPES = ['string', 'int', 'float', 'bool', 'date', 'datetime', 'object', 'object[]', 'string[]', 'int[]'];
 
 // Секцията в лявото меню: стилът, напредъкът, нов ендпойнт и планът.
 export function DesignNav({ info, onAdded }: { info: DesignInfo; onAdded: (method: string, path: string) => void }) {
@@ -134,10 +134,45 @@ export function DesignNav({ info, onAdded }: { info: DesignInfo; onAdded: (metho
   );
 }
 
-type Row = { name: string; type: string };
-const rows = (f?: Record<string, string>): Row[] => Object.entries(f ?? {}).map(([name, type]) => ({ name, type }));
-const record = (r: Row[]) =>
-  Object.fromEntries(r.filter((x) => x.name.trim()).map((x) => [x.name.trim(), x.type.trim() || 'string']));
+// Изходът в падащото меню: '' — по подразбиране, FIELDS — нов клас с полета, иначе типът (Gallery, Gallery[]).
+const FIELDS = '{полета}';
+function returnsOf(o?: FieldSpec): string {
+  if (o === undefined) return '';
+  if (typeof o === 'string') return o;
+  if (Array.isArray(o)) return typeof o[0] === 'string' ? `${o[0]}[]` : FIELDS + '[]';
+  return FIELDS;
+}
+const fieldsOf = (o?: FieldSpec): Row[] => {
+  const x = Array.isArray(o) ? o[0] : o;
+  return x && typeof x === 'object' && !Array.isArray(x) ? rows(x) : [];
+};
+const returnSpec = (r: string): FieldSpec | undefined => (!r ? undefined : r.endsWith('[]') ? [r.slice(0, -2)] : r);
+
+// Ред в редактора: типът е текст; `object` и `object[]` имат вложени полета, `тип[]` е масив.
+type Row = { name: string; type: string; fields?: Row[] };
+const nests = (type: string) => type === 'object' || type === 'object[]';
+const rows = (f?: Fields): Row[] => Object.entries(f ?? {}).map(([name, t]) => ({ name, ...row(t) }));
+function row(t: FieldSpec): Omit<Row, 'name'> {
+  if (typeof t === 'string') return { type: t };
+  if (Array.isArray(t)) {
+    const of = row(t[0] ?? 'string');
+    return of.fields ? { type: 'object[]', fields: of.fields } : { type: `${of.type}[]` };
+  }
+  return { type: 'object', fields: rows(t) };
+}
+const record = (r: Row[]): Fields =>
+  Object.fromEntries(
+    r
+      .filter((x) => x.name.trim())
+      .map((x) => {
+        const type = x.type.trim() || 'string';
+        const inner = record(x.fields ?? []);
+        if (type === 'object') return [x.name.trim(), inner];
+        if (type === 'object[]') return [x.name.trim(), [inner]];
+        if (type.endsWith('[]')) return [x.name.trim(), [type.slice(0, -2)]];
+        return [x.name.trim(), type];
+      }),
+  );
 
 // Ендпойнтът от чертежа в десния панел: метод, път и полетата на входа и изхода с типовете им.
 // Входът става полета на DTO (или параметри на методите), изходът — полета на entity-то.
@@ -156,16 +191,20 @@ export function EndpointEditor({
   const [method, setMethod] = useState(current?.method ?? 'GET');
   const [path, setPath] = useState(current?.path ?? '');
   const [input, setInput] = useState(rows(current?.input));
-  const [output, setOutput] = useState(rows(current?.output));
+  const [returns, setReturns] = useState(returnsOf(current?.output));
+  const [output, setOutput] = useState(fieldsOf(current?.output));
   const [error, setError] = useState<string>();
   if (!current) return null;
   const save = () => {
+    const out =
+      returns === FIELDS ? record(output) : returns === FIELDS + '[]' ? [record(output)] : returnSpec(returns);
+    const { output: _, ...rest } = current;
     const next = {
-      ...current,
+      ...rest,
       method,
       path: path.startsWith('/') ? path : `/${path}`,
       input: record(input),
-      output: record(output),
+      ...(out === undefined ? {} : { output: out }),
     };
     const endpoints = design.endpoints.map((e, i) => (i === index ? next : e));
     saveDesign({ ...design, endpoints })
@@ -187,18 +226,38 @@ export function EndpointEditor({
         <input value={path} onChange={(e) => setPath(e.target.value)} />
       </div>
       <Fields title="Вход" hint="полетата на заявката" value={input} onChange={setInput} />
-      <Fields
-        title="Изход"
-        hint="полетата на отговора (на entity-то); за списък — на един елемент"
-        value={output}
-        onChange={setOutput}
-      />
+      <div className="fields">
+        <h4 title="какво връщат методите на ендпойнта">Изход</h4>
+        <select value={returns} onChange={(e) => setReturns(e.target.value)}>
+          <option value="">по подразбиране (ресурсът)</option>
+          <option value={FIELDS}>нов клас с полета</option>
+          <option value={FIELDS + '[]'}>масив от нов клас с полета</option>
+          {info.objects.flatMap((o) => [
+            <option key={o} value={o}>
+              {o}
+            </option>,
+            <option key={`${o}[]`} value={`${o}[]`}>
+              {o}[]
+            </option>,
+          ])}
+          {['int', 'bool', 'string', 'void'].map((t) => (
+            <option key={t}>{t}</option>
+          ))}
+        </select>
+      </div>
+      {returns.startsWith(FIELDS) && (
+        <Fields
+          hint="полетата на класа за отговора; при списък — на един елемент"
+          value={output}
+          onChange={setOutput}
+        />
+      )}
       {error && <div className="hint bad">{error}</div>}
       <button className="btn pri" onClick={save}>
         Запази
       </button>
       <datalist id="field-types">
-        {TYPES.map((t) => (
+        {[...TYPES, ...info.objects, ...info.objects.map((o) => `${o}[]`)].map((t) => (
           <option key={t} value={t} />
         ))}
       </datalist>
@@ -212,27 +271,36 @@ function Fields({
   value,
   onChange,
 }: {
-  title: string;
-  hint: string;
+  title?: string;
+  hint?: string;
   value: Row[];
   onChange: (r: Row[]) => void;
 }) {
   const set = (i: number, row: Row) => onChange(value.map((r, j) => (j === i ? row : r)));
   return (
-    <div className="fields">
-      <h4 title={hint}>{title}</h4>
+    <div className={title ? 'fields' : 'fields inner'}>
+      {title && <h4 title={hint}>{title}</h4>}
       {value.map((r, i) => (
-        <div key={i} className="field">
-          <input placeholder="име" value={r.name} onChange={(e) => set(i, { ...r, name: e.target.value })} />
-          <input
-            placeholder="тип"
-            list="field-types"
-            value={r.type}
-            onChange={(e) => set(i, { ...r, type: e.target.value })}
-          />
-          <span className="x" title="махни" onClick={() => onChange(value.filter((_, j) => j !== i))}>
-            ✕
-          </span>
+        <div key={i}>
+          <div className="field">
+            <input placeholder="име" value={r.name} onChange={(e) => set(i, { ...r, name: e.target.value })} />
+            <input
+              placeholder="тип"
+              list="field-types"
+              value={r.type}
+              onChange={(e) =>
+                set(i, {
+                  ...r,
+                  type: e.target.value,
+                  ...(nests(e.target.value) ? { fields: r.fields ?? [{ name: '', type: 'string' }] } : {}),
+                })
+              }
+            />
+            <span className="x" title="махни" onClick={() => onChange(value.filter((_, j) => j !== i))}>
+              ✕
+            </span>
+          </div>
+          {nests(r.type) && <Fields value={r.fields ?? []} onChange={(f) => set(i, { ...r, fields: f })} />}
         </div>
       ))}
       <span className="more" onClick={() => onChange([...value, { name: '', type: 'string' }])}>

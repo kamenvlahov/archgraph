@@ -255,11 +255,16 @@ endpoints:
   - { method: GET, path: /reports/monthly, entity: Invoice, action: report }
   - method: POST
     path: /payments
-    input: { invoice_id: int, amount: float, paid_at: datetime } # полетата на DTO; без DTO — параметри
-    output: { status: string } # полета на entity-то
+    input: { invoice_id: int, amount: float, lines: [{ sku: string, qty: int }] } # полетата на DTO; без DTO — параметри
+    output: { status: string, paid_at: datetime } # какво връщат методите: клас CreatePaymentResult
+  - method: GET
+    path: /invoices
+    output: [Invoice] # избран тип: Invoice, Invoice[], int…
 ```
 
-Типовете на полетата са `string`, `int`, `float`, `bool`, `date`, `datetime`, име на клас от чертежа или `list[тип]`; стекът ги превежда (`types`).
+Типовете на полетата са `string`, `int`, `float`, `bool`, `date`, `datetime`, име на клас от чертежа, `[тип]` за масив (или `list[тип]`, `тип[]`) и `{поле: тип}` за вложен обект. Вложеният обект става клас до собственика си, в неговия слой (`photos: [{url: string}]` → `Photo`); стекът превежда простите типове (`types`).
+
+Изходът е какво връщат методите на ендпойнта (service, use case, handler), не полета на entity-то. Той е или избран тип, или полета, от които става клас за отговора до DTO-тата: `{Action}{Entity}Result`, а при списък и при масив — `{Entity}Item` (полетата на един елемент). Без изход методите връщат ресурса.
 
 Ресурсът и действието идват от пътя: `POST /invoices` е `Invoice` + `create`, `GET /invoices` е `list`, а последната дума от списък с глаголи е действие (`/invoices/{id}/cancel`, `/admin/profile/edit`). Когато пътят подвежда, `entity` и `action` се дават изрично.
 
