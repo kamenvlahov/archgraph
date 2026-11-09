@@ -820,3 +820,44 @@ nav .hint {
 .same .btn {
   flex: none;
 }
+
+/* ендпойнтите като дърво: групата е breadcrumb `admin › profile`, под нея краищата на пътя */
+nav li.crumbs {
+  padding: 0;
+  cursor: default;
+  background: none;
+  box-shadow: none;
+}
+nav li.crumbs > div {
+  padding: 6px 10px 6px 4px;
+  border-radius: 7px;
+  cursor: pointer;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+nav li.crumbs > div:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+nav li.crumbs > div i {
+  font-style: normal;
+  margin: 0 5px;
+  opacity: 0.6;
+}
+nav li.crumbs > div small {
+  display: inline;
+  margin-left: 6px;
+  font-size: 11px;
+}
+nav li.crumbs .chev {
+  display: inline-block;
+  width: 14px;
+  font-size: 10px;
+}
+nav li.crumbs > ul {
+  margin-left: 10px;
+  padding: 0 0 0 6px;
+  border-left: 1px solid var(--border);
+  overflow: visible;
+}

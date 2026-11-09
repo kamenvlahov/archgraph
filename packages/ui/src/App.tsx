@@ -17,6 +17,7 @@ import type { ProcessNode as ProcessNodeView, ProcessView } from '@archgraph/eng
 import { createPattern, createPlan, get, inEditor, onChange, openInEditor, type Shape } from './api.ts';
 import { layout, NODE_WIDTH, type Lane } from './layout.ts';
 import { LayerView } from './LayerView.tsx';
+import { routeTree, type RouteGroup } from './routes.ts';
 import { ProcessNode, short, type FlowNode } from './ProcessNode.tsx';
 
 interface Entry {
@@ -227,21 +228,7 @@ export function App() {
             {project?.entries.length ? 'няма съвпадения' : 'няма намерени ендпойнти; потърси клас или метод'}
           </div>
         )}
-        <ul>
-          {shown.map((e) => (
-            <li
-              key={e.id}
-              className={e.id === entry && !layer ? 'on' : ''}
-              onClick={() => openProcess(e.id)}
-              title={e.label}
-            >
-              <EntryLabel entry={e} />
-              <small>
-                {e.file}:{e.line}
-              </small>
-            </li>
-          ))}
-        </ul>
+        <RouteList entries={shown} current={layer ? undefined : entry} open={filter !== ''} onOpen={openProcess} />
         {found.length > 0 && (
           <>
             <h3>Класове и методи</h3>
@@ -285,13 +272,72 @@ export function App() {
   );
 }
 
-function EntryLabel({ entry }: { entry: Entry }) {
+// Ендпойнтите като дърво по пътя (routes.ts). Малкият списък е разгънат; големият е свит, освен
+// групата на избрания ендпойнт и всичко при търсене. Кликът обръща това, което е по подразбиране.
+function RouteList({
+  entries,
+  current,
+  open,
+  onOpen,
+}: {
+  entries: Entry[];
+  current: string | undefined;
+  open: boolean;
+  onOpen: (id: string) => void;
+}) {
+  const [flipped, setFlipped] = useState(new Set<string>());
+  const tree = useMemo(() => routeTree(entries), [entries]);
+  const few = tree.count <= 30;
+  const has = (g: RouteGroup<Entry>): boolean => g.leaves.some((l) => l.entry.id === current) || g.groups.some(has);
+  const toggle = (key: string) =>
+    setFlipped((f) => {
+      const next = new Set(f);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+
+  const render = (g: RouteGroup<Entry>) => (
+    <ul>
+      {g.leaves.map((l) => (
+        <li
+          key={l.entry.id}
+          className={l.entry.id === current ? 'on' : ''}
+          onClick={() => onOpen(l.entry.id)}
+          title={`${l.entry.label}\n${l.entry.file}:${l.entry.line}`}
+        >
+          <EntryLabel entry={l.entry} name={l.name} />
+        </li>
+      ))}
+      {g.groups.map((sub) => {
+        const shown = (open || few || has(sub)) !== flipped.has(sub.key);
+        return (
+          <li key={sub.key} className="crumbs">
+            <div onClick={() => toggle(sub.key)} title={sub.key}>
+              <span className="chev">{shown ? '▾' : '▸'}</span>
+              {sub.crumbs.map((c, i) => (
+                <span key={i}>
+                  {i > 0 && <i>›</i>}
+                  {c}
+                </span>
+              ))}
+              <small>{sub.count}</small>
+            </div>
+            {shown && render(sub)}
+          </li>
+        );
+      })}
+    </ul>
+  );
+  return render(tree);
+}
+
+function EntryLabel({ entry, name }: { entry: Entry; name: string }) {
   const [method, ...rest] = entry.label.split(' ');
   if (entry.role !== 'route' || !rest.length) return <>{entry.label}</>;
   return (
     <>
       <span className={`method ${method}`}>{method}</span>
-      {rest.join(' ')}
+      {name}
     </>
   );
 }
