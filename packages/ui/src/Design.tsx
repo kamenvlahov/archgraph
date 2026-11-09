@@ -120,6 +120,11 @@ export function DesignNav({ info, onAdded }: { info: DesignInfo; onAdded: (metho
         </button>
       </form>
       {error && <div className="hint bad">{error}</div>}
+      {info.warnings.map((w) => (
+        <div key={w} className="hint bad">
+          {w}
+        </div>
+      ))}
       {design.endpoints.length > 0 && (
         <button className="btn" onClick={copy}>
           {copied ? 'Копирано' : 'Копирай плана за AI'}
@@ -182,7 +187,12 @@ export function EndpointEditor({
         <input value={path} onChange={(e) => setPath(e.target.value)} />
       </div>
       <Fields title="Вход" hint="полетата на заявката" value={input} onChange={setInput} />
-      <Fields title="Изход" hint="полетата на отговора (на entity-то)" value={output} onChange={setOutput} />
+      <Fields
+        title="Изход"
+        hint="полетата на отговора (на entity-то); за списък — на един елемент"
+        value={output}
+        onChange={setOutput}
+      />
       {error && <div className="hint bad">{error}</div>}
       <button className="btn pri" onClick={save}>
         Запази

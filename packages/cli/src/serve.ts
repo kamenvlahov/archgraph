@@ -4,6 +4,7 @@ import { basename, extname, join, normalize, relative, sep } from 'node:path';
 import {
   blueprint,
   DEFAULT_EXCLUDES,
+  designWarnings,
   GraphQuery,
   layers,
   layerView,
@@ -153,10 +154,12 @@ export async function serve(path: string, port: number, options: ScanOptions): P
       const result = pattern(graph, example, body.to, body.from || undefined);
       return send(res, 201, { ...result, plan: patternPlan(result, example.node.name) });
     }
-    if (route === 'GET /api/design')
+    if (route === 'GET /api/design') {
+      const design = loadDesign(graph.root);
       return send(res, 200, {
-        design: loadDesign(graph.root) ?? null,
+        design: design ?? null,
         progress: project.report.design ?? null,
+        warnings: design ? designWarnings(design) : [],
         stacks: DESIGN_STACKS.map((x) => ({ stack: x.stack, label: x.label, language: x.language })),
         styles: DESIGN_STYLES.map((x) => ({
           style: x.style,
@@ -166,6 +169,7 @@ export async function serve(path: string, port: number, options: ScanOptions): P
           allow: STYLE_ALLOW[x.style] ?? {},
         })),
       });
+    }
     if (route === 'PUT /api/design') {
       const body = JSON.parse((await text(req)) || '{}') as Partial<Design>;
       const design: Design = { stack: body.stack ?? '', style: body.style ?? '', endpoints: body.endpoints ?? [] };
@@ -175,9 +179,14 @@ export async function serve(path: string, port: number, options: ScanOptions): P
       if (bad) return send(res, 400, { error: `ендпойнтът трябва да е МЕТОД /път: ${JSON.stringify(bad)}` });
       const fields = (f: unknown) =>
         f === undefined ||
-        (typeof f === 'object' && f !== null && Object.values(f).every((t) => typeof t === 'string'));
+        (typeof f === 'object' &&
+          f !== null &&
+          Object.entries(f).every(([name, t]) => /^[A-Za-z_]\w*$/.test(name) && typeof t === 'string'));
       const typo = design.endpoints.find((e) => !fields(e.input) || !fields(e.output));
-      if (typo) return send(res, 400, { error: `input и output са {име: тип}: ${JSON.stringify(typo)}` });
+      if (typo)
+        return send(res, 400, {
+          error: `полето е име (букви, цифри, _) и тип; за списък опиши полетата на един елемент: ${JSON.stringify(typo)}`,
+        });
       saveDesign(graph.root, design);
       await project.update(['.archgraph/design.yaml']);
       changed(['.archgraph/design.yaml']);

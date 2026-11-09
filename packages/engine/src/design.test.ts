@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { saveDesign, type Design } from '@archgraph/rules';
-import { blueprint, readEndpoint } from './design.ts';
+import { blueprint, designWarnings, readEndpoint } from './design.ts';
 import { skeleton } from './skeleton.ts';
 import { GraphQuery } from './query.ts';
 import { processView } from './process.ts';
@@ -31,6 +31,24 @@ describe('readEndpoint', () => {
   ])('%s → %s %s', (e, entity, action) => {
     expect(readEndpoint(ep(e))).toMatchObject({ entity, action });
   });
+});
+
+test('GET без id до ендпойнт с id е списък; предупрежденията хващат повтор и печатна грешка', () => {
+  const design: Design = {
+    stack: 'php-mezzio',
+    style: 'ddd',
+    endpoints: [
+      ep('GET /gallery/'),
+      ep('GET /gallery/view/{id}'),
+      ep('GET /galery/view/{id}'),
+      ep('GET /admin/profile'),
+    ],
+  };
+  expect(blueprint(design).nodes.map((n) => n.name)).toContain('ListGalleriesHandler');
+  expect(designWarnings(design)).toEqual(['Gallery и Galery са различни ресурси; печатна грешка ли е?']);
+  expect(designWarnings({ ...design, endpoints: [ep('GET /gallery/{id}'), ep('GET /gallery/view/{id}')] })).toEqual([
+    'GET /gallery/{id} и GET /gallery/view/{id} са едно и също действие (get Gallery); дай им различни пътища',
+  ]);
 });
 
 // Минимален код за всеки нод от чертежа: само декларацията, както би я написал агентът по плана.
@@ -159,6 +177,9 @@ test('входът става полета на DTO (или параметри �
   // методът на домейна получава полетата, не command-а от application
   const update = ddd.nodes.find((n) => n.name === 'Invoice')?.members.find((m) => m.name === 'update');
   expect(update?.inputs.map((p) => p.name)).toEqual(['total']);
+  // съобщението носи и id-то от пътя
+  const command = ddd.types['php:App\\Invoice\\Application\\UpdateInvoiceCommand'];
+  expect(command?.fields.map((f) => f.name)).toEqual(['id', 'total']);
   const service = bp.nodes.find((n) => n.name === 'InvoiceService');
   expect(service?.members.find((m) => m.name === 'list')?.inputs.map((p) => p.name)).toEqual(['status']);
 });

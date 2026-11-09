@@ -78,6 +78,48 @@ export function readEndpoint(e: DesignEndpoint): Reading {
   };
 }
 
+// GET без параметри е списък, ако същият ресурс има и ендпойнт с id: GET /gallery и GET /gallery/view/{id}.
+function readAll(design: Design): Reading[] {
+  const all = design.endpoints.map(readEndpoint);
+  return all.map((r, i) => {
+    const e = design.endpoints[i] as DesignEndpoint;
+    const listed =
+      e.method === 'GET' &&
+      !e.action &&
+      r.action === 'get' &&
+      !r.params.length &&
+      all.some((x) => x.entity === r.entity && x.params.length);
+    return listed ? { ...r, action: 'list' } : r;
+  });
+}
+
+// Предупреждения за чертежа: два ендпойнта с едно и също действие и ресурси, които се различават с една буква.
+export function designWarnings(design: Design): string[] {
+  const all = readAll(design);
+  const out: string[] = [];
+  const seen = new Map<string, string>();
+  for (const [i, r] of all.entries()) {
+    const e = design.endpoints[i] as DesignEndpoint;
+    const key = `${r.action} ${r.entity}`;
+    const other = seen.get(key);
+    if (other) out.push(`${other} и ${e.method} ${e.path} са едно и също действие (${key}); дай им различни пътища`);
+    else seen.set(key, `${e.method} ${e.path}`);
+  }
+  const entities = [...new Set(all.map((r) => r.entity))];
+  for (const [i, a] of entities.entries())
+    for (const b of entities.slice(i + 1))
+      if (oneEdit(a.toLowerCase(), b.toLowerCase())) out.push(`${a} и ${b} са различни ресурси; печатна грешка ли е?`);
+  return out;
+}
+
+function oneEdit(a: string, b: string): boolean {
+  if (Math.abs(a.length - b.length) > 1 || a === b) return false;
+  let i = 0;
+  while (i < a.length && a[i] === b[i]) i++;
+  const rest = (x: string, n: number) => x.slice(i + n);
+  return rest(a, 1) === rest(b, 1) || rest(a, 0) === rest(b, 1) || rest(a, 1) === rest(b, 0);
+}
+
 export function blueprint(design: Design): Blueprint {
   const style = DESIGN_STYLES.find((s) => s.style === design.style);
   const stack = DESIGN_STACKS.find((s) => s.stack === design.stack);
@@ -100,8 +142,9 @@ export function blueprint(design: Design): Blueprint {
     if (!n.members.some((x) => x.name === m.name)) n.members.push(m);
   };
 
-  for (const e of design.endpoints) {
-    const r = readEndpoint(e);
+  const readings = readAll(design);
+  for (const [i, e] of design.endpoints.entries()) {
+    const r = readings[i] as Reading;
     const read = e.method === 'GET';
     const holds = (c?: DesignCondition) =>
       !c ||
@@ -215,7 +258,9 @@ export function blueprint(design: Design): Blueprint {
     };
     const fields = (spec: Record<string, string> = {}): Field[] =>
       Object.entries(spec).map(([name, t]) => ({ name: cs(words2(name)), type: fieldType(t) }));
-    if (dto && e.input) addFields(dto, fields(e.input));
+    // съобщението (DDD) е единственият вход на handler-а: носи и параметрите от пътя
+    const carries = Object.values(style.parts).some((p) => p.method === 'handle');
+    if (dto) addFields(dto, [...(carries ? params : []), ...fields(e.input)]);
     if (entityNode && e.output) addFields(entityNode, fields(e.output));
     // без DTO входът са параметри на методите (GET: query параметрите)
     const query: Port[] = dto ? [] : fields(e.input).map((f) => ({ name: f.name, type: f.type }));

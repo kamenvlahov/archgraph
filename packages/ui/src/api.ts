@@ -58,6 +58,7 @@ export interface Design {
 export interface DesignInfo {
   design: Design | null;
   progress: { done: number; total: number } | null;
+  warnings: string[];
   stacks: { stack: string; label: string; language: string }[];
   styles: { style: string; label: string; about: string; layers: string[]; allow: Record<string, string[]> }[];
 }
