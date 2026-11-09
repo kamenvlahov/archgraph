@@ -49,13 +49,15 @@ async function show(context: vscode.ExtensionContext) {
       if (m.type !== 'open' || !m.file) return;
       const line = Math.max(0, (m.line ?? 1) - 1);
       const path = vscode.Uri.file(join(root, m.file));
-      // Ghost нод от чертежа: файлът още го няма. Създава се (празен) само ако го поискаш;
-      // щом в него има класа, нодът става истински. Archgraph сам не пише код (D-005, D-014).
-      if (!existsSync(path.fsPath)) {
-        const create = 'Създай файла';
+      // Ghost нод от чертежа: файлът още го няма (или е празен). Скелетът от чертежа (класът,
+      // зависимостите, методите) се записва само ако го поискаш (D-014); телата пишеш ти или агентът.
+      if (!existsSync(path.fsPath) || !readFileSync(path.fsPath, 'utf8').trim()) {
+        const res = await fetch(`${api}/api/design/skeleton?file=${encodeURIComponent(m.file)}`).catch(() => undefined);
+        const code = res?.ok ? await res.text() : '';
+        const create = code ? 'Създай със скелета' : 'Създай празен файл';
         const answer = await vscode.window.showInformationMessage(`archgraph: ${m.file} още го няма.`, create);
         if (answer !== create) return;
-        await vscode.workspace.fs.writeFile(path, new Uint8Array());
+        await vscode.workspace.fs.writeFile(path, new TextEncoder().encode(code));
       }
       const doc = await vscode.workspace.openTextDocument(path);
       await vscode.window.showTextDocument(doc, {

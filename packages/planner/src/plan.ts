@@ -331,6 +331,9 @@ export function designPlan(graph: GraphModel, bp: Blueprint, done: { done: numbe
     todo.forEach((n, i) => {
       const kind = n.kind === 'class' ? '' : `${n.kind} `;
       lines.push(`${i + 1}. ${kind}**${n.name}** (${n.role}, слой ${n.layer}) в \`${n.location.file}\``);
+      const fields = bp.types[n.id]?.fields ?? [];
+      if (fields.length)
+        lines.push(`   - полета: ${fields.map((f) => `\`${f.name}: ${typeText(f.type, byId)}\``).join(', ')}`);
       for (const m of n.members) lines.push(`   - \`${signature(m, byId)}\``);
       const base = bp.edges.find((e) => e.kind === 'implements' && e.from.node === n.id);
       if (base) lines.push(`   - имплементира ${byId.get(base.to.node)?.name ?? base.to.node}`);

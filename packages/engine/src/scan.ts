@@ -193,6 +193,7 @@ export class Project {
       const ghosts = merge(root, graph.nodes, plan);
       graph.nodes = graph.nodes.concat(ghosts.nodes);
       graph.edges = graph.edges.concat(ghosts.edges);
+      Object.assign(graph.types, ghosts.types);
       report.design = { stack: design.stack, style: design.style, done: ghosts.done, total: ghosts.total };
     }
     const found = violations(graph.nodes, graph.edges, architecture);

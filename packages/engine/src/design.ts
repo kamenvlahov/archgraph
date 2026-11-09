@@ -1,6 +1,15 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { edge, type Edge, type Member, type Node, type Port, type TypeRef } from '@archgraph/model';
+import {
+  edge,
+  type Edge,
+  type Field,
+  type Member,
+  type Node,
+  type Port,
+  type TypeRef,
+  type TypeShape,
+} from '@archgraph/model';
 import {
   DESIGN_STACKS,
   DESIGN_STYLES,
@@ -24,6 +33,7 @@ export interface Blueprint {
   architecture: Architecture;
   style: Style;
   stack: Stack;
+  types: Record<string, TypeShape>; // полетата на DTO (входът) и на entity (изходът)
 }
 
 // Ендпойнтът, разчетен: ресурсът и действието от пътя, ако не са дадени изрично.
@@ -72,6 +82,13 @@ export function blueprint(design: Design): Blueprint {
   const nodes = new Map<string, Node>();
   const edges = new Map<string, Edge>();
   const registrations: Blueprint['registrations'] = [];
+  const types: Record<string, TypeShape> = {};
+  // полетата се събират по нод: entity получава изхода на всички ендпойнти на ресурса
+  const addFields = (n: Node, fields: Field[]) => {
+    const shape = types[n.id] ?? { id: n.id, name: n.name, nodeId: n.id, fields: [] };
+    for (const f of fields) if (!shape.fields.some((x) => x.name === f.name)) shape.fields.push(f);
+    types[n.id] = shape;
+  };
   const globs = new Map<string, Set<string>>(); // слой → файловете му за architecture
 
   const addEdge = (e: Edge) => edges.set(e.id, e);
@@ -184,7 +201,21 @@ export function blueprint(design: Design): Blueprint {
       name: cs(words2(p)),
       type: { kind: 'primitive', name: stack.types.id },
     }));
-    const inputs: Port[] = [...params, ...(dto ? [{ name: cs(['input']), type: named(dto) }] : [])];
+    // общият тип (int, date) на езика на стека; друго име е клас от чертежа или остава както е написано
+    const fieldType = (t: string): TypeRef => {
+      const entity = [...nodes.values()].find((n) => n.name === t && n.kind !== 'route');
+      if (entity) return named(entity);
+      const list = /^list\[(.+)\]$|^(.+)\[\]$/.exec(t);
+      if (list) return { kind: 'array', of: fieldType((list[1] ?? list[2]) as string) };
+      return { kind: 'primitive', name: stack.types[t] ?? t };
+    };
+    const fields = (spec: Record<string, string> = {}): Field[] =>
+      Object.entries(spec).map(([name, t]) => ({ name: cs(words2(name)), type: fieldType(t) }));
+    if (dto && e.input) addFields(dto, fields(e.input));
+    if (entityNode && e.output) addFields(entityNode, fields(e.output));
+    // без DTO входът са параметри на методите (GET: query параметрите)
+    const query: Port[] = dto ? [] : fields(e.input).map((f) => ({ name: f.name, type: f.type }));
+    const inputs: Port[] = [...params, ...query, ...(dto ? [{ name: cs(['input']), type: named(dto) }] : [])];
     const output: Port = {
       name: 'return',
       type:
@@ -198,7 +229,7 @@ export function blueprint(design: Design): Blueprint {
       name,
       visibility: 'public',
       ...(isStatic ? { static: true } : {}),
-      inputs: ins,
+      inputs: [...ins], // копие: зависимостите на функцията се добавят към нейните параметри
       ...(out ? { output: out } : {}),
       location: n.location,
     });
@@ -328,7 +359,7 @@ export function blueprint(design: Design): Blueprint {
       .map((l) => ({ name: l, match: { path_glob: [...(globs.get(l) as Set<string>)] } })),
     allow: {},
   };
-  return { nodes: [...nodes.values()], edges: [...edges.values()], registrations, architecture, style, stack };
+  return { nodes: [...nodes.values()], edges: [...edges.values()], registrations, architecture, style, stack, types };
 }
 
 // Ghost нодовете, които още ги няма в кода, и ребрата, които водят до тях. Route се сравнява по метод
@@ -337,7 +368,7 @@ export function merge(
   root: string,
   real: Node[],
   bp: Blueprint,
-): { nodes: Node[]; edges: Edge[]; done: number; total: number } {
+): { nodes: Node[]; edges: Edge[]; types: Record<string, TypeShape>; done: number; total: number } {
   const ids = new Set(real.map((n) => n.id));
   const routes = new Map(real.filter((n) => n.kind === 'route').map((n) => [routeKey(n.name), n.id]));
   const actual = new Map<string, string>(); // id в чертежа → id в кода
@@ -363,7 +394,14 @@ export function merge(
   });
   // Истинските шаблони ги няма в графа (адаптери за шаблони — етап 10): нодът е от чертежа, без ghost.
   const templates = bp.nodes.filter((n) => n.kind === 'template' && actual.has(n.id)).map((n) => ({ ...n, tags: [] }));
-  return { nodes: [...ghosts, ...templates], edges, done: bp.nodes.length - ghosts.length, total: bp.nodes.length };
+  const types = Object.fromEntries(Object.entries(bp.types).filter(([id]) => ghostIds.has(id)));
+  return {
+    nodes: [...ghosts, ...templates],
+    edges,
+    types,
+    done: bp.nodes.length - ghosts.length,
+    total: bp.nodes.length,
+  };
 }
 
 function routeKey(name: string): string {

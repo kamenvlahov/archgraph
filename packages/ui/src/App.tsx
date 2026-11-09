@@ -24,7 +24,7 @@ import {
   type DesignInfo,
   type Shape,
 } from './api.ts';
-import { DesignNav, DesignStart, Layers, removeEndpoint, routeKey } from './Design.tsx';
+import { DesignNav, DesignStart, EndpointEditor, Layers, removeEndpoint, routeKey } from './Design.tsx';
 import { layout, NODE_WIDTH, type Lane } from './layout.ts';
 import { LayerView } from './LayerView.tsx';
 import { routeTree, type RouteGroup } from './routes.ts';
@@ -214,6 +214,7 @@ export function App() {
     );
   const style = design?.styles.find((s) => s.style === design.design?.style);
   const blank = !!design?.design && !project?.entries.length;
+  const label = project?.entries.find((e) => e.id === entry && e.role === 'route')?.label;
   return (
     <>
       <header>
@@ -326,7 +327,21 @@ export function App() {
               </div>
             </div>
           ) : (
-            <Process view={view} error={error} lanes={lanes ? project?.layers : undefined} />
+            <Process
+              view={view}
+              error={error}
+              lanes={lanes ? project?.layers : undefined}
+              top={
+                design?.design && label ? (
+                  <EndpointEditor
+                    key={label}
+                    info={design}
+                    label={label}
+                    onSaved={(m, p) => setPending(routeKey(`${m} ${p}`))}
+                  />
+                ) : undefined
+              }
+            />
           )}
         </PatternStart.Provider>
       </ReactFlowProvider>
@@ -423,11 +438,13 @@ function Process({
   error,
   lanes,
   aside,
+  top,
 }: {
   view: ProcessView | undefined;
   error: string | undefined;
   lanes: string[] | undefined;
   aside?: ReactNode; // друг панел вдясно (шаблон „като този“)
+  top?: ReactNode; // над нода в десния панел (ендпойнтът от чертежа)
 }) {
   const [bands, setBands] = useState<Lane[]>([]);
   const [nodes, setNodes] = useState<FlowNode[]>([]);
@@ -587,7 +604,7 @@ function Process({
           </ReactFlow>
         )}
       </div>
-      {aside ?? <Aside view={view} current={current} />}
+      {aside ?? <Aside view={view} current={current} top={top} />}
     </>
   );
 }
@@ -595,14 +612,17 @@ function Process({
 function Aside({
   view,
   current,
+  top,
 }: {
   view: ProcessView | undefined;
   current: ProcessView['nodes'][number] | undefined;
+  top: ReactNode;
 }) {
   const nodes = view?.nodes ?? [];
   return (
     <aside>
       <div className="scroll">
+        {top}
         <h3>Нод</h3>
         <div className="insp">
           {current ? (

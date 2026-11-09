@@ -18,7 +18,11 @@ export interface DesignEndpoint {
   path: string; // `/invoices/{id}`
   entity?: string; // иначе от пътя
   action?: string; // иначе от метода и пътя
+  input?: Record<string, string>; // полетата на заявката: име → тип (string, int, float, bool, date, datetime, клас)
+  output?: Record<string, string>; // полетата на отговора; стават полета на entity-то
 }
+
+export const FIELD_TYPES = ['string', 'int', 'float', 'bool', 'date', 'datetime'];
 
 export interface StylePart {
   layer: string;
@@ -61,12 +65,14 @@ export interface Stack {
     method?: string;
     id?: string;
     file?: string;
+    implements?: string;
     inputs?: { name: string; type: string }[];
     output?: string;
   };
   route: { file?: string; param: string; line?: string };
   template: string;
-  types: { id: string; void: string };
+  types: { id: string; void: string } & Record<string, string>;
+  imports?: Record<string, string>;
 }
 
 const DIR = join(import.meta.dirname, '../design');
@@ -108,8 +114,14 @@ function endpointOf(e: string | DesignEndpoint): DesignEndpoint {
 
 export function saveDesign(root: string, design: Design) {
   mkdirSync(join(root, '.archgraph'), { recursive: true });
-  const endpoints = design.endpoints.map((e) =>
-    e.entity || e.action ? { ...e } : `${e.method.toUpperCase()} ${e.path}`,
-  );
+  // кратко `POST /invoices`, а с полета или изрични ресурс и действие — като обект
+  const endpoints = design.endpoints.map((e) => {
+    const full = Object.fromEntries(
+      Object.entries(e).filter(([, v]) => v !== undefined && !(typeof v === 'object' && !Object.keys(v).length)),
+    );
+    return Object.keys(full).length > 2
+      ? { ...full, method: e.method.toUpperCase() }
+      : `${e.method.toUpperCase()} ${e.path}`;
+  });
   writeFileSync(join(root, FILE), stringify({ stack: design.stack, style: design.style, endpoints }));
 }

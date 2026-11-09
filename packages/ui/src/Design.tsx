@@ -61,23 +61,26 @@ export function Layers({ style }: { style: StyleInfo }) {
   );
 }
 
+const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+const TYPES = ['string', 'int', 'float', 'bool', 'date', 'datetime'];
+
 // Секцията в лявото меню: стилът, напредъкът, нов ендпойнт и планът.
 export function DesignNav({ info, onAdded }: { info: DesignInfo; onAdded: (method: string, path: string) => void }) {
-  const [text, setText] = useState('');
+  const [method, setMethod] = useState('GET');
+  const [path, setPath] = useState('');
   const [error, setError] = useState<string>();
   const [copied, setCopied] = useState(false);
   const design = info.design as Design;
   const style = info.styles.find((s) => s.style === design.style);
   const stack = info.stacks.find((s) => s.stack === design.stack);
   const add = () => {
-    const [method = '', path = ''] = text.trim().split(/\s+/);
-    const endpoint = { method: method.toUpperCase(), path: path.startsWith('/') ? path : `/${path}` };
-    if (!/^(GET|POST|PUT|PATCH|DELETE)$/.test(endpoint.method) || path === '')
-      return setError('напиши метод и път: POST /invoices');
+    const clean = path.trim();
+    if (!clean) return setError('напиши пътя: /invoices');
+    const endpoint = { method, path: clean.startsWith('/') ? clean : `/${clean}` };
     setError(undefined);
     saveDesign({ ...design, endpoints: [...design.endpoints, endpoint] })
       .then(() => {
-        setText('');
+        setPath('');
         onAdded(endpoint.method, endpoint.path);
       })
       .catch((e: Error) => setError(e.message));
@@ -100,12 +103,21 @@ export function DesignNav({ info, onAdded }: { info: DesignInfo; onAdded: (metho
         )}
       </div>
       <form
+        className="add"
         onSubmit={(e) => {
           e.preventDefault();
           add();
         }}
       >
-        <input placeholder="нов ендпойнт: POST /invoices" value={text} onChange={(e) => setText(e.target.value)} />
+        <select value={method} onChange={(e) => setMethod(e.target.value)}>
+          {METHODS.map((m) => (
+            <option key={m}>{m}</option>
+          ))}
+        </select>
+        <input placeholder="/invoices/{id}" value={path} onChange={(e) => setPath(e.target.value)} />
+        <button className="btn" type="submit" title="добави ендпойнта">
+          +
+        </button>
       </form>
       {error && <div className="hint bad">{error}</div>}
       {design.endpoints.length > 0 && (
@@ -113,6 +125,109 @@ export function DesignNav({ info, onAdded }: { info: DesignInfo; onAdded: (metho
           {copied ? 'Копирано' : 'Копирай плана за AI'}
         </button>
       )}
+    </div>
+  );
+}
+
+type Row = { name: string; type: string };
+const rows = (f?: Record<string, string>): Row[] => Object.entries(f ?? {}).map(([name, type]) => ({ name, type }));
+const record = (r: Row[]) =>
+  Object.fromEntries(r.filter((x) => x.name.trim()).map((x) => [x.name.trim(), x.type.trim() || 'string']));
+
+// Ендпойнтът от чертежа в десния панел: метод, път и полетата на входа и изхода с типовете им.
+// Входът става полета на DTO (или параметри на методите), изходът — полета на entity-то.
+export function EndpointEditor({
+  info,
+  label,
+  onSaved,
+}: {
+  info: DesignInfo;
+  label: string;
+  onSaved: (method: string, path: string) => void;
+}) {
+  const design = info.design as Design;
+  const index = design.endpoints.findIndex((e) => routeKey(`${e.method} ${e.path}`) === routeKey(label));
+  const current = design.endpoints[index];
+  const [method, setMethod] = useState(current?.method ?? 'GET');
+  const [path, setPath] = useState(current?.path ?? '');
+  const [input, setInput] = useState(rows(current?.input));
+  const [output, setOutput] = useState(rows(current?.output));
+  const [error, setError] = useState<string>();
+  if (!current) return null;
+  const save = () => {
+    const next = {
+      ...current,
+      method,
+      path: path.startsWith('/') ? path : `/${path}`,
+      input: record(input),
+      output: record(output),
+    };
+    const endpoints = design.endpoints.map((e, i) => (i === index ? next : e));
+    saveDesign({ ...design, endpoints })
+      .then(() => {
+        setError(undefined);
+        onSaved(next.method, next.path);
+      })
+      .catch((e: Error) => setError(e.message));
+  };
+  return (
+    <div className="endpoint">
+      <h3>Ендпойнт от чертежа</h3>
+      <div className="add">
+        <select value={method} onChange={(e) => setMethod(e.target.value)}>
+          {METHODS.map((m) => (
+            <option key={m}>{m}</option>
+          ))}
+        </select>
+        <input value={path} onChange={(e) => setPath(e.target.value)} />
+      </div>
+      <Fields title="Вход" hint="полетата на заявката" value={input} onChange={setInput} />
+      <Fields title="Изход" hint="полетата на отговора (на entity-то)" value={output} onChange={setOutput} />
+      {error && <div className="hint bad">{error}</div>}
+      <button className="btn pri" onClick={save}>
+        Запази
+      </button>
+      <datalist id="field-types">
+        {TYPES.map((t) => (
+          <option key={t} value={t} />
+        ))}
+      </datalist>
+    </div>
+  );
+}
+
+function Fields({
+  title,
+  hint,
+  value,
+  onChange,
+}: {
+  title: string;
+  hint: string;
+  value: Row[];
+  onChange: (r: Row[]) => void;
+}) {
+  const set = (i: number, row: Row) => onChange(value.map((r, j) => (j === i ? row : r)));
+  return (
+    <div className="fields">
+      <h4 title={hint}>{title}</h4>
+      {value.map((r, i) => (
+        <div key={i} className="field">
+          <input placeholder="име" value={r.name} onChange={(e) => set(i, { ...r, name: e.target.value })} />
+          <input
+            placeholder="тип"
+            list="field-types"
+            value={r.type}
+            onChange={(e) => set(i, { ...r, type: e.target.value })}
+          />
+          <span className="x" title="махни" onClick={() => onChange(value.filter((_, j) => j !== i))}>
+            ✕
+          </span>
+        </div>
+      ))}
+      <span className="more" onClick={() => onChange([...value, { name: '', type: 'string' }])}>
+        + поле
+      </span>
     </div>
   );
 }

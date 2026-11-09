@@ -9,6 +9,7 @@ import {
   layerView,
   pattern,
   processView,
+  skeleton,
   Project,
   roleOf,
   type ScanOptions,
@@ -41,6 +42,7 @@ import {
 //   GET  /api/design                   чертежът (етап 11), стековете и стиловете за избор
 //   PUT  /api/design {stack, style, endpoints}  записва .archgraph/design.yaml
 //   GET  /api/design/plan              Markdown план: какво още да се напише по чертежа
+//   GET  /api/design/skeleton?file=    скелетът на файл от чертежа (при „Създай файла“)
 //   GET  /api/events                   Server-Sent Events: `changed`, когато файл се промени
 
 const DIST = join(import.meta.dirname, '../../ui/dist');
@@ -171,6 +173,11 @@ export async function serve(path: string, port: number, options: ScanOptions): P
         return send(res, 400, { error: 'трябват познати stack и style' });
       const bad = design.endpoints.find((e) => !/^[A-Z]+$/.test(e.method ?? '') || !e.path?.startsWith('/'));
       if (bad) return send(res, 400, { error: `ендпойнтът трябва да е МЕТОД /път: ${JSON.stringify(bad)}` });
+      const fields = (f: unknown) =>
+        f === undefined ||
+        (typeof f === 'object' && f !== null && Object.values(f).every((t) => typeof t === 'string'));
+      const typo = design.endpoints.find((e) => !fields(e.input) || !fields(e.output));
+      if (typo) return send(res, 400, { error: `input и output са {име: тип}: ${JSON.stringify(typo)}` });
       saveDesign(graph.root, design);
       await project.update(['.archgraph/design.yaml']);
       changed(['.archgraph/design.yaml']);
@@ -181,6 +188,13 @@ export async function serve(path: string, port: number, options: ScanOptions): P
       if (!design || !project.report.design) return send(res, 404, { error: 'проектът няма чертеж' });
       res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' });
       return res.end(designPlan(graph, blueprint(design), project.report.design));
+    }
+    if (route === 'GET /api/design/skeleton') {
+      const design = loadDesign(graph.root);
+      const code = design && skeleton(blueprint(design), url.searchParams.get('file') ?? '');
+      if (!code) return send(res, 404, { error: 'файлът не е от чертежа' });
+      res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
+      return res.end(code);
     }
     if (route === 'GET /api/events') {
       res.writeHead(200, {

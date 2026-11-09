@@ -953,3 +953,74 @@ nav li:hover .x {
 nav li .x:hover {
   color: var(--bad);
 }
+nav .design form.add,
+aside .endpoint .add {
+  display: flex;
+  gap: 6px;
+  margin: 0 12px 8px;
+}
+nav .design form.add input {
+  margin: 0;
+  min-width: 0;
+  flex: 1;
+}
+nav .design form.add select {
+  flex: none;
+}
+.add select,
+.endpoint input,
+.endpoint select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  font: inherit;
+  padding: 5px 6px;
+  min-width: 0;
+}
+nav .design form.add .btn {
+  margin: 0;
+  padding: 0 10px;
+  flex: none;
+}
+aside .endpoint {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+}
+aside .endpoint .add input {
+  flex: 1;
+}
+aside .endpoint .btn {
+  margin: 6px 12px 0;
+}
+.fields {
+  padding: 0 12px;
+}
+.fields h4 {
+  margin: 8px 0 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.fields .field {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.fields .field input {
+  flex: 1;
+}
+.fields .x {
+  color: var(--muted);
+  cursor: pointer;
+}
+.fields .x:hover {
+  color: var(--bad);
+}
+.fields .more {
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+}

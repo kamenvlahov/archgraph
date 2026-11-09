@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { saveDesign, type Design } from '@archgraph/rules';
 import { blueprint, readEndpoint } from './design.ts';
+import { skeleton } from './skeleton.ts';
 import { GraphQuery } from './query.ts';
 import { processView } from './process.ts';
 import { Project } from './scan.ts';
@@ -71,6 +72,41 @@ describe('чертеж', () => {
     expect(written.report.design?.total).toBe(total);
   });
 
+  test.each([
+    ['php-mezzio', 'layered'],
+    ['php-mezzio', 'hexagonal'],
+    ['ts-nestjs', 'ddd'],
+    ['ts-nestjs', 'onion'],
+    ['python-fastapi', 'clean'],
+    ['python-fastapi', 'ddd'],
+  ])('%s + %s: скелетът дава класовете и методите от чертежа', async (stack, style) => {
+    root = mkdtempSync(join(tmpdir(), 'archgraph-design-'));
+    const design: Design = {
+      stack,
+      style,
+      endpoints: [ep('POST /invoices'), ep('GET /invoices'), ep('POST /invoices/{id}/cancel')],
+    };
+    saveDesign(root, design);
+    const bp = blueprint(design);
+    for (const file of new Set(bp.nodes.map((n) => n.location.file))) {
+      const code = skeleton(bp, file);
+      if (!code || bp.nodes.some((n) => n.location.file === file && n.kind === 'template')) continue;
+      mkdirSync(dirname(join(root, file)), { recursive: true });
+      appendFileSync(join(root, file), code);
+    }
+    const p = await Project.open(root, { scip: false });
+    const ghosts = p.graph.nodes.filter((n) => n.tags?.includes('ghost') && n.kind !== 'route');
+    expect(ghosts.map((n) => n.id)).toEqual([]);
+    // всеки метод от чертежа го има в написания клас
+    const real = new Map(p.graph.nodes.map((n) => [n.id, n]));
+    const missing = bp.nodes.flatMap((n) =>
+      n.members
+        .filter((m) => !real.get(n.id)?.members.some((x) => x.name === m.name))
+        .map((m) => `${n.name}#${m.name}`),
+    );
+    expect(missing).toEqual([]);
+  });
+
   test('веригата минава през слоевете на стила и слоят на истинския код идва от чертежа', async () => {
     root = mkdtempSync(join(tmpdir(), 'archgraph-design-'));
     const design: Design = { stack: 'php-mezzio', style: 'layered', endpoints: [ep('POST /invoices/{id}/cancel')] };
@@ -95,4 +131,21 @@ describe('чертеж', () => {
     expect(real.graph.nodes.find((n) => n.name === 'InvoiceService')?.tags ?? []).not.toContain('ghost');
     expect(real.graph.nodes.find((n) => n.name === 'Invoice')?.role).toBe('entity');
   });
+});
+
+test('входът става полета на DTO (или параметри без DTO), изходът — полета на entity', () => {
+  const bp = blueprint({
+    stack: 'python-fastapi',
+    style: 'layered',
+    endpoints: [
+      { method: 'POST', path: '/invoices', input: { customerId: 'int', due: 'date' }, output: { total: 'float' } },
+      { method: 'GET', path: '/invoices', input: { status: 'string' }, output: { lines: 'list[string]' } },
+    ],
+  });
+  const text = (id: string) =>
+    bp.types[id]?.fields.map((f) => `${f.name}:${f.type.kind === 'primitive' ? f.type.name : f.type.kind}`);
+  expect(text('python:app.invoices.schemas.CreateInvoiceDto')).toEqual(['customer_id:int', 'due:date']);
+  expect(text('python:app.invoices.models.Invoice')).toEqual(['total:float', 'lines:array']);
+  const service = bp.nodes.find((n) => n.name === 'InvoiceService');
+  expect(service?.members.find((m) => m.name === 'list')?.inputs.map((p) => p.name)).toEqual(['status']);
 });

@@ -15,6 +15,7 @@ export {
 export {
   DESIGN_STACKS,
   DESIGN_STYLES,
+  FIELD_TYPES,
   loadDesign,
   saveDesign,
   type Condition as DesignCondition,

@@ -5,7 +5,8 @@
 stack: php-mezzio
 label: PHP · Mezzio
 language: php
-bootstrap: composer create-project mezzio/mezzio-skeleton .
+# create-project иска празна папка, а в нея вече е .archgraph/
+bootstrap: composer create-project mezzio/mezzio-skeleton .skeleton && cp -rn .skeleton/. . && rm -rf .skeleton
 wiring: Всеки клас със зависимости се регистрира в ConfigProvider (`factories`), а route-ът — в config/routes.php.
 case: camel
 module: '{Entity}'
@@ -26,9 +27,24 @@ entry:
   kind: class
   name: '{Action}{Target}Handler'
   method: handle
+  implements: RequestHandlerInterface
   inputs: [{ name: request, type: ServerRequestInterface }]
   output: ResponseInterface
 route:
   { file: config/routes.php, param: '{*}', line: "$app->{method}('{path}', \\App\\{Module}\\Handler\\{Entry}::class);" }
 template: 'templates/{entity-kebab}/{action-kebab}.phtml'
-types: { id: int, void: void }
+# общите типове от входа и изхода на ендпойнтите в типовете на езика
+types:
+  id: int
+  void: void
+  string: string
+  int: int
+  float: float
+  bool: bool
+  date: \DateTimeImmutable
+  datetime: \DateTimeImmutable
+# пълните имена на външните типове от входа: за `use` в скелета
+imports:
+  RequestHandlerInterface: Psr\Http\Server\RequestHandlerInterface
+  ServerRequestInterface: Psr\Http\Message\ServerRequestInterface
+  ResponseInterface: Psr\Http\Message\ResponseInterface

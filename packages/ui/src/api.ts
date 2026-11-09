@@ -47,6 +47,8 @@ export interface DesignEndpoint {
   path: string;
   entity?: string;
   action?: string;
+  input?: Record<string, string>;
+  output?: Record<string, string>;
 }
 export interface Design {
   stack: string;

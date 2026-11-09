@@ -14,4 +14,13 @@ entry:
   method: '{action}'
 route: { param: ':*' }
 template: 'views/{entities-kebab}/{action-kebab}.hbs'
-types: { id: number, void: void }
+# общите типове от входа и изхода на ендпойнтите в типовете на езика
+types:
+  id: number
+  void: void
+  string: string
+  int: number
+  float: number
+  bool: boolean
+  date: Date
+  datetime: Date

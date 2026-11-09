@@ -253,7 +253,13 @@ endpoints:
   - POST /invoices
   - POST /invoices/{id}/cancel
   - { method: GET, path: /reports/monthly, entity: Invoice, action: report }
+  - method: POST
+    path: /payments
+    input: { invoice_id: int, amount: float, paid_at: datetime } # полетата на DTO; без DTO — параметри
+    output: { status: string } # полета на entity-то
 ```
+
+Типовете на полетата са `string`, `int`, `float`, `bool`, `date`, `datetime`, име на клас от чертежа или `list[тип]`; стекът ги превежда (`types`).
 
 Ресурсът и действието идват от пътя: `POST /invoices` е `Invoice` + `create`, `GET /invoices` е `list`, а последната дума от списък с глаголи е действие (`/invoices/{id}/cancel`, `/admin/profile/edit`). Когато пътят подвежда, `entity` и `action` се дават изрично.
 

@@ -24,4 +24,13 @@ entry:
   file: 'app/{Module}/router.py'
 route: { param: '{*}' }
 template: 'app/templates/{entities_snake}/{action_snake}.html'
-types: { id: int, void: None }
+# общите типове от входа и изхода на ендпойнтите в типовете на езика
+types:
+  id: int
+  void: None
+  string: str
+  int: int
+  float: float
+  bool: bool
+  date: date
+  datetime: datetime
