@@ -21,6 +21,20 @@
     "configuration": {
       "title": "archgraph",
       "properties": {
+        "archgraph.runner": {
+          "type": "string",
+          "enum": [
+            "node",
+            "docker"
+          ],
+          "default": "node",
+          "description": "Как се пуска engine-ът: с Node от машината или в контейнер (образ archgraph.image)."
+        },
+        "archgraph.image": {
+          "type": "string",
+          "default": "archgraph",
+          "description": "Docker образът за archgraph.runner: docker."
+        },
         "archgraph.node": {
           "type": "string",
           "default": "node",
@@ -35,7 +49,7 @@
     }
   },
   "scripts": {
-    "build": "vite build"
+    "build": "vite build && cp -r ../../packages/ui/dist dist/ui"
   },
   "devDependencies": {
     "@types/vscode": "1.140.0",

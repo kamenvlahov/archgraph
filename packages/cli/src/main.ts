@@ -17,9 +17,10 @@ archgraph plan [път] --task "задача" --node Клас#метод [--node
   --task, -t        задачата с думи
   --node, -n        засегнат клас, метод или функция (повтаря се): OrderService#place, PlaceOrderDto
 
-archgraph serve [път] [--port 8790] [--scip]
+archgraph serve [път] [--port 8790] [--host 127.0.0.1] [--scip]
 
-  интерфейсът в браузъра: процесът от избран ендпойнт (първо \`pnpm ui\`)`;
+  интерфейсът в браузъра: процесът от избран ендпойнт (първо \`pnpm ui\`)
+  --host            0.0.0.0 само в контейнер, иначе се вижда от мрежата`;
 
 export async function main(argv: string[]): Promise<number> {
   const { positionals, values } = parseArgs({
@@ -33,6 +34,7 @@ export async function main(argv: string[]): Promise<number> {
       task: { type: 'string', short: 't' },
       node: { type: 'string', short: 'n', multiple: true },
       port: { type: 'string' },
+      host: { type: 'string' },
       scip: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
@@ -44,7 +46,7 @@ export async function main(argv: string[]): Promise<number> {
   }
   if (command === 'serve') {
     const port = Number(values.port ?? 8790);
-    const server = await serve(path, port, { exclude: values.exclude ?? [], scip: values.scip ?? false });
+    const server = await serve(path, port, { exclude: values.exclude ?? [], scip: values.scip ?? false }, values.host);
     const address = server.address();
     // Редът с адреса е договор с VS Code разширението: то пуска `serve --port 0` и чете порта оттук.
     console.error(

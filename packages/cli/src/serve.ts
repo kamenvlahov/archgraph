@@ -69,7 +69,7 @@ export interface Entry {
   ghost?: boolean; // от чертежа, още го няма в кода
 }
 
-export async function serve(path: string, port: number, options: ScanOptions): Promise<Server> {
+export async function serve(path: string, port: number, options: ScanOptions, host = '127.0.0.1'): Promise<Server> {
   const project = await Project.open(path, options);
   let query = new GraphQuery(project.graph);
   const listeners = new Set<ServerResponse>();
@@ -242,7 +242,7 @@ export async function serve(path: string, port: number, options: ScanOptions): P
     res.end(readFileSync(file));
   }
 
-  await new Promise<void>((resolve) => server.listen(port, '127.0.0.1', resolve));
+  await new Promise<void>((resolve) => server.listen(port, host, resolve));
   return server;
 }
 

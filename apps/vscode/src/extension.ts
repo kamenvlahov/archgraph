@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
 
@@ -7,9 +8,9 @@ import * as vscode from 'vscode';
 // същия интерфейс (packages/ui) в панел. Панелът и редакторът си говорят през съобщения:
 // двоен клик върху нод отваря файла, курсорът в редактора маркира нода.
 
-const REPO = join(__dirname, '../../..'); // apps/vscode/dist → корена на archgraph
-const CLI = join(REPO, 'packages/cli/src/main.ts');
-const UI = join(REPO, 'packages/ui/dist');
+// UI-ът е копиран до разширението (dist/ui), за да работи и инсталирано без репото, с docker.
+const UI = join(__dirname, 'ui');
+const CLI = join(__dirname, '../../../packages/cli/src/main.ts'); // само за archgraph.runner: node
 
 let panel: vscode.WebviewPanel | undefined;
 let server: ChildProcess | undefined;
@@ -74,11 +75,37 @@ async function show(context: vscode.ExtensionContext) {
   });
 }
 
-// `archgraph serve --port 0`: портът е в реда `archgraph: http://127.0.0.1:<порт>` на stderr.
-function start(root: string): Promise<string> {
+// `archgraph serve`: портът е в реда `archgraph: http://127.0.0.1:<порт>` на stderr.
+async function start(root: string): Promise<string> {
   const config = vscode.workspace.getConfiguration('archgraph');
-  const args = [CLI, 'serve', root, '--port', '0', ...(config.get('scip') ? ['--scip'] : [])];
-  server = spawn(config.get('node', 'node'), args, { stdio: ['ignore', 'ignore', 'pipe'] });
+  const scip = config.get('scip') ? ['--scip'] : [];
+  // С docker archgraph не зависи от Node-а на машината. Проектът се монтира на същия път, за да съвпадат
+  // пътищата с тези на редактора, а файловете, които archgraph записва (design.yaml), са на потребителя.
+  const [command, args] =
+    config.get('runner') === 'docker'
+      ? await free().then((port): [string, string[]] => [
+          'docker',
+          [
+            'run',
+            '--rm',
+            '--init',
+            ...(process.getuid && process.getgid ? ['--user', `${process.getuid()}:${process.getgid()}`] : []),
+            '-v',
+            `${root}:${root}`,
+            '-p',
+            `127.0.0.1:${port}:${port}`,
+            config.get('image', 'archgraph'),
+            'serve',
+            root,
+            '--port',
+            String(port),
+            '--host',
+            '0.0.0.0',
+            ...scip,
+          ],
+        ])
+      : [config.get('node', 'node'), [CLI, 'serve', root, '--port', '0', ...scip]];
+  server = spawn(command, args, { stdio: ['ignore', 'ignore', 'pipe'] });
   return new Promise((resolve, reject) => {
     let log = '';
     server?.stderr?.on('data', (chunk: Buffer) => {
@@ -86,8 +113,20 @@ function start(root: string): Promise<string> {
       const m = /http:\/\/127\.0\.0\.1:(\d+)/.exec(log);
       if (m) resolve(`http://127.0.0.1:${m[1]}`);
     });
-    server?.on('error', (e) => reject(new Error(`не мога да пусна node: ${e.message}`)));
+    server?.on('error', (e) => reject(new Error(`не мога да пусна ${command}: ${e.message}`)));
     server?.on('exit', (code) => reject(new Error(`engine-ът спря (${code}): ${log.trim().split('\n').at(-1) ?? ''}`)));
+  });
+}
+
+// Свободен порт на хоста: в контейнера serve трябва да слуша на същия, който е пренасочен.
+function free(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const probe = createServer().listen(0, '127.0.0.1', () => {
+      const address = probe.address();
+      probe.close(() =>
+        typeof address === 'object' && address ? resolve(address.port) : reject(new Error('няма порт')),
+      );
+    });
   });
 }
 

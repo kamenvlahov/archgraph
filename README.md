@@ -101,6 +101,27 @@ claude mcp add archgraph -s user -- node ~/projects/archgraph/apps/mcp/src/main.
 - Графът се сканира при първата заявка и се пази в паметта до `rescan`.
 - SCIP е изключен по подразбиране, защото на голям проект първото сканиране става минута. Пуска се с `--scip`.
 
+### В контейнер
+
+Така archgraph не зависи от Node-а на машината и не я замърсява. На машината трябват само Docker и разширението.
+
+```sh
+docker build -t archgraph .
+pnpm vscode   # папката на разширението; UI-ът е копиран вътре (dist/ui)
+E=~/.vscode/extensions/kamen.archgraph-vscode-0.0.1
+mkdir -p $E && cp -r apps/vscode/package.json apps/vscode/dist $E/
+```
+
+Във VS Code задай `"archgraph.runner": "docker"`. Разширението пуска контейнера при отваряне на панела и го спира при затваряне. Проектът се монтира на същия път, а портът е само на `127.0.0.1`.
+
+MCP през контейнера:
+
+```sh
+claude mcp add archgraph -s user -- sh -c 'exec docker run -i --rm --init --user "$(id -u):$(id -g)" -v "$PWD:$PWD" -w "$PWD" archgraph mcp'
+```
+
+SCIP индексаторите не са в образа, затова `--scip` в контейнера не дава точни извиквания.
+
 ## Документи
 
 - [docs/PLAN.md](docs/PLAN.md): етапи на изграждане
