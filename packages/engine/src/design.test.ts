@@ -298,3 +298,26 @@ test('статусът хваща липсващ метод, различен т
   expect(status).toContain('## Липсващи полета (1)\n- GetGalleryResult: title: string');
   expect(status).toContain('## Липсващи методи (1)\n- GalleryRepository#findById(id: int): Gallery');
 });
+
+test('repository-то връща entity-та, търсенето е метод в него, вложеният обект не повтаря ресурс', () => {
+  const bp = blueprint({
+    stack: 'php-mezzio',
+    style: 'ddd',
+    endpoints: [
+      { method: 'GET', path: '/albums', output: { title: 'string' } },
+      { method: 'GET', path: '/albums/search', input: { q: 'string' }, output: [{ title: 'string' }] },
+      { method: 'GET', path: '/albums/{id}', output: { photos: [{ url: 'string' }] } },
+      { method: 'GET', path: '/photos/{id}' },
+    ],
+  });
+  const repo = bp.nodes.find((n) => n.name === 'AlbumRepository');
+  const sig = (name: string) => {
+    const m = repo?.members.find((x) => x.name === name);
+    return `${m?.inputs.map((p) => p.name).join(',')} → ${JSON.stringify(m?.output?.type)}`;
+  };
+  const albums = JSON.stringify({ kind: 'array', of: { kind: 'named', id: 'php:App\\Album\\Entity\\Album' } });
+  expect(sig('findAll')).toBe(` → ${albums}`);
+  expect(sig('search')).toBe(`q → ${albums}`);
+  expect(bp.nodes.map((n) => n.name)).toContain('AlbumPhoto');
+  expect(bp.nodes.filter((n) => n.name === 'Photo').map((n) => n.role)).toEqual(['entity']);
+});

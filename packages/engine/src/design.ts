@@ -270,8 +270,14 @@ export function blueprint(design: Design): Blueprint {
         const file = fill(stack.class.file, { ...v, Name: name });
         return { name, file, id: fill(stack.class.id, { ...v, Name: name, file }) };
       };
-      let place = at(pascal(words2(singular(field))));
-      if (nodes.has(place.id) && !nestedIds.has(place.id)) place = at(owner.name + place.name);
+      // photos → Photo; ако името е на друг клас или ресурс (entity Photo) — с ресурса отпред: AlbumPhoto
+      const plain = pascal(words2(singular(field)));
+      let place = at(plain);
+      const taken =
+        (nodes.has(place.id) && !nestedIds.has(place.id)) ||
+        readings.some((x) => x.entity === plain) ||
+        [...nodes.values()].some((x) => x.name === plain && x.id !== place.id);
+      if (taken) place = at(r.entity + plain);
       const n = nodes.get(place.id) ?? {
         id: place.id,
         kind: 'class',
@@ -378,9 +384,14 @@ export function blueprint(design: Design): Blueprint {
         const none: Port = { name: 'return', type: { kind: 'primitive', name: stack.types.void } };
         const findById = member(n, cs(['find', 'by', 'id']), [id], one);
         const save = member(n, cs(['save']), [{ name: cs(['entity']), type: entityType }], none);
-        if (r.action === 'list') found.push(member(n, cs(['find', 'all']), [], output));
+        // repository-то е в domain: връща entity-та, не класа за отговора от application
+        const many: Port = { name: 'return', type: { kind: 'array', of: entityType } };
+        const criteria: Port[] = fields(e.input).map((f) => ({ name: f.name, type: f.type }));
+        if (r.action === 'list') found.push(member(n, cs(['find', 'all']), [], many));
         else if (r.action === 'delete') found.push(member(n, cs(['delete']), [id], none));
         else if (r.action === 'create') found.push(save);
+        else if (read && r.action !== 'get' && !r.params.length)
+          found.push(member(n, vars['action'] as string, criteria, many)); // search(q): Album[]
         else if (read) found.push(findById);
         else found.push(findById, save);
       }
