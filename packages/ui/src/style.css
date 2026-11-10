@@ -28,6 +28,9 @@
   --r-class: #9a9ca3;
   --r-enum: #b083f0;
   --bad: #ff5a5a;
+  --move: #f2b84b;
+  --sig: #b48cff;
+  --gone: #6d4a52;
 }
 
 * {
@@ -1071,5 +1074,356 @@ nav .design .resources .btn {
 aside .endpoint .public {
   margin: 0 12px 4px;
   font-size: 13px;
+  color: var(--muted);
+}
+
+/* Езикът и архитектурата в лентата: менюто показва колко файла засяга всеки избор. */
+.pickers {
+  display: flex;
+  gap: 8px;
+}
+.pick {
+  position: relative;
+}
+.pick > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pick > button small {
+  color: var(--muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-size: 10.5px;
+}
+.pick > button::after {
+  content: '▾';
+  color: var(--muted);
+  font-size: 11px;
+}
+.pick.trying > button,
+.resources select.trying {
+  border-color: var(--move);
+  box-shadow: inset 0 0 0 1px var(--move);
+}
+.pick .menu {
+  position: absolute;
+  top: 36px;
+  left: 0;
+  z-index: 20;
+  min-width: 360px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+.pick .menu h5 {
+  margin: 4px 8px 6px;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-weight: 600;
+}
+.pick .menu button {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 7px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+  color: var(--text);
+  font: inherit;
+}
+.pick .menu button:hover {
+  background: var(--panel);
+}
+.pick .menu button span {
+  color: var(--muted);
+  font-size: 12px;
+  grid-column: 1;
+}
+.pick .menu button em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--muted);
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+.pick .menu button.now em {
+  color: var(--r-service);
+}
+
+/* Изгледът „Архитектура“: модули × слоеве. */
+#stage.arch {
+  overflow: auto;
+  padding: 0 18px 18px;
+}
+#stage.empty {
+  height: auto;
+}
+.arch .trial {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 0 -18px 14px;
+  padding: 10px 18px;
+  background: linear-gradient(90deg, #3a3122, #2a2722);
+  border-bottom: 1px solid rgba(242, 184, 75, 0.35);
+}
+.arch .trial b {
+  color: var(--move);
+}
+.arch .trial .actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.arch .trial .btn {
+  flex: none;
+  padding: 6px 14px;
+}
+.arch .bad,
+.arch-aside .bad {
+  color: var(--bad);
+}
+.arch > .grid {
+  margin-top: 18px;
+}
+.arch .trial + .grid {
+  margin-top: 0;
+}
+.arch .grid {
+  display: grid;
+  gap: 8px;
+}
+.arch .colhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding: 6px 10px;
+}
+.arch .colhead b {
+  font-size: 14px;
+}
+.arch .colhead > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.arch .lvl {
+  white-space: nowrap;
+  font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--panel-2);
+}
+.arch .rowhead {
+  padding: 10px;
+  border-radius: 9px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+}
+.arch .rowhead b {
+  display: block;
+  text-transform: uppercase;
+  font-size: 11.5px;
+  letter-spacing: 0.6px;
+}
+.arch .rowhead span {
+  display: block;
+  color: var(--muted);
+  font-size: 11.5px;
+  margin-top: 4px;
+  font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+.arch .cell {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 8px;
+  background: #1d1e22;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-content: flex-start;
+  min-height: 50px;
+  min-width: 0;
+}
+.arch .cell.empty {
+  background: transparent;
+  border-style: dashed;
+}
+.c {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font:
+    12px/1 'JetBrains Mono',
+    ui-monospace,
+    Menlo,
+    Consolas,
+    monospace;
+  padding: 5px 7px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+  max-width: 100%;
+  min-width: 0;
+}
+.c.link {
+  cursor: pointer;
+}
+.c.link:hover {
+  border-color: var(--muted);
+}
+.c .n {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.c i {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  flex: none;
+}
+.c small {
+  flex: none;
+  font:
+    10px Inter,
+    system-ui,
+    sans-serif;
+}
+.c.missing {
+  border: 1px dashed var(--bad);
+  color: #ffb3b3;
+  background: rgba(255, 90, 90, 0.08);
+}
+.c.missing small {
+  color: var(--bad);
+}
+.c.move {
+  border-color: var(--move);
+  background: rgba(242, 184, 75, 0.1);
+}
+.c.move small {
+  color: var(--move);
+}
+.c.changed {
+  border-color: var(--sig);
+  background: rgba(180, 140, 255, 0.08);
+}
+.c.changed small {
+  color: var(--sig);
+}
+.c.extra {
+  border-color: rgba(255, 90, 90, 0.5);
+  color: #b9a2a6;
+  text-decoration: line-through;
+  text-decoration-color: var(--bad);
+  background: rgba(255, 90, 90, 0.05);
+}
+.arch .band-extra {
+  margin-top: 22px;
+}
+.arch .band-extra h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--bad);
+}
+.arch .band-extra h4 span {
+  color: var(--muted);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+.arch .band-extra > .cell {
+  margin-top: 8px;
+}
+
+/* Панелът вдясно при изгледа „Архитектура“. */
+.arch-aside section {
+  padding: 0 16px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.arch-aside p {
+  margin: 0 0 8px;
+}
+.arch-aside .note {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.arch-aside .size {
+  font-size: 18px;
+  font-weight: 700;
+}
+.arch-aside .size small {
+  display: block;
+  font-size: 12.5px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.arch-aside .bar {
+  display: flex;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  margin: 12px 0;
+  background: var(--panel-2);
+}
+.arch-aside .effort {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+}
+.arch-aside .effort li {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+}
+.arch-aside .effort li i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  align-self: center;
+}
+.arch-aside .effort em {
+  font-style: normal;
+  font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+.arch-aside .key {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
   color: var(--muted);
 }

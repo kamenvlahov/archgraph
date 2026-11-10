@@ -9,7 +9,8 @@ import {
   type DesignLevel as Level,
   type RoleFacts,
 } from '@archgraph/rules';
-import { blueprint, designEntities, designWarnings, merge, type Blueprint } from './design.ts';
+import { blueprint, designEntities, designWarnings, merge, moduleOf, type Blueprint } from './design.ts';
+import { roleOf } from './process.ts';
 import { typeText } from './query.ts';
 import { violations } from './violations.ts';
 
@@ -26,7 +27,77 @@ const NO_FACTS: RoleFacts = {
   handlers: new Set(),
 };
 
+// Класът от чертежа в изгледа „Архитектура“: в кой модул и слой е и как е в кода.
+export interface StatusClass {
+  name: string;
+  kind: string;
+  role: string;
+  layer: string;
+  module?: string;
+  file: string;
+  state: 'ok' | 'missing' | 'move' | 'changed'; // changed: липсват методи или полета, или сигнатурата е друга
+  from?: string; // при move: къде е сега
+}
+// Клас от друга архитектура, ниво или стек, който този чертеж няма.
+export interface StatusExtra {
+  name: string;
+  kind: string;
+  role: string;
+  layer?: string; // слоят в архитектурата, от която е
+  module?: string;
+  file: string;
+  line: number;
+}
+export interface StatusEffort {
+  size: 'малък' | 'среден' | 'голям';
+  files: number;
+  fresh: number; // нови класове
+  methods: number; // методите им
+  moves: number;
+  removed: number;
+  lines: number; // редовете на махнатите, логиката им се пренася
+  edited: number;
+}
+export interface StatusReport {
+  done: number;
+  total: number;
+  layers: string[];
+  classes: StatusClass[];
+  extra: StatusExtra[];
+  mismatches: number;
+  effort?: StatusEffort;
+  sections: { title: string; lines: string[] }[]; // текстът за MCP, без заглавието и усилието
+}
+
 export function designStatus(graph: GraphModel, design: Design, bp: Blueprint): string {
+  const report = statusReport(graph, design, bp);
+  const out = [`# Чертеж: ${bp.style.label} · ${bp.stack.label} — готово ${report.done} от ${report.total}`];
+  const e = report.effort;
+  if (e) {
+    const effort = [
+      e.fresh && `- ${count(e.fresh, 'нов клас', 'нови класа')} за писане (${count(e.methods, 'метод', 'метода')})`,
+      e.moves && `- ${count(e.moves, 'клас', 'класа')} за местене`,
+      e.removed &&
+        `- ${count(e.removed, 'клас', 'класа')} за махане; логиката им (около ${e.lines} реда) се пренася в новите`,
+      e.edited && `- ${count(e.edited, 'клас', 'класа')} за промяна: методи, сигнатури, полета`,
+    ].filter((x): x is string => typeof x === 'string');
+    out.push('', `## Усилие: ${e.size} рефакторинг, ${count(e.files, 'файл', 'файла')}`, ...effort);
+  }
+  for (const { title, lines } of report.sections) {
+    if (!lines.length) continue;
+    out.push('', `## ${title} (${lines.length})`, ...lines);
+    if (title.startsWith('Route-ове'))
+      out.push(
+        '',
+        'Route-ът се разпознава, когато framework-ът е в манифеста (composer.json, package.json, pyproject.toml) и редът е регистриран.',
+      );
+  }
+  if (!e && report.sections.every((x) => !x.lines.length || x.title.startsWith('Зависимости')))
+    out.push('', 'Всичко от чертежа е в кода и съвпада.');
+  return out.join('\n');
+}
+
+export function statusReport(graph: GraphModel, design: Design, bp: Blueprint): StatusReport {
   const byId = new Map([...bp.nodes, ...graph.nodes].map((n) => [n.id, n]));
   const code = graph.nodes.filter((n) => !(n.tags ?? []).includes('ghost'));
   const real = new Map(code.map((n) => [n.id, n]));
@@ -42,6 +113,7 @@ export function designStatus(graph: GraphModel, design: Design, bp: Blueprint): 
   const extra: string[] = [];
   const fields: string[] = [];
   const edited = new Set<string>(); // написаните класове, които трябва да се променят
+  const changed = new Set<string>();
   for (const n of bp.nodes) {
     const code = real.get(n.id);
     if (!code || n.kind === 'route' || n.kind === 'template') continue;
@@ -51,12 +123,14 @@ export function designStatus(graph: GraphModel, design: Design, bp: Blueprint): 
       if (!found) {
         missing.push(`- ${n.name}#${sig(m)} — ${where}`);
         edited.add(code.location.file);
+        changed.add(n.id);
       } else if (isCtor(m) && extends_(m, found)) {
         const more = found.inputs.slice(m.inputs.length).map((p) => `${p.name}: ${text(p.type)}`);
         extra.push(`- ${n.name}: ${more.join(', ')} — ${where}`);
       } else if (!sameSignature(m, found)) {
         differs.push(`- ${n.name}#${m.name} — ${where}\n  чертеж: \`${sig(m)}\`\n  код:    \`${sig(found)}\``);
         edited.add(code.location.file);
+        changed.add(n.id);
       }
     }
     const have = new Set((graph.types[n.id]?.fields ?? []).map((f) => f.name));
@@ -64,6 +138,7 @@ export function designStatus(graph: GraphModel, design: Design, bp: Blueprint): 
     if (lack.length) {
       fields.push(`- ${n.name}: ${lack.map((f) => `${f.name}: ${text(f.type)}`).join(', ')} — ${where}`);
       edited.add(code.location.file);
+      changed.add(n.id);
     }
   }
 
@@ -74,17 +149,20 @@ export function designStatus(graph: GraphModel, design: Design, bp: Blueprint): 
   // Нивото също: LoginUserCommand е излишен, ако аутентикацията е на ниво 1.
   const entities = designEntities(design);
   const atLevel = (level: Level) => Object.fromEntries(entities.map((e) => [e, { ...design.resources?.[e], level }]));
-  const others = new Set(
-    DESIGN_STACKS.flatMap((stack) =>
-      DESIGN_STYLES.flatMap((s) =>
-        LEVELS.flatMap((level) =>
-          blueprint({ ...design, stack: stack.stack, style: s.style, resources: atLevel(level) }).nodes.map(
-            (n) => n.id,
-          ),
-        ),
-      ),
-    ),
-  );
+  // Модулът е ресурсът, на който е, както и да се казва папката в стека (albums в NestJS).
+  const entityOf = new Map(DESIGN_STACKS.flatMap((x) => entities.map((e) => [moduleOf(x, e), e])));
+  const moduleName = (context: string) => entityOf.get(context) ?? context;
+  // id → слоят и модулът в архитектурата, от която е (първата, която го чертае)
+  const others = new Map<string, { layer?: string; module?: string }>();
+  for (const stack of DESIGN_STACKS)
+    for (const s of DESIGN_STYLES)
+      for (const level of LEVELS)
+        for (const n of blueprint({ ...design, stack: stack.stack, style: s.style, resources: atLevel(level) }).nodes)
+          if (!others.has(n.id))
+            others.set(n.id, {
+              ...(n.layer ? { layer: n.layer } : {}),
+              ...(n.context ? { module: moduleName(n.context) } : {}),
+            });
   const foreignNodes = code.filter((n) => n.kind !== 'route' && others.has(n.id) && !ids.has(n.id));
   // същото име на друго място на същия език: класът се мести (Application/AlbumItem.php → Dto/AlbumItem.php);
   // на друг език е за пренаписване, не за местене
@@ -92,13 +170,12 @@ export function designStatus(graph: GraphModel, design: Design, bp: Blueprint): 
     ghosts.filter((n) => n.kind !== 'route' && n.language === bp.stack.language).map((n) => [n.name, n]),
   );
   const movable = foreignNodes.filter((n) => n.language === bp.stack.language && wanted.has(n.name));
+  const movedFrom = new Map(movable.map((n) => [n.name, n.location.file]));
   const moves = movable.map(
     (n) => `- ${n.name}: ${n.location.file} → ${(wanted.get(n.name) as (typeof ghosts)[number]).location.file}`,
   );
-  const moved = new Set(movable.map((n) => n.name));
-  const foreign = foreignNodes
-    .filter((n) => !movable.includes(n))
-    .map((n) => `- ${n.kind} ${n.name} — ${n.location.file}:${n.location.line}`);
+  const removed = foreignNodes.filter((n) => !movable.includes(n));
+  const foreign = removed.map((n) => `- ${n.kind} ${n.name} — ${n.location.file}:${n.location.line}`);
 
   // Слоевете: по записаната архитектура (може да е изрична, architecture.yaml), а при друг стил или стек —
   // наново по пътищата на проверявания чертеж.
@@ -108,70 +185,81 @@ export function designStatus(graph: GraphModel, design: Design, bp: Blueprint): 
     ? violations(assignLayers(code, bp.architecture, NO_FACTS), graph.edges, bp.architecture)
     : (graph.violations ?? []);
 
-  const out = [`# Чертеж: ${bp.style.label} · ${bp.stack.label} — готово ${plan.done} от ${plan.total}`];
-  const section = (title: string, lines: string[]) =>
-    lines.length && out.push('', `## ${title} (${lines.length})`, ...lines);
-
   // Усилието за рефакторинг: в класове, файлове и редове, не в часове.
-  const fresh = ghosts.filter((n) => n.kind !== 'route' && n.kind !== 'template' && !moved.has(n.name));
-  const removed = foreignNodes.filter((n) => !movable.includes(n));
-  const lines = removed.reduce((sum, n) => sum + n.location.endLine - n.location.line + 1, 0);
+  const fresh = ghosts.filter((n) => n.kind !== 'route' && n.kind !== 'template' && !movedFrom.has(n.name));
   const files = new Set([
     ...fresh.map((n) => n.location.file),
     ...foreignNodes.map((n) => n.location.file),
-    ...[...wanted.values()].filter((n) => moved.has(n.name)).map((n) => n.location.file),
+    ...[...wanted.values()].filter((n) => movedFrom.has(n.name)).map((n) => n.location.file),
     ...edited,
   ]);
-  const effort = [
-    fresh.length &&
-      `- ${count(fresh.length, 'нов клас', 'нови класа')} за писане (${count(
-        fresh.reduce((sum, n) => sum + n.members.length, 0),
-        'метод',
-        'метода',
-      )})`,
-    moves.length && `- ${count(moves.length, 'клас', 'класа')} за местене`,
-    removed.length &&
-      `- ${count(removed.length, 'клас', 'класа')} за махане; логиката им (около ${lines} реда) се пренася в новите`,
-    edited.size && `- ${count(edited.size, 'клас', 'класа')} за промяна: методи, сигнатури, полета`,
-  ].filter((x): x is string => typeof x === 'string');
-  if (effort.length) {
-    const size = files.size <= 10 ? 'малък' : files.size <= 40 ? 'среден' : 'голям';
-    out.push('', `## Усилие: ${size} рефакторинг, ${count(files.size, 'файл', 'файла')}`, ...effort);
-  }
-  section(
-    'Предупреждения',
-    designWarnings(design).map((w) => `- ${w}`),
-  );
-  section(
-    'Още ги няма',
-    ghosts
-      .filter((n) => n.kind !== 'route' && !moved.has(n.name))
-      .map((n) => `- ${n.kind} ${n.name} → ${n.location.file}`),
-  );
-  section('Да се преместят', moves);
+  const effort: StatusEffort | undefined =
+    fresh.length || moves.length || removed.length || edited.size
+      ? {
+          size: files.size <= 10 ? 'малък' : files.size <= 40 ? 'среден' : 'голям',
+          files: files.size,
+          fresh: fresh.length,
+          methods: fresh.reduce((sum, n) => sum + n.members.length, 0),
+          moves: moves.length,
+          removed: removed.length,
+          lines: removed.reduce((sum, n) => sum + n.location.endLine - n.location.line + 1, 0),
+          edited: edited.size,
+        }
+      : undefined;
+
+  const classes: StatusClass[] = bp.nodes
+    .filter((n) => n.kind !== 'route' && n.kind !== 'template')
+    .map((n) => {
+      const from = movedFrom.get(n.name);
+      return {
+        name: n.name,
+        kind: n.kind,
+        role: roleOf(n, bp.types[n.id] !== undefined),
+        layer: n.layer ?? '',
+        ...(n.context ? { module: moduleName(n.context) } : {}),
+        file: real.get(n.id)?.location.file ?? n.location.file,
+        state: from && !real.has(n.id) ? 'move' : !real.has(n.id) ? 'missing' : changed.has(n.id) ? 'changed' : 'ok',
+        ...(from && !real.has(n.id) ? { from } : {}),
+      };
+    });
   const routes = ghosts.filter((n) => n.kind === 'route');
-  section(
-    'Route-ове, които не се виждат',
-    routes.map((n) => `- ${n.name}`),
-  );
-  if (routes.length)
-    out.push(
-      '',
-      'Route-ът се разпознава, когато framework-ът е в манифеста (composer.json, package.json, pyproject.toml) и редът е регистриран.',
-    );
-  section(`Излишни за ${bp.style.label}`, foreign);
-  section('Липсващи методи', missing);
-  section('Различни сигнатури', differs);
-  // конструктор с още зависимости разширява чертежа, не му противоречи: напр. връзка между ресурси
-  section('Зависимости извън чертежа', extra);
-  section('Липсващи полета', fields);
-  section(
-    'Нарушения на архитектурата',
-    found.filter((v) => v.nodes.some((x) => ids.has(x) || others.has(x))).map((v) => `- ${v.message}`),
-  );
-  if (out.every((l) => !l.startsWith('## ') || l.startsWith('## Зависимости')))
-    out.push('', 'Всичко от чертежа е в кода и съвпада.');
-  return out.join('\n');
+  return {
+    done: plan.done,
+    total: plan.total,
+    layers: bp.style.layers,
+    classes,
+    extra: removed.map((n) => ({
+      name: n.name,
+      kind: n.kind,
+      role: roleOf(n, graph.types[n.id] !== undefined),
+      ...others.get(n.id),
+      file: n.location.file,
+      line: n.location.line,
+    })),
+    mismatches: classes.filter((c) => c.state !== 'ok').length + removed.length,
+    ...(effort ? { effort } : {}),
+    sections: [
+      { title: 'Предупреждения', lines: designWarnings(design).map((w) => `- ${w}`) },
+      {
+        title: 'Още ги няма',
+        lines: ghosts
+          .filter((n) => n.kind !== 'route' && !movedFrom.has(n.name))
+          .map((n) => `- ${n.kind} ${n.name} → ${n.location.file}`),
+      },
+      { title: 'Да се преместят', lines: moves },
+      { title: 'Route-ове, които не се виждат', lines: routes.map((n) => `- ${n.name}`) },
+      { title: `Излишни за ${bp.style.label}`, lines: foreign },
+      { title: 'Липсващи методи', lines: missing },
+      { title: 'Различни сигнатури', lines: differs },
+      // конструктор с още зависимости разширява чертежа, не му противоречи: напр. връзка между ресурси
+      { title: 'Зависимости извън чертежа', lines: extra },
+      { title: 'Липсващи полета', lines: fields },
+      {
+        title: 'Нарушения на архитектурата',
+        lines: found.filter((v) => v.nodes.some((x) => ids.has(x) || others.has(x))).map((v) => `- ${v.message}`),
+      },
+    ],
+  };
 }
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;

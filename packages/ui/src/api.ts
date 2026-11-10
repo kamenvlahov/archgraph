@@ -1,4 +1,6 @@
-import type { PatternResult } from '@archgraph/engine';
+import type { PatternResult, StatusReport } from '@archgraph/engine';
+
+export type { StatusReport };
 
 // REST API-то на `archgraph serve` (packages/cli/src/serve.ts). В браузъра адресът е същият като на
 // страницата; във VS Code панелът е на друг произход и разширението подава адреса в `ARCHGRAPH_API`.
@@ -76,7 +78,38 @@ export interface DesignInfo {
   objects: string[];
   entities: string[];
   stacks: { stack: string; label: string; language: string }[];
-  styles: { style: string; label: string; about: string; layers: string[]; allow: Record<string, string[]> }[];
+  styles: {
+    style: string;
+    label: string;
+    about: string;
+    layers: string[];
+    allow: Record<string, string[]>;
+    levels: boolean;
+  }[];
+}
+
+// Пробата: чертежът със сменени стил, стек или нива, без запис.
+export interface Trial {
+  style?: string | undefined;
+  stack?: string | undefined;
+  levels?: Record<string, 1 | 2 | 3>;
+}
+export function designStatus(trial: Trial = {}): Promise<StatusReport> {
+  const q = new URLSearchParams();
+  if (trial.style) q.set('style', trial.style);
+  if (trial.stack) q.set('stack', trial.stack);
+  const levels = Object.entries(trial.levels ?? {}).map(([name, level]) => `${name}:${level}`);
+  if (levels.length) q.set('levels', levels.join(','));
+  return get(`/api/design/status?${q}`);
+}
+export interface Effort {
+  done: number;
+  total: number;
+  files: number;
+  size: string | null;
+}
+export function designEfforts(): Promise<{ styles: Record<string, Effort>; stacks: Record<string, Effort> }> {
+  return get('/api/design/efforts');
 }
 
 // Чертежът (етап 11): записва се целият; отговорът идва след като графът е свързан наново.

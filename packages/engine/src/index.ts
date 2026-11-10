@@ -12,7 +12,14 @@ export {
 export { pattern, renamer, type PatternResult } from './pattern.ts';
 export { layers, layerView, type LayerSummary, type LayerView, type Unit } from './layer.ts';
 export { ADAPTERS, InvalidGraphError, Project, scan, type ScanOptions, type ScanReport } from './scan.ts';
-export { designStatus } from './status.ts';
+export {
+  designStatus,
+  statusReport,
+  type StatusClass,
+  type StatusEffort,
+  type StatusExtra,
+  type StatusReport,
+} from './status.ts';
 export {
   blueprint,
   designEntities,

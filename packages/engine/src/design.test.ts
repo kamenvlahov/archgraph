@@ -481,6 +481,11 @@ test('проверка срещу друга архитектура и език 
   expect(ported).toMatch(/готово 0 от \d+/);
   expect(ported).toMatch(/- \d+ класа за махане; логиката им \(около \d+ реда\) се пренася в новите/);
   expect(ported).not.toContain('Да се преместят');
+
+  // приложена: AlbumService още не е в конструктора на handler-а, а графът пак е валиден
+  saveDesign(root, onion);
+  const applied = await Project.open(root, { scip: false });
+  expect(applied.report.design).toMatchObject({ total: expect.any(Number) });
 });
 
 test('ниво на ресурса: 1 — входът вика repository-то; 2 — service за ресурса; стил без нива предупреждава', () => {

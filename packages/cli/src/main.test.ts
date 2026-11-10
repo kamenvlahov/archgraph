@@ -133,6 +133,20 @@ test('serve: чертежът от празна папка, и от панела
     const entries = (await (await fetch(`${base}/api/endpoints`)).json()) as { label: string; ghost?: boolean }[];
     expect(entries).toEqual([expect.objectContaining({ label: 'POST /invoices', ghost: true })]);
     expect(await (await fetch(`${base}/api/design/plan`)).text()).toContain('CreateInvoiceHandler');
+
+    // пробата не записва: друг стил, а чертежът остава layered
+    const trial = (await (await fetch(`${base}/api/design/status?style=ddd`)).json()) as {
+      classes: { name: string; state: string; layer: string }[];
+    };
+    expect(trial.classes).toContainEqual(
+      expect.objectContaining({ name: 'CreateInvoiceCommand', state: 'missing', layer: 'application' }),
+    );
+    expect(readFileSync(join(dir, '.archgraph/design.yaml'), 'utf8')).toContain('style: layered');
+    expect((await fetch(`${base}/api/design/status?levels=Invoice:4`)).status).toBe(400);
+    const efforts = (await (await fetch(`${base}/api/design/efforts`)).json()) as {
+      styles: Record<string, { total: number }>;
+    };
+    expect(Object.keys(efforts.styles)).toContain('onion');
   } finally {
     server.close();
   }

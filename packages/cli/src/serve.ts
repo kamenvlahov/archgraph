@@ -12,6 +12,7 @@ import {
   pattern,
   processView,
   skeleton,
+  statusReport,
   Project,
   roleOf,
   type Blueprint,
@@ -33,7 +34,7 @@ import {
 } from '@archgraph/rules';
 
 // `archgraph serve`: интерфейсът (packages/ui/dist) и REST API-то му върху един проект.
-// Слуша само на 127.0.0.1: графът съдържа кода на проекта и не е за мрежата.
+// Слуша само на 127.0.0.1 (--host само в контейнер): графът съдържа кода на проекта и не е за мрежата.
 //
 //   GET  /api/project                  име, корен, файлове по език, framework-и
 //   GET  /api/roles                    каталогът на ролите: слой и цвят
@@ -49,6 +50,8 @@ import {
 //   PUT  /api/design {stack, style, auth?, resources?, endpoints}  записва .archgraph/design.yaml
 //   GET  /api/design/plan              Markdown план: какво още да се напише по чертежа
 //   GET  /api/design/skeleton?file=    скелетът на файл от чертежа (при „Създай файла“)
+//   GET  /api/design/status?style=&stack=&levels=User:1  кодът срещу чертежа, и незаписан: проба
+//   GET  /api/design/efforts           за всяка друга архитектура и стек: готово и колко файла засяга
 //   GET  /api/events                   Server-Sent Events: `changed`, когато файл се промени
 
 const DIST = join(import.meta.dirname, '../../ui/dist');
@@ -174,6 +177,7 @@ export async function serve(path: string, port: number, options: ScanOptions, ho
           about: x.about,
           layers: x.layers,
           allow: STYLE_ALLOW[x.style] ?? {},
+          levels: x.levels !== undefined,
         })),
       });
     }
@@ -215,6 +219,37 @@ export async function serve(path: string, port: number, options: ScanOptions, ho
       if (!design || !project.report.design) return send(res, 404, { error: 'проектът няма чертеж' });
       res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' });
       return res.end(designPlan(graph, blueprint(design), project.report.design));
+    }
+    // Пробата: чертежът със сменени стил, стек или нива, без да се записва.
+    if (route === 'GET /api/design/status') {
+      const saved = loadDesign(graph.root);
+      if (!saved) return send(res, 404, { error: 'проектът няма чертеж' });
+      const q = url.searchParams;
+      const style = q.get('style') || saved.style;
+      const stack = q.get('stack') || saved.stack;
+      if (!DESIGN_STACKS.some((x) => x.stack === stack) || !DESIGN_STYLES.some((x) => x.style === style))
+        return send(res, 400, { error: 'непознат stack или style' });
+      const resources = { ...saved.resources };
+      for (const pair of (q.get('levels') ?? '').split(',').filter(Boolean)) {
+        const [name = '', value] = pair.split(':');
+        const level = Number(value);
+        if (!LEVELS.includes(level as 1 | 2 | 3)) return send(res, 400, { error: `нивото е 1, 2 или 3: ${pair}` });
+        resources[name] = { ...resources[name], level: level as 1 | 2 | 3 };
+      }
+      const design = { ...saved, style, stack, resources };
+      return send(res, 200, statusReport(graph, design, blueprint(design)));
+    }
+    if (route === 'GET /api/design/efforts') {
+      const saved = loadDesign(graph.root);
+      if (!saved) return send(res, 404, { error: 'проектът няма чертеж' });
+      const effort = (design: Design) => {
+        const r = statusReport(graph, design, blueprint(design));
+        return { done: r.done, total: r.total, files: r.effort?.files ?? 0, size: r.effort?.size ?? null };
+      };
+      return send(res, 200, {
+        styles: Object.fromEntries(DESIGN_STYLES.map((x) => [x.style, effort({ ...saved, style: x.style })])),
+        stacks: Object.fromEntries(DESIGN_STACKS.map((x) => [x.stack, effort({ ...saved, stack: x.stack })])),
+      });
     }
     if (route === 'GET /api/design/skeleton') {
       const design = loadDesign(graph.root);

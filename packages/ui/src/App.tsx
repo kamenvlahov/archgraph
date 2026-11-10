@@ -17,13 +17,17 @@ import type { ProcessNode as ProcessNodeView, ProcessView } from '@archgraph/eng
 import {
   createPattern,
   createPlan,
+  designStatus,
   get,
   inEditor,
   onChange,
   openInEditor,
   type DesignInfo,
   type Shape,
+  type StatusReport,
+  type Trial,
 } from './api.ts';
+import { ArchitectureAside, ArchitectureView, cleanTrial, Pickers } from './Architecture.tsx';
 import { DesignNav, DesignStart, EndpointEditor, Layers, removeEndpoint, routeKey } from './Design.tsx';
 import { layout, NODE_WIDTH, type Lane } from './layout.ts';
 import { LayerView } from './LayerView.tsx';
@@ -104,13 +108,29 @@ export function App() {
   const [layer, setLayer] = useState<string>(); // изгледът „цял слой“ вместо процес
   const [layerList, setLayerList] = useState<{ name: string; units: number }[]>([]);
   const [shaped, setShaped] = useState<{ result: Shape; example: string }>(); // шаблон „като този“
-  // ендпойнт, клас или метод: процесът от него (и излизане от изгледа на слой или шаблон)
+  // Изгледът „Архитектура“ и пробата в него: друг стил, стек или ниво, без запис.
+  const [arch, setArch] = useState(false);
+  const [trial, setTrial] = useState<Trial>();
+  const [report, setReport] = useState<StatusReport>();
+  const [reportError, setReportError] = useState<string>();
+  const leaveArch = () => {
+    setArch(false);
+    setTrial(undefined);
+  };
+  const startTrial = (t: Trial) => {
+    if (!design?.design) return;
+    setTrial(cleanTrial(t, design.design));
+    setArch(true);
+  };
+  // ендпойнт, клас или метод: процесът от него (и излизане от изгледа на слой, шаблон или архитектура)
   const openProcess = (id: string) => {
+    leaveArch();
     setLayer(undefined);
     setShaped(undefined);
     setEntry(id);
   };
   const openLayer = (name: string) => {
+    leaveArch();
     setShaped(undefined);
     setLayer(name);
   };
@@ -160,6 +180,18 @@ export function App() {
     openProcess(added.id);
   }, [pending, project]);
   useEffect(() => onChange(() => setVersion((v) => v + 1)), []);
+  const trialKey = JSON.stringify(trial ?? {});
+  const hasDesign = !!design?.design;
+  useEffect(() => {
+    if (!arch || !hasDesign) return;
+    setReport(undefined);
+    designStatus(JSON.parse(trialKey) as Trial)
+      .then((r) => {
+        setReportError(undefined);
+        setReport(r);
+      })
+      .catch((e: Error) => setReportError(e.message));
+  }, [arch, hasDesign, trialKey, version]);
   // Шаблонът се преизчислява при промяна на файл: вече създаденото е истински нод, не ghost.
   const shapedExample = shaped?.example;
   const shapedTo = shaped?.result.to;
@@ -222,9 +254,10 @@ export function App() {
           arch<b>graph</b>
         </div>
         <div className="proj">{project?.name}</div>
+        {design?.design && <Pickers info={design} trial={trial} version={version} onTrial={startTrial} />}
         {/* ролите в показания процес, по слоеве отвън навътре */}
         <div className="chips">
-          {[...new Set(layer ? [] : (shaped?.result.view ?? view)?.nodes.map((n) => n.role))]
+          {[...new Set(layer || arch ? [] : (shaped?.result.view ?? view)?.nodes.map((n) => n.role))]
             .sort((a, b) => layerIndex(catalog, a) - layerIndex(catalog, b) || a.localeCompare(b))
             .map((r) => (
               <span className="chip" key={r} title={catalog[r]?.layer}>
@@ -233,7 +266,7 @@ export function App() {
               </span>
             ))}
         </div>
-        {view && !layer && !shaped && (
+        {view && !layer && !shaped && !arch && (
           <div className="stats">
             <span>
               {view.nodes.length} нода · {view.edges.length} връзки
@@ -253,14 +286,27 @@ export function App() {
         )}
       </header>
       <nav>
-        {design?.design && <DesignNav info={design} onAdded={(m, p) => setPending(routeKey(`${m} ${p}`))} />}
+        {design?.design && (
+          <DesignNav
+            info={design}
+            onAdded={(m, p) => setPending(routeKey(`${m} ${p}`))}
+            arch={arch}
+            onArch={() => {
+              setLayer(undefined);
+              setShaped(undefined);
+              setArch(true);
+            }}
+            levels={trial?.levels}
+            onLevel={(name, level) => startTrial({ ...trial, levels: { ...trial?.levels, [name]: level } })}
+          />
+        )}
         <input placeholder="ендпойнт, клас или метод…" value={filter} onChange={(e) => setFilter(e.target.value)} />
         {layerList.length > 0 && (
           <>
             <h3>Слоеве</h3>
             <ul>
               {layerList.map((l) => (
-                <li key={l.name} className={l.name === layer ? 'on' : ''} onClick={() => openLayer(l.name)}>
+                <li key={l.name} className={l.name === layer && !arch ? 'on' : ''} onClick={() => openLayer(l.name)}>
                   {l.name}
                   <small>{l.units} класа и файла</small>
                 </li>
@@ -276,7 +322,7 @@ export function App() {
         )}
         <RouteList
           entries={shown}
-          current={layer ? undefined : entry}
+          current={layer || arch ? undefined : entry}
           open={filter !== ''}
           onOpen={openProcess}
           onRemove={design?.design ? (e) => void removeEndpoint(design, e.label) : undefined}
@@ -288,7 +334,7 @@ export function App() {
               {found.map((e) => (
                 <li
                   key={e.id}
-                  className={e.id === entry && !layer ? 'on' : ''}
+                  className={e.id === entry && !layer && !arch ? 'on' : ''}
                   onClick={() => openProcess(e.id)}
                   title={e.label}
                 >
@@ -303,48 +349,62 @@ export function App() {
           </>
         )}
       </nav>
-      <ReactFlowProvider key={shaped ? 'pattern' : layer ? `layer:${layer}` : 'process'}>
-        <PatternStart.Provider value={startPattern}>
-          {shaped ? (
-            <Process
-              key={shaped.result.view.title}
-              view={shaped.result.view}
-              error={error}
-              lanes={lanes ? project?.layers : undefined}
-              aside={<PatternPanel shape={shaped.result} onBack={() => setShaped(undefined)} />}
-            />
-          ) : layer ? (
-            <LayerView layer={layer} onProcess={openProcess} />
-          ) : blank && style ? (
-            <div id="stage">
-              <div className="blank">
-                <h2>Слоевете на {style.label}</h2>
-                <p>{style.about}</p>
-                <Layers style={style} />
-                <p>
-                  Добави първия ендпойнт горе вляво, например <code>POST /invoices</code>.
-                </p>
+      {arch && design?.design ? (
+        <>
+          <ArchitectureView
+            info={design}
+            trial={trial}
+            report={report}
+            error={reportError}
+            onCancel={() => setTrial(undefined)}
+            onOpen={openProcess}
+          />
+          <ArchitectureAside info={design} trial={trial} report={report} />
+        </>
+      ) : (
+        <ReactFlowProvider key={shaped ? 'pattern' : layer ? `layer:${layer}` : 'process'}>
+          <PatternStart.Provider value={startPattern}>
+            {shaped ? (
+              <Process
+                key={shaped.result.view.title}
+                view={shaped.result.view}
+                error={error}
+                lanes={lanes ? project?.layers : undefined}
+                aside={<PatternPanel shape={shaped.result} onBack={() => setShaped(undefined)} />}
+              />
+            ) : layer ? (
+              <LayerView layer={layer} onProcess={openProcess} />
+            ) : blank && style ? (
+              <div id="stage">
+                <div className="blank">
+                  <h2>Слоевете на {style.label}</h2>
+                  <p>{style.about}</p>
+                  <Layers style={style} />
+                  <p>
+                    Добави първия ендпойнт горе вляво, например <code>POST /invoices</code>.
+                  </p>
+                </div>
               </div>
-            </div>
-          ) : (
-            <Process
-              view={view}
-              error={error}
-              lanes={lanes ? project?.layers : undefined}
-              top={
-                design?.design && label ? (
-                  <EndpointEditor
-                    key={label}
-                    info={design}
-                    label={label}
-                    onSaved={(m, p) => setPending(routeKey(`${m} ${p}`))}
-                  />
-                ) : undefined
-              }
-            />
-          )}
-        </PatternStart.Provider>
-      </ReactFlowProvider>
+            ) : (
+              <Process
+                view={view}
+                error={error}
+                lanes={lanes ? project?.layers : undefined}
+                top={
+                  design?.design && label ? (
+                    <EndpointEditor
+                      key={label}
+                      info={design}
+                      label={label}
+                      onSaved={(m, p) => setPending(routeKey(`${m} ${p}`))}
+                    />
+                  ) : undefined
+                }
+              />
+            )}
+          </PatternStart.Provider>
+        </ReactFlowProvider>
+      )}
     </>
   );
 }

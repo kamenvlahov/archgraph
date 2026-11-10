@@ -72,8 +72,24 @@ export function Layers({ style }: { style: StyleInfo }) {
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 const TYPES = ['string', 'int', 'float', 'bool', 'date', 'datetime', 'object', 'object[]', 'string[]', 'int[]'];
 
-// Секцията в лявото меню: стилът, напредъкът, нов ендпойнт и планът.
-export function DesignNav({ info, onAdded }: { info: DesignInfo; onAdded: (method: string, path: string) => void }) {
+type Level = 1 | 2 | 3;
+
+// Секцията в лявото меню: стилът, напредъкът, изгледът „Архитектура“, нов ендпойнт и планът.
+export function DesignNav({
+  info,
+  onAdded,
+  arch,
+  onArch,
+  levels,
+  onLevel,
+}: {
+  info: DesignInfo;
+  onAdded: (method: string, path: string) => void;
+  arch: boolean;
+  onArch: () => void;
+  levels: Record<string, Level> | undefined; // нивата от пробата
+  onLevel: (name: string, level: Level) => void;
+}) {
   const [method, setMethod] = useState('GET');
   const [path, setPath] = useState('');
   const [error, setError] = useState<string>();
@@ -110,6 +126,12 @@ export function DesignNav({ info, onAdded }: { info: DesignInfo; onAdded: (metho
           </span>
         )}
       </div>
+      <ul>
+        <li className={arch ? 'on' : ''} onClick={onArch}>
+          Архитектура
+          <small>модули × слоеве, проба с друга</small>
+        </li>
+      </ul>
       <form
         className="add"
         onSubmit={(e) => {
@@ -138,7 +160,7 @@ export function DesignNav({ info, onAdded }: { info: DesignInfo; onAdded: (metho
           {copied ? 'Копирано' : 'Копирай плана за AI'}
         </button>
       )}
-      <Resources info={info} />
+      <Resources info={info} levels={levels} onLevel={onLevel} />
       <datalist id="field-types">
         {[...TYPES, ...info.objects, ...info.objects.map((o) => `${o}[]`)].map((t) => (
           <option key={t} value={t} />
@@ -150,7 +172,16 @@ export function DesignNav({ info, onAdded }: { info: DesignInfo; onAdded: (metho
 
 // Ресурсите (entity-тата): кой е влезлият, чий е всеки ресурс и полетата му. По веригата от собственици
 // до влезлия engine-ът знае чии са данните: съобщенията носят id-то му, списъците са само негови.
-function Resources({ info }: { info: DesignInfo }) {
+// Нивото не се записва веднага: смяната му е проба в изгледа „Архитектура“, като смяната на стила.
+function Resources({
+  info,
+  levels,
+  onLevel,
+}: {
+  info: DesignInfo;
+  levels: Record<string, Level> | undefined;
+  onLevel: (name: string, level: Level) => void;
+}) {
   const design = info.design as Design;
   const [open, setOpen] = useState<string>();
   const [error, setError] = useState<string>();
@@ -180,11 +211,9 @@ function Resources({ info }: { info: DesignInfo }) {
               </span>
               <select
                 title="на колко парчета се разбива: 1 просто, 2 service за ресурса, 3 use case за всяко действие"
-                value={r.level ?? 3}
-                onChange={(e) => {
-                  const level = Number(e.target.value) as 1 | 2 | 3;
-                  void setResource(name, { ...r, level: level === 3 ? undefined : level });
-                }}
+                className={levels?.[name] ? 'trying' : ''}
+                value={levels?.[name] ?? r.level ?? 3}
+                onChange={(e) => onLevel(name, Number(e.target.value) as Level)}
               >
                 <option value={3}>ниво 3</option>
                 <option value={2}>ниво 2</option>

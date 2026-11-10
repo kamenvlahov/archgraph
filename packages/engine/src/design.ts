@@ -160,6 +160,11 @@ export function designEntities(design: Design): string[] {
 }
 
 // Имената на ресурса за шаблоните на стила и стека: Album, Albums, album_snake…
+// Модулът на ресурса в стека: Album (PHP), albums (NestJS), albums (FastAPI).
+export function moduleOf(stack: { module: string }, entity: string): string {
+  return fill(stack.module, entityVars(entity));
+}
+
 function entityVars(entity: string): Record<string, string> {
   return {
     Entity: entity,
@@ -633,13 +638,18 @@ export function merge(
   }
   const ghosts = bp.nodes.filter((n) => !actual.has(n.id));
   const ghostIds = new Set(ghosts.map((n) => n.id));
-  // Към истински нод: ако методът от чертежа още го няма в класа, реброто сочи самия клас.
+  // Към истински нод: ако методът от чертежа още го няма в класа, реброто сочи самия клас; ако го има,
+  // но без параметъра (конструкторът още не взима albumService), реброто сочи метода.
   const byId = new Map(real.map((n) => [n.id, n]));
   const end = (x: Edge['from']): Edge['from'] => {
     const id = actual.get(x.node) ?? x.node;
     const n = byId.get(id);
-    if (!n || !x.member || n.members.some((m) => m.name === x.member)) return { ...x, node: id };
-    return { node: id };
+    if (!n || !x.member) return { ...x, node: id };
+    const m = n.members.find((y) => y.name === x.member);
+    if (!m) return { node: id };
+    if (x.port === undefined || m.inputs.some((p) => p.name === x.port) || m.output?.name === x.port)
+      return { ...x, node: id };
+    return { node: id, member: x.member };
   };
   const edges = bp.edges.flatMap((e) => {
     if (!ghostIds.has(e.from.node) && !ghostIds.has(e.to.node)) return [];
