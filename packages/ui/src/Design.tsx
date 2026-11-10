@@ -74,19 +74,15 @@ const TYPES = ['string', 'int', 'float', 'bool', 'date', 'datetime', 'object', '
 
 type Level = 1 | 2 | 3;
 
-// Секцията в лявото меню: стилът, напредъкът, изгледът „Архитектура“, нов ендпойнт и планът.
+// Секцията в лявото меню: стилът, напредъкът, нов ендпойнт и планът.
 export function DesignNav({
   info,
   onAdded,
-  arch,
-  onArch,
   levels,
   onLevel,
 }: {
   info: DesignInfo;
   onAdded: (method: string, path: string) => void;
-  arch: boolean;
-  onArch: () => void;
   levels: Record<string, Level> | undefined; // нивата от пробата
   onLevel: (name: string, level: Level) => void;
 }) {
@@ -126,12 +122,6 @@ export function DesignNav({
           </span>
         )}
       </div>
-      <ul>
-        <li className={arch ? 'on' : ''} onClick={onArch}>
-          Архитектура
-          <small>модули × слоеве, проба с друга</small>
-        </li>
-      </ul>
       <form
         className="add"
         onSubmit={(e) => {

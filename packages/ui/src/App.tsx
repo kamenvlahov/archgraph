@@ -113,24 +113,20 @@ export function App() {
   const [trial, setTrial] = useState<Trial>();
   const [report, setReport] = useState<StatusReport>();
   const [reportError, setReportError] = useState<string>();
-  const leaveArch = () => {
-    setArch(false);
-    setTrial(undefined);
-  };
   const startTrial = (t: Trial) => {
     if (!design?.design) return;
     setTrial(cleanTrial(t, design.design));
     setArch(true);
   };
-  // ендпойнт, клас или метод: процесът от него (и излизане от изгледа на слой, шаблон или архитектура)
+  // ендпойнт, клас или метод: процесът от него в таба „Граф“; пробата остава за таба „Архитектура“
   const openProcess = (id: string) => {
-    leaveArch();
+    setArch(false);
     setLayer(undefined);
     setShaped(undefined);
     setEntry(id);
   };
   const openLayer = (name: string) => {
-    leaveArch();
+    setArch(false);
     setShaped(undefined);
     setLayer(name);
   };
@@ -255,6 +251,17 @@ export function App() {
         </div>
         <div className="proj">{project?.name}</div>
         {design?.design && <Pickers info={design} trial={trial} version={version} onTrial={startTrial} />}
+        {design?.design && (
+          <div className="tabs">
+            <button type="button" className={arch ? 'on' : ''} onClick={() => setArch(true)}>
+              Архитектура
+              {trial && <i title="неприложена проба" />}
+            </button>
+            <button type="button" className={arch ? '' : 'on'} onClick={() => setArch(false)}>
+              Граф
+            </button>
+          </div>
+        )}
         {/* ролите в показания процес, по слоеве отвън навътре */}
         <div className="chips">
           {[...new Set(layer || arch ? [] : (shaped?.result.view ?? view)?.nodes.map((n) => n.role))]
@@ -290,12 +297,6 @@ export function App() {
           <DesignNav
             info={design}
             onAdded={(m, p) => setPending(routeKey(`${m} ${p}`))}
-            arch={arch}
-            onArch={() => {
-              setLayer(undefined);
-              setShaped(undefined);
-              setArch(true);
-            }}
             levels={trial?.levels}
             onLevel={(name, level) => startTrial({ ...trial, levels: { ...trial?.levels, [name]: level } })}
           />
