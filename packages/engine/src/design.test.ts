@@ -308,8 +308,11 @@ test('repository-то връща entity-та, търсенето е метод �
       { method: 'GET', path: '/albums/search', input: { q: 'string' }, output: [{ title: 'string' }] },
       { method: 'GET', path: '/albums/{id}', output: { photos: [{ url: 'string' }] } },
       { method: 'GET', path: '/photos/{id}' },
+      { method: 'GET', path: '/users/me', entity: 'User', action: 'current' },
     ],
   });
+  // действие без критерии (текущият потребител) е findById, не търсене
+  expect(bp.nodes.find((n) => n.name === 'UserRepository')?.members.map((m) => m.name)).toEqual(['findById']);
   const repo = bp.nodes.find((n) => n.name === 'AlbumRepository');
   const sig = (name: string) => {
     const m = repo?.members.find((x) => x.name === name);

@@ -390,7 +390,7 @@ export function blueprint(design: Design): Blueprint {
         if (r.action === 'list') found.push(member(n, cs(['find', 'all']), [], many));
         else if (r.action === 'delete') found.push(member(n, cs(['delete']), [id], none));
         else if (r.action === 'create') found.push(save);
-        else if (read && r.action !== 'get' && !r.params.length)
+        else if (read && r.action !== 'get' && !r.params.length && criteria.length)
           found.push(member(n, vars['action'] as string, criteria, many)); // search(q): Album[]
         else if (read) found.push(findById);
         else found.push(findById, save);
