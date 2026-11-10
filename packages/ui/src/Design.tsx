@@ -1,5 +1,13 @@
 import { useState } from 'react';
-import { designPlan, saveDesign, type Design, type DesignInfo, type FieldSpec, type Fields } from './api.ts';
+import {
+  designPlan,
+  saveDesign,
+  type Design,
+  type DesignInfo,
+  type FieldSpec,
+  type Fields,
+  type Resource,
+} from './api.ts';
 
 // Проектиране от нулата (етап 11): изборът на стек и стил в празна папка, слоевете на стила и
 // добавянето на ендпойнти. Чертежът е .archgraph/design.yaml; ghost нодовете ги прави engine-ът.
@@ -130,7 +138,81 @@ export function DesignNav({ info, onAdded }: { info: DesignInfo; onAdded: (metho
           {copied ? 'Копирано' : 'Копирай плана за AI'}
         </button>
       )}
+      <Resources info={info} />
+      <datalist id="field-types">
+        {[...TYPES, ...info.objects, ...info.objects.map((o) => `${o}[]`)].map((t) => (
+          <option key={t} value={t} />
+        ))}
+      </datalist>
     </div>
+  );
+}
+
+// Ресурсите (entity-тата): кой е влезлият, чий е всеки ресурс и полетата му. По веригата от собственици
+// до влезлия engine-ът знае чии са данните: съобщенията носят id-то му, списъците са само негови.
+function Resources({ info }: { info: DesignInfo }) {
+  const design = info.design as Design;
+  const [open, setOpen] = useState<string>();
+  const [error, setError] = useState<string>();
+  const save = (next: Partial<Design>) =>
+    saveDesign({ ...design, ...next })
+      .then(() => setError(undefined))
+      .catch((e: Error) => setError(e.message));
+  const setResource = (name: string, r: Resource) => save({ resources: { ...design.resources, [name]: r } });
+  if (!info.entities.length) return null;
+  return (
+    <div className="resources">
+      <h4 title="ресурсът на потребителя; тогава ендпойнтите искат вход, освен публичните">Влезлият</h4>
+      <select value={design.auth ?? ''} onChange={(e) => void save({ auth: e.target.value || undefined })}>
+        <option value="">без вход</option>
+        {info.entities.map((x) => (
+          <option key={x}>{x}</option>
+        ))}
+      </select>
+      <h4>Ресурси</h4>
+      {info.entities.map((name) => {
+        const r = design.resources?.[name] ?? {};
+        return (
+          <div key={name} className="resource">
+            <div className="row">
+              <span className="name" onClick={() => setOpen(open === name ? undefined : name)} title="полетата">
+                {open === name ? '▾' : '▸'} {name}
+              </span>
+              <select
+                title="чий е"
+                value={r.owner ?? ''}
+                onChange={(e) => void setResource(name, { ...r, owner: e.target.value || undefined })}
+              >
+                <option value="">ничий</option>
+                {info.entities
+                  .filter((x) => x !== name)
+                  .map((x) => (
+                    <option key={x} value={x}>
+                      на {x}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            {open === name && (
+              <ResourceFields key={name} value={r.fields} onSave={(fields) => setResource(name, { ...r, fields })} />
+            )}
+          </div>
+        );
+      })}
+      {error && <div className="hint bad">{error}</div>}
+    </div>
+  );
+}
+
+function ResourceFields({ value, onSave }: { value?: Fields | undefined; onSave: (f: Fields) => Promise<void> }) {
+  const [fields, setFields] = useState(rows(value));
+  return (
+    <>
+      <Fields hint="полетата на entity-то; id и собственикът се добавят сами" value={fields} onChange={setFields} />
+      <button className="btn" onClick={() => void onSave(record(fields))}>
+        Запази полетата
+      </button>
+    </>
   );
 }
 
@@ -193,14 +275,16 @@ export function EndpointEditor({
   const [input, setInput] = useState(rows(current?.input));
   const [returns, setReturns] = useState(returnsOf(current?.output));
   const [output, setOutput] = useState(fieldsOf(current?.output));
+  const [open, setOpen] = useState(current?.public ?? false);
   const [error, setError] = useState<string>();
   if (!current) return null;
   const save = () => {
     const out =
       returns === FIELDS ? record(output) : returns === FIELDS + '[]' ? [record(output)] : returnSpec(returns);
-    const { output: _, ...rest } = current;
+    const { output: _, public: __, ...rest } = current;
     const next = {
       ...rest,
+      ...(open ? { public: true } : {}),
       method,
       path: path.startsWith('/') ? path : `/${path}`,
       input: record(input),
@@ -225,6 +309,11 @@ export function EndpointEditor({
         </select>
         <input value={path} onChange={(e) => setPath(e.target.value)} />
       </div>
+      {design.auth && (
+        <label className="public">
+          <input type="checkbox" checked={open} onChange={(e) => setOpen(e.target.checked)} /> публичен (без вход)
+        </label>
+      )}
       <Fields title="Вход" hint="полетата на заявката" value={input} onChange={setInput} />
       <div className="fields">
         <h4 title="какво връщат методите на ендпойнта">Изход</h4>
@@ -256,11 +345,6 @@ export function EndpointEditor({
       <button className="btn pri" onClick={save}>
         Запази
       </button>
-      <datalist id="field-types">
-        {[...TYPES, ...info.objects, ...info.objects.map((o) => `${o}[]`)].map((t) => (
-          <option key={t} value={t} />
-        ))}
-      </datalist>
     </div>
   );
 }

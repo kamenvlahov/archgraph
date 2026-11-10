@@ -22,6 +22,7 @@ import {
   validOutput,
   type Design,
   type DesignEndpoint,
+  type DesignResource,
 } from '@archgraph/rules';
 
 // MCP сървър (JSON-RPC 2.0, по едно съобщение на ред през stdio). Протоколът е малък, затова е
@@ -130,7 +131,7 @@ const TOOLS = [
   {
     name: 'design_edit',
     description:
-      'Промяна на чертежа: нов чертеж (stack и style), добавяне или промяна на ендпойнт (endpoint; същият метод и път се заменя) или махане (remove: "GET /galleries/{id}"). Полетата са {име: тип}: string, int, float, bool, date, datetime, клас, [тип] за масив, {поле: тип} за вложен обект. Изходът е какво връщат методите: тип (Gallery, [Gallery]) или полета (става клас за отговора). Не пиши код с това — само чертежа; потребителят го вижда в графа.',
+      'Промяна на чертежа: нов чертеж (stack и style), добавяне или промяна на ендпойнт (endpoint; същият метод и път се заменя) или махане (remove: "GET /galleries/{id}"), ресурс (resource: полетата на entity-то и собственикът му; remove_resource) и влезлият (auth: ресурсът на потребителя; тогава ендпойнтите искат вход, освен public). По веригата от собственици до auth се знае чии са данните: съобщенията носят id-то на влезлия, списъците и търсенето са само неговите. Полетата са {име: тип}: string, int, float, bool, date, datetime, клас, [тип] за масив, {поле: тип} за вложен обект. Изходът е какво връщат методите: тип (Gallery, [Gallery]) или полета (става клас за отговора). Не пиши код с това — само чертежа; потребителят го вижда в графа.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -145,10 +146,22 @@ const TOOLS = [
             output: { description: 'тип, [тип] или {име: тип}' },
             entity: { type: 'string', description: 'по избор, ако пътят подвежда' },
             action: { type: 'string', description: 'по избор, ако пътят подвежда' },
+            public: { type: 'boolean', description: 'без вход (регистрация, вход), когато има auth' },
           },
           required: ['method', 'path'],
         },
         remove: { type: 'string', description: 'METHOD /път на ендпойнт за махане' },
+        auth: { type: 'string', description: 'ресурсът на влезлия (User); "" маха входа' },
+        resource: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Album' },
+            owner: { type: 'string', description: 'чий е: друг ресурс (User, Album)' },
+            fields: { type: 'object', description: '{име: тип}: полетата на entity-то' },
+          },
+          required: ['name'],
+        },
+        remove_resource: { type: 'string', description: 'името на ресурс за махане' },
         project,
       },
     },
@@ -276,6 +289,10 @@ export class Server {
           return `Проектът няма чертеж. Започни с design_edit: stack (${DESIGN_STACKS.map((s) => s.stack).join(', ')}) и style (${DESIGN_STYLES.map((s) => s.style).join(', ')}).`;
         const warnings = designWarnings(design);
         return [
+          ...(design.auth ? [`Влезлият е ${design.auth}: ендпойнтите искат вход, освен публичните.`, ''] : []),
+          ...(design.resources
+            ? ['## Ресурсите', ...Object.entries(design.resources).map(([n, r]) => `- ${resourceText(n, r)}`), '']
+            : []),
           '## Ендпойнтите в чертежа',
           ...design.endpoints.map((e) => `- ${endpointText(e)}`),
           ...(warnings.length ? ['', '## Предупреждения', ...warnings.map((w) => `- ${w}`)] : []),
@@ -335,7 +352,13 @@ const endpointText = (e: DesignEndpoint) =>
     `${e.method} ${e.path}`,
     e.input && Object.keys(e.input).length ? `вход ${JSON.stringify(e.input)}` : '',
     e.output !== undefined ? `изход ${JSON.stringify(e.output)}` : '',
+    e.public ? 'публичен' : '',
   ]
+    .filter(Boolean)
+    .join(' · ');
+
+const resourceText = (name: string, r: DesignResource) =>
+  [name, r.owner ? `на ${r.owner}` : '', r.fields ? `полета ${JSON.stringify(r.fields)}` : '']
     .filter(Boolean)
     .join(' · ');
 
@@ -373,7 +396,30 @@ function editDesign(root: string, args: Record<string, unknown>): string {
     endpoints = at < 0 ? [...endpoints, next] : endpoints.map((x, i) => (i === at ? next : x));
     done.push(`${at < 0 ? 'добавен' : 'променен'} ${endpointText(next)}`);
   }
-  const design: Design = { stack: stack as string, style: style as string, endpoints };
+  let resources = { ...(old?.resources ?? {}) };
+  const gone = args['remove_resource'];
+  if (typeof gone === 'string') {
+    if (!resources[gone]) throw new Error(`в чертежа няма ресурс ${gone}`);
+    resources = Object.fromEntries(Object.entries(resources).filter(([n]) => n !== gone));
+    done.push(`махнат ресурс ${gone}`);
+  }
+  if (args['resource'] !== undefined) {
+    const { name, owner, fields } = args['resource'] as { name?: string } & DesignResource;
+    if (!name || !/^[A-Z]\w*$/.test(name)) throw new Error('resource.name е име на клас: Album');
+    if (fields !== undefined && !validFields(fields))
+      throw new Error('resource.fields е {име: тип}; имената са букви, цифри и _');
+    resources[name] = { ...(owner ? { owner } : {}), ...(fields ? { fields } : {}) };
+    done.push(`ресурс ${resourceText(name, resources[name])}`);
+  }
+  const auth = typeof args['auth'] === 'string' ? args['auth'] : old?.auth;
+  if (typeof args['auth'] === 'string') done.push(args['auth'] ? `влезлият е ${args['auth']}` : 'без вход');
+  const design: Design = {
+    stack: stack as string,
+    style: style as string,
+    ...(auth ? { auth } : {}),
+    ...(Object.keys(resources).length ? { resources } : {}),
+    endpoints,
+  };
   saveDesign(root, design);
   const warnings = designWarnings(design);
   return [

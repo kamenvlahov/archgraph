@@ -367,3 +367,58 @@ test('статусът отделя допълнителните зависим�
   expect(status).not.toContain('Различни');
   expect(status).toContain('Всичко от чертежа е в кода и съвпада.');
 });
+
+test('собственикът: съобщенията носят влезлия, списъкът и търсенето са негови, entity-то има полетата', () => {
+  const design: Design = {
+    stack: 'php-mezzio',
+    style: 'ddd',
+    auth: 'User',
+    resources: {
+      User: { fields: { email: 'string' } },
+      Album: { owner: 'User', fields: { title: 'string' } },
+      Photo: { owner: 'Album' },
+    },
+    endpoints: [
+      { method: 'POST', path: '/users/login', input: { email: 'string' }, public: true },
+      { method: 'GET', path: '/users/me', entity: 'User', action: 'current' },
+      { method: 'GET', path: '/albums' },
+      { method: 'POST', path: '/albums', input: { title: 'string' } },
+      { method: 'GET', path: '/albums/{id}' },
+      { method: 'POST', path: '/albums/{albumId}/photos', input: { title: 'string' } },
+      { method: 'GET', path: '/photos/search', input: { q: 'string' } },
+    ],
+  };
+  expect(designWarnings(design)).toEqual([]);
+  const bp = blueprint(design);
+  const node = (name: string) => bp.nodes.find((n) => n.name === name);
+  const fieldsOf = (name: string) => bp.types[node(name)?.id ?? '']?.fields.map((f) => f.name);
+  const members = (name: string) =>
+    node(name)?.members.map((m) => `${m.name}(${m.inputs.map((p) => p.name).join(',')})`);
+  expect(fieldsOf('LoginUserCommand')).toEqual(['email']);
+  expect(fieldsOf('CurrentUserQuery')).toEqual(['userId']);
+  expect(fieldsOf('GetAlbumQuery')).toEqual(['id', 'userId']);
+  expect(fieldsOf('CreatePhotoCommand')).toEqual(['albumId', 'userId', 'title']);
+  expect(fieldsOf('Album')).toEqual(['id', 'userId', 'title']);
+  expect(fieldsOf('Photo')).toEqual(['id', 'albumId']);
+  expect(members('AlbumRepository')).toEqual(['findAll(userId)', 'save(entity)', 'findById(id)']);
+  expect(members('PhotoRepository')).toEqual(['save(entity)', 'search(userId,q)']);
+  expect(members('UserRepository')).toEqual(['findById(id)', 'save(entity)']);
+  expect(members('Album')).toEqual(['create(userId,title)']);
+  expect(members('Photo')).toEqual(['create(albumId,title)']);
+});
+
+test('предупреждения за ресурсите: непознат собственик, кръг, auth извън чертежа', () => {
+  const warnings = designWarnings({
+    stack: 'php-mezzio',
+    style: 'ddd',
+    auth: 'Account',
+    resources: { Album: { owner: 'Photo' }, Photo: { owner: 'Album' }, Tag: { owner: 'Label' } },
+    endpoints: [ep('GET /albums')],
+  });
+  expect(warnings).toEqual([
+    'auth: Account не е ресурс от чертежа; влезлият е ресурс като User',
+    'Album: собствениците образуват кръг',
+    'Photo: собствениците образуват кръг',
+    'Tag: собственикът Label не е ресурс от чертежа',
+  ]);
+});

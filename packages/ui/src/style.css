@@ -1029,3 +1029,47 @@ aside .endpoint .btn {
   color: var(--accent);
   cursor: pointer;
 }
+.resources {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 12px;
+}
+.resources h4 {
+  margin: 8px 0 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.resources select,
+aside .endpoint .public input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  font: inherit;
+  padding: 4px 6px;
+}
+.resources .resource .row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+}
+.resources .name {
+  cursor: pointer;
+}
+.resources .fields {
+  padding: 4px 0;
+}
+nav .resources .fields input {
+  margin: 0;
+  min-width: 0;
+}
+nav .design .resources .btn {
+  margin: 0 0 6px;
+}
+aside .endpoint .public {
+  margin: 0 12px 4px;
+  font-size: 13px;
+  color: var(--muted);
+}

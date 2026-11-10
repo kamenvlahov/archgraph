@@ -25,6 +25,7 @@ export {
   type Fields,
   type Design,
   type DesignEndpoint,
+  type Resource as DesignResource,
   type Stack,
   type Style,
   type StylePart,

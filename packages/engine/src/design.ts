@@ -109,6 +109,17 @@ export function designWarnings(design: Design): string[] {
     if (other) out.push(`${other} и ${e.method} ${e.path} са едно и също действие (${key}); дай им различни пътища`);
     else seen.set(key, `${e.method} ${e.path}`);
   }
+  const known = new Set([...all.map((r) => r.entity), ...Object.keys(design.resources ?? {})]);
+  if (design.auth && !known.has(design.auth))
+    out.push(`auth: ${design.auth} не е ресурс от чертежа; влезлият е ресурс като User`);
+  for (const [name, res] of Object.entries(design.resources ?? {})) {
+    if (res.owner && !known.has(res.owner)) out.push(`${name}: собственикът ${res.owner} не е ресурс от чертежа`);
+    else if (res.owner && owners(design, name).includes(name)) out.push(`${name}: собствениците образуват кръг`);
+    if (res.fields !== undefined && !validFields(res.fields))
+      out.push(`${name}: полетата са {име: тип}; имената са букви, цифри и _`);
+  }
+  if (!design.auth && design.endpoints.some((e) => e.public))
+    out.push('публични ендпойнти има смисъл само с auth (ресурсът на влезлия)');
   for (const e of design.endpoints) {
     if (e.input !== undefined && !validFields(e.input))
       out.push(`${e.method} ${e.path}: входът е {име: тип}; имената са букви, цифри и _`);
@@ -120,6 +131,23 @@ export function designWarnings(design: Design): string[] {
     for (const b of entities.slice(i + 1))
       if (oneEdit(a.toLowerCase(), b.toLowerCase())) out.push(`${a} и ${b} са различни ресурси; печатна грешка ли е?`);
   return out;
+}
+
+// Веригата от собственици нагоре: Photo → Album → User. Спира при кръг.
+function owners(design: Design, entity: string): string[] {
+  const chain: string[] = [];
+  for (let x = design.resources?.[entity]?.owner; x && !chain.includes(x); x = design.resources?.[x]?.owner)
+    chain.push(x);
+  return chain;
+}
+
+// Данните са на влезлия, ако ресурсът е самият той или веригата от собственици стига до него.
+const ownedByCaller = (design: Design, entity: string) =>
+  !!design.auth && (entity === design.auth || owners(design, entity).includes(design.auth));
+
+// Ресурсите на чертежа: от ендпойнтите и от секцията `resources`.
+export function designEntities(design: Design): string[] {
+  return [...new Set([...readAll(design).map((r) => r.entity), ...Object.keys(design.resources ?? {})])];
 }
 
 function oneEdit(a: string, b: string): boolean {
@@ -258,10 +286,14 @@ export function blueprint(design: Design): Blueprint {
     const entityNode = [...here.entries()].find(([k]) => ['entity', 'model'].includes(style.parts[k]?.role ?? ''))?.[1];
     const entityType: TypeRef = entityNode ? named(entityNode) : { kind: 'unknown', hint: r.entity };
     const dto = [...here.entries()].find(([k]) => style.parts[k]?.role === 'dto')?.[1];
-    const params: Port[] = r.params.map((p) => ({
-      name: cs(words2(p)),
-      type: { kind: 'primitive', name: stack.types.id },
-    }));
+    const idPort = (words: string[]): Port => ({ name: cs(words), type: { kind: 'primitive', name: stack.types.id } });
+    const params: Port[] = r.params.map((p) => idPort(words2(p)));
+    // влезлият: id-то му идва от входа (токена), не от пътя; само при неговите данни и без `public`
+    const caller =
+      design.auth && !e.public && ownedByCaller(design, r.entity) ? idPort([...words2(design.auth), 'id']) : undefined;
+    const ids = [...params, ...(caller && !params.some((p) => p.name === caller.name) ? [caller] : [])];
+    const resource = design.resources?.[r.entity];
+    const ownerId = resource?.owner ? idPort([...words2(resource.owner), 'id']) : undefined;
     // Вложеният обект е клас до собственика си, в неговия слой: PHP — свой файл, Nest и Python — същият.
     // Името е от полето (photos → Photo); ако е заето от друг клас — с името на собственика отпред.
     const nested = (owner: Node, field: string, spec: Fields): Node => {
@@ -313,10 +345,13 @@ export function blueprint(design: Design): Blueprint {
       Object.entries(spec).map(([name, t]) => ({ name: cs(words2(name)), type: fieldType(t, name, owner) }));
     // съобщението (DDD) е единственият вход на handler-а: носи и параметрите от пътя
     const carries = Object.values(style.parts).some((p) => p.method === 'handle');
-    if (dto) addFields(dto, [...(carries ? params : []), ...fields(e.input, dto)]);
+    if (dto) addFields(dto, [...(carries ? ids : []), ...fields(e.input, dto)]);
     // без DTO входът са параметри на методите (GET: query параметрите)
     const query: Port[] = dto ? [] : fields(e.input).map((f) => ({ name: f.name, type: f.type }));
-    const inputs: Port[] = [...params, ...query, ...(dto ? [{ name: cs(['input']), type: named(dto) }] : [])];
+    const inputs: Port[] = [...ids, ...query, ...(dto ? [{ name: cs(['input']), type: named(dto) }] : [])];
+    // полетата на entity-то са от секцията `resources`: id, собственикът (по id, не обект) и описаните
+    if (entityNode && resource)
+      addFields(entityNode, [idPort(['id']), ...(ownerId ? [ownerId] : []), ...fields(resource.fields, entityNode)]);
     // Изходът е какво връщат методите: избран тип (Gallery, Gallery[], int) или полета, от които става
     // клас за отговора до DTO-тата (при списък — един елемент). Без изход — entity-то.
     const resultPart =
@@ -386,21 +421,25 @@ export function blueprint(design: Design): Blueprint {
         const save = member(n, cs(['save']), [{ name: cs(['entity']), type: entityType }], none);
         // repository-то е в domain: връща entity-та, не класа за отговора от application
         const many: Port = { name: 'return', type: { kind: 'array', of: entityType } };
-        const criteria: Port[] = fields(e.input).map((f) => ({ name: f.name, type: f.type }));
-        if (r.action === 'list') found.push(member(n, cs(['find', 'all']), [], many));
+        // списъкът и търсенето са само на влезлия: findAll(userId), search(userId, q)
+        const mine = caller && r.entity !== design.auth ? [caller] : [];
+        const criteria: Port[] = [...mine, ...fields(e.input).map((f) => ({ name: f.name, type: f.type }))];
+        if (r.action === 'list') found.push(member(n, cs(['find', 'all']), mine, many));
         else if (r.action === 'delete') found.push(member(n, cs(['delete']), [id], none));
         else if (r.action === 'create') found.push(save);
-        else if (read && r.action !== 'get' && !r.params.length && criteria.length)
+        else if (read && r.action !== 'get' && !r.params.length && criteria.length > mine.length)
           found.push(member(n, vars['action'] as string, criteria, many)); // search(q): Album[]
         else if (read) found.push(findById);
         else found.push(findById, save);
       }
       // домейнът не знае за DTO-тата от application: получава полетата им
       const domainInputs: Port[] = fields(e.input, entityNode).map((f) => ({ name: f.name, type: f.type }));
-      // create получава и параметрите от пътя (POST /albums/{albumId}/photos → albumId); друго действие е метод
-      // на агрегата само ако е върху един от тях (update или /invoices/{id}/cancel), не login или logout
+      // create получава и параметрите от пътя (POST /albums/{albumId}/photos → albumId) и собственика
+      // (Album::create(userId, …)); друго действие е метод на агрегата само ако е върху един от тях
+      // (update или /invoices/{id}/cancel), не login или logout
+      const created = [...params, ...(ownerId && !params.some((p) => p.name === ownerId.name) ? [ownerId] : [])];
       if (part.method === 'domain' && !read && r.action === 'create')
-        found.push(member(n, cs(['create']), [...params, ...domainInputs], { name: 'return', type: named(n) }, true));
+        found.push(member(n, cs(['create']), [...created, ...domainInputs], { name: 'return', type: named(n) }, true));
       else if (part.method === 'domain' && !read && r.action !== 'delete' && (r.action === 'update' || r.params.length))
         found.push(member(n, vars['action'] as string, domainInputs));
       for (const m of found) addMember(n, m);

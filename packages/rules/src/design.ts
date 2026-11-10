@@ -10,7 +10,16 @@ import { STYLES } from './architecture.ts';
 export interface Design {
   stack: string;
   style: string;
+  auth?: string; // ресурсът на влезлия (User): ендпойнтите искат вход, освен публичните
+  resources?: Record<string, Resource>;
   endpoints: DesignEndpoint[];
+}
+
+// Ресурсът (entity-то): полетата му и чий е. Собственикът е друг ресурс; по веригата до `auth` се знае
+// кои данни са на влезлия: съобщенията носят id-то му, а списъците и търсенето са само неговите.
+export interface Resource {
+  owner?: string;
+  fields?: Fields;
 }
 
 export interface DesignEndpoint {
@@ -20,6 +29,7 @@ export interface DesignEndpoint {
   action?: string; // иначе от метода и пътя
   input?: Fields; // полетата на заявката
   output?: FieldSpec; // какво връщат методите: тип (Gallery, Gallery[]) или полета на клас за отговора
+  public?: boolean; // без вход, когато чертежът има `auth`
 }
 
 // Типът на поле: string, int, float, bool, date, datetime или клас; `[тип]` е масив, `{име: тип}` — вложен обект.
@@ -127,7 +137,13 @@ export function loadDesign(root: string): Design | undefined {
   const y = (parse(readFileSync(file, 'utf8')) ?? {}) as Partial<Design> & { endpoints?: (string | DesignEndpoint)[] };
   if (!DESIGN_STACKS.some((s) => s.stack === y.stack)) throw new Error(`${FILE}: непознат стек „${y.stack}“`);
   if (!DESIGN_STYLES.some((s) => s.style === y.style)) throw new Error(`${FILE}: непознат стил „${y.style}“`);
-  return { stack: y.stack as string, style: y.style as string, endpoints: (y.endpoints ?? []).map(endpointOf) };
+  return {
+    stack: y.stack as string,
+    style: y.style as string,
+    ...(y.auth ? { auth: y.auth } : {}),
+    ...(y.resources && Object.keys(y.resources).length ? { resources: y.resources } : {}),
+    endpoints: (y.endpoints ?? []).map(endpointOf),
+  };
 }
 
 // Ендпойнтът се пише и кратко: `POST /invoices`.
@@ -143,12 +159,28 @@ export function saveDesign(root: string, design: Design) {
   const endpoints = design.endpoints.map((e) => {
     const full = Object.fromEntries(
       Object.entries(e).filter(
-        ([, v]) => v !== undefined && v !== '' && !(typeof v === 'object' && !Object.keys(v).length),
+        ([, v]) => v !== undefined && v !== '' && v !== false && !(typeof v === 'object' && !Object.keys(v).length),
       ),
     );
     return Object.keys(full).length > 2
       ? { ...full, method: e.method.toUpperCase() }
       : `${e.method.toUpperCase()} ${e.path}`;
   });
-  writeFileSync(join(root, FILE), stringify({ stack: design.stack, style: design.style, endpoints }));
+  const resources = Object.entries(design.resources ?? {}).map(([name, r]) => [
+    name,
+    {
+      ...(r.owner ? { owner: r.owner } : {}),
+      ...(r.fields && Object.keys(r.fields).length ? { fields: r.fields } : {}),
+    },
+  ]);
+  writeFileSync(
+    join(root, FILE),
+    stringify({
+      stack: design.stack,
+      style: design.style,
+      ...(design.auth ? { auth: design.auth } : {}),
+      ...(resources.length ? { resources: Object.fromEntries(resources) } : {}),
+      endpoints,
+    }),
+  );
 }

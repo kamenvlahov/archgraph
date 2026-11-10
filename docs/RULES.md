@@ -249,7 +249,12 @@ wiring:
 ```yaml
 stack: php-mezzio # php-mezzio | ts-nestjs | python-fastapi
 style: ddd # layered | mvc | clean | hexagonal | onion | ddd
+auth: User # ресурсът на влезлия: ендпойнтите искат вход, освен публичните
+resources:
+  User: { fields: { email: string } }
+  Invoice: { owner: User, fields: { total: float, issued_at: date } } # чий е и полетата на entity-то
 endpoints:
+  - { method: POST, path: /users/login, input: { email: string, password: string }, public: true }
   - POST /invoices
   - POST /invoices/{id}/cancel
   - { method: GET, path: /reports/monthly, entity: Invoice, action: report }
@@ -265,6 +270,8 @@ endpoints:
 Типовете на полетата са `string`, `int`, `float`, `bool`, `date`, `datetime`, име на клас от чертежа, `[тип]` за масив (или `list[тип]`, `тип[]`) и `{поле: тип}` за вложен обект. Вложеният обект става клас до собственика си, в неговия слой (`photos: [{url: string}]` → `Photo`); стекът превежда простите типове (`types`).
 
 Изходът е какво връщат методите на ендпойнта (service, use case, handler), не полета на entity-то. Той е или избран тип, или полета, от които става клас за отговора до DTO-тата: `{Action}{Entity}Result`, а при списък и при масив — `{Entity}Item` (полетата на един елемент). Без изход методите връщат ресурса.
+
+Ресурсите описват entity-тата: полетата им (към тях се добавят `id` и собственикът като `{owner}_id`) и чии са. Собственикът е друг ресурс; по веригата от собственици (`Photo → Album → User`) до `auth` се знае кои данни са на влезлия. Тогава съобщението (или параметрите на методите) носи id-то на влезлия, `findAll` и търсенето в repository-то го получават (само неговите данни), а `create` в домейна получава собственика (`Invoice::create(userId, …)`). Проверката, че отделен запис е негов, е в handler-а. Ендпойнтите с `public: true` (регистрация, вход) не носят влезлия.
 
 Ресурсът и действието идват от пътя: `POST /invoices` е `Invoice` + `create`, `GET /invoices` е `list`, а последната дума от списък с глаголи е действие (`/invoices/{id}/cancel`, `/admin/profile/edit`). Когато пътят подвежда, `entity` и `action` се дават изрично.
 

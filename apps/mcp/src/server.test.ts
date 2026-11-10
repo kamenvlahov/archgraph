@@ -248,6 +248,21 @@ test('чертеж: design_edit, design, skeleton и design_status — цели�
     expect((await call(server, 'skeleton', { file: 'src/Nope.php' })).isError).toBe(true);
 
     expect((await call(server, 'design_edit', { remove: 'GET /galleries/{x}' })).text).toContain('0 ендпойнта');
+
+    // ресурсите и влезлият
+    expect((await call(server, 'design_edit', { resource: { name: 'photo' } })).isError).toBe(true);
+    await call(server, 'design_edit', { resource: { name: 'User', fields: { email: 'string' } } });
+    const owned = await call(server, 'design_edit', {
+      auth: 'User',
+      resource: { name: 'Gallery', owner: 'User', fields: { name: 'string' } },
+    });
+    expect(owned.text).toContain('ресурс Gallery · на User · полета {"name":"string"}; влезлият е User');
+    await call(server, 'design_edit', { endpoint: { method: 'GET', path: '/galleries' } });
+    const plan = (await call(server, 'design', {})).text;
+    expect(plan).toContain('Влезлият е User');
+    expect(plan).toContain('- Gallery · на User');
+    expect(plan).toContain('findAll(userId: int)');
+    expect((await call(server, 'design_edit', { remove_resource: 'Gallery' })).text).toContain('махнат ресурс Gallery');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

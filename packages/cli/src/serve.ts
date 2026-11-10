@@ -4,6 +4,7 @@ import { basename, extname, join, normalize, relative, sep } from 'node:path';
 import {
   blueprint,
   DEFAULT_EXCLUDES,
+  designEntities,
   designWarnings,
   GraphQuery,
   layers,
@@ -44,7 +45,7 @@ import {
 //   POST /api/plans  {task, targets}   Markdown план за AI
 //   POST /api/patterns {example, to, from?}  „като този“: ghost нодове, регистрации и план
 //   GET  /api/design                   чертежът (етап 11), стековете и стиловете за избор
-//   PUT  /api/design {stack, style, endpoints}  записва .archgraph/design.yaml
+//   PUT  /api/design {stack, style, auth?, resources?, endpoints}  записва .archgraph/design.yaml
 //   GET  /api/design/plan              Markdown план: какво още да се напише по чертежа
 //   GET  /api/design/skeleton?file=    скелетът на файл от чертежа (при „Създай файла“)
 //   GET  /api/events                   Server-Sent Events: `changed`, когато файл се промени
@@ -164,6 +165,7 @@ export async function serve(path: string, port: number, options: ScanOptions): P
         progress: project.report.design ?? null,
         warnings: design ? designWarnings(design) : [],
         objects: design ? objects(blueprint(design)) : [],
+        entities: design ? designEntities(design) : [],
         stacks: DESIGN_STACKS.map((x) => ({ stack: x.stack, label: x.label, language: x.language })),
         styles: DESIGN_STYLES.map((x) => ({
           style: x.style,
@@ -176,7 +178,13 @@ export async function serve(path: string, port: number, options: ScanOptions): P
     }
     if (route === 'PUT /api/design') {
       const body = JSON.parse((await text(req)) || '{}') as Partial<Design>;
-      const design: Design = { stack: body.stack ?? '', style: body.style ?? '', endpoints: body.endpoints ?? [] };
+      const design: Design = {
+        stack: body.stack ?? '',
+        style: body.style ?? '',
+        ...(body.auth ? { auth: body.auth } : {}),
+        ...(body.resources ? { resources: body.resources } : {}),
+        endpoints: body.endpoints ?? [],
+      };
       if (!DESIGN_STACKS.some((x) => x.stack === design.stack) || !DESIGN_STYLES.some((x) => x.style === design.style))
         return send(res, 400, { error: 'трябват познати stack и style' });
       const bad = design.endpoints.find((e) => !/^[A-Z]+$/.test(e.method ?? '') || !e.path?.startsWith('/'));
@@ -187,6 +195,11 @@ export async function serve(path: string, port: number, options: ScanOptions): P
         return send(res, 400, {
           error: `полето е име (букви, цифри, _) и тип, [тип] за масив или {поле: тип} за обект: ${JSON.stringify(typo)}`,
         });
+      const resource = Object.entries(design.resources ?? {}).find(
+        ([name, r]) =>
+          !/^[A-Z]\w*$/.test(name) || !fields(r.fields) || (r.owner !== undefined && typeof r.owner !== 'string'),
+      );
+      if (resource) return send(res, 400, { error: `ресурсът е Име с {owner?, fields?}: ${JSON.stringify(resource)}` });
       saveDesign(graph.root, design);
       await project.update(['.archgraph/design.yaml']);
       changed(['.archgraph/design.yaml']);
