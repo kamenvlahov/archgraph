@@ -1,6 +1,7 @@
 style: ddd
 label: DDD
 about: Всеки ресурс е bounded context. Входът праща command или query; handler-ът работи с агрегата през repository.
+brief: Each resource is a bounded context. The entry sends a command or query; its handler works with the aggregate through the repository.
 entry: interfaces
 parts:
   message: { layer: application, role: dto, name: '{Action}{Target}{Message}', file: message, per: endpoint }

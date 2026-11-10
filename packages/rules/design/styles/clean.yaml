@@ -1,6 +1,7 @@
 style: clean
 label: Clean Architecture
 about: Use case за всяко действие. Той знае само интерфейса на repository-то; имплементацията е навън.
+brief: One use case per action. It knows only the repository interface; the implementation lives outside.
 entry: interface-adapters
 parts:
   input: { layer: use-cases, role: dto, name: '{Action}{Entity}Input', file: dto, per: endpoint, when: body }

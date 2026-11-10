@@ -273,7 +273,7 @@ export class Server {
       return code;
     }
     if (tool === 'design_status') this.graphs.delete(root);
-    const { query, report } = await this.graph(root);
+    const { query } = await this.graph(root);
     switch (tool) {
       case 'trace': {
         const direction = args['direction'] === 'up' ? 'up' : 'down';
@@ -311,7 +311,7 @@ export class Server {
           ...design.endpoints.map((e) => `- ${endpointText(e)}`),
           ...(warnings.length ? ['', '## Предупреждения', ...warnings.map((w) => `- ${w}`)] : []),
           '',
-          designPlan(query.graph, blueprint(design), report.design ?? { done: 0, total: 0 }),
+          designPlan(query.graph, design, blueprint(design)),
         ].join('\n');
       }
       case 'design_status': {

@@ -7,7 +7,7 @@ label: PHP · Mezzio
 language: php
 # create-project иска празна папка, а в нея вече е .archgraph/
 bootstrap: composer create-project mezzio/mezzio-skeleton .skeleton && cp -rn .skeleton/. . && rm -rf .skeleton
-wiring: Всеки клас със зависимости се регистрира в ConfigProvider (`factories`), а route-ът — в config/routes.php.
+wiring: Register every class with dependencies in ConfigProvider (`factories`) and every route in config/routes.php.
 case: camel
 module: '{Entity}'
 class: { id: 'php:App\{Module}\{Folder}\{Name}', file: 'src/{Module}/{Folder}/{Name}.php' }

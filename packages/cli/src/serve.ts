@@ -218,7 +218,7 @@ export async function serve(path: string, port: number, options: ScanOptions, ho
       const design = loadDesign(graph.root);
       if (!design || !project.report.design) return send(res, 404, { error: 'проектът няма чертеж' });
       res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' });
-      return res.end(designPlan(graph, blueprint(design), project.report.design));
+      return res.end(designPlan(graph, design, blueprint(design)));
     }
     // Пробата: чертежът със сменени стил, стек или нива, без да се записва.
     if (route === 'GET /api/design/status') {

@@ -2,7 +2,7 @@ stack: ts-nestjs
 label: TypeScript · NestJS
 language: node
 bootstrap: npx @nestjs/cli new .
-wiring: Controller-ът и providers (service, repository) влизат в {Entities}Module, а модулът — в AppModule.
+wiring: The controller and providers (service, repository) go into {Entities}Module, and the module into AppModule.
 case: camel
 module: '{entities-kebab}'
 class: { id: 'node:{file}#{Name}', file: 'src/{Module}/{dotted}.ts' }

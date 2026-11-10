@@ -1,6 +1,7 @@
 style: hexagonal
 label: Hexagonal (Ports & Adapters)
 about: Входният port е договорът на действието, изходният — на съхранението. Адаптерите са отвън.
+brief: The inbound port is the contract of the action, the outbound port that of storage. Adapters are on the outside.
 entry: adapters
 parts:
   command: { layer: ports, role: dto, name: '{Action}{Entity}Command', file: dto, per: endpoint, when: body }

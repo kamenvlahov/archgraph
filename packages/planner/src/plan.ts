@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import {
   label,
   signature,
+  statusReport,
   typeText,
   where,
   type Blueprint,
@@ -11,7 +12,7 @@ import {
   type Target,
 } from '@archgraph/engine';
 import type { Edge, GraphModel, Member, Node, TypeRef } from '@archgraph/model';
-import { STYLE_ALLOW } from '@archgraph/rules';
+import { STYLE_ALLOW, type Design } from '@archgraph/rules';
 
 // Маркирани нодове + задача → Markdown план за AI агент. Планът е детерминистичен: не измисля
 // решение, а събира всичко, което агентът иначе би търсил из проекта: кода на засегнатите методи,
@@ -296,78 +297,90 @@ export function patternPlan(p: PatternResult, example: string): string {
   return `${lines.join('\n')}\n`;
 }
 
-// Чертежът (етап 11) → какво още да се напише, отвътре навън: файл, сигнатури, зависимости,
-// route-ове и правилата на слоевете. Написаното вече е истински нод и не влиза; на истински клас
-// без някой от методите на чертежа се изброяват липсващите.
-export function designPlan(graph: GraphModel, bp: Blueprint, done: { done: number; total: number }): string {
+// Чертежът (етап 11) → задачата за агента, на английски: какво да се мести, да се напише, да се промени
+// и да се махне, по проверката срещу кода (statusReport). Написаното и съвпадащото не влиза.
+export function designPlan(graph: GraphModel, design: Design, bp: Blueprint): string {
+  const report = statusReport(graph, design, bp);
   const byId = new Map([...bp.nodes, ...graph.nodes].map((n) => [n.id, n]));
-  const real = new Map(graph.nodes.filter((n) => !(n.tags ?? []).includes('ghost')).map((n) => [n.id, n]));
   // отвътре навън по зависимостите: слоят е след тези, от които зависи (domain, после infrastructure…)
   const allow = STYLE_ALLOW[bp.style.style] ?? {};
   const depth = (l: string, seen: string[] = []): number =>
     seen.includes(l) ? 0 : Math.max(-1, ...(allow[l] ?? []).map((d) => depth(d, [...seen, l]))) + 1;
   const order = (n: Node) => depth(n.layer ?? '');
   const lines = [
-    `# План: ${bp.style.label} на ${bp.stack.label}`,
+    `# Plan: ${bp.style.label} in ${bp.stack.label}`,
     '',
-    `Проект: \`${graph.root}\` · готово ${done.done} от ${done.total}`,
+    `Project: \`${graph.root}\` · done ${report.done} of ${report.total}`,
     '',
-    bp.style.about,
+    bp.style.brief,
     '',
   ];
-  if (!real.size) lines.push('## Началото', '', `Празен проект: \`${bp.stack.bootstrap}\``, '');
+  if (!graph.nodes.some((n) => !(n.tags ?? []).includes('ghost')))
+    lines.push('## Start', '', `Empty project: \`${bp.stack.bootstrap}\``, '');
+  lines.push('Use exactly these names and files: archgraph recognizes the written code by them.', '');
 
-  const ghosts = new Set(graph.nodes.filter((n) => (n.tags ?? []).includes('ghost')).map((n) => n.id));
+  if (report.moves.length) {
+    lines.push('## Move', '', 'Same class, new file. Update the namespace and every import.', '');
+    for (const m of report.moves) lines.push(`- **${m.name}**: \`${m.from}\` → \`${m.to}\``);
+    lines.push('');
+  }
+
+  const fresh = new Set(report.classes.filter((c) => c.state === 'missing').map((c) => `${c.name} ${c.file}`));
   const todo = bp.nodes
-    .filter((n) => n.kind !== 'route' && ghosts.has(n.id))
+    .filter((n) => fresh.has(`${n.name} ${n.location.file}`))
     .sort((a, b) => order(a) - order(b) || a.location.file.localeCompare(b.location.file));
   if (todo.length) {
-    lines.push(
-      '## Нови (отвътре навън)',
-      '',
-      'Имената и файловете са точно тези: по тях archgraph разпознава написаното.',
-      '',
-    );
+    lines.push('## New (inside out)', '');
     todo.forEach((n, i) => {
       const kind = n.kind === 'class' ? '' : `${n.kind} `;
-      lines.push(`${i + 1}. ${kind}**${n.name}** (${n.role}, слой ${n.layer}) в \`${n.location.file}\``);
+      lines.push(`${i + 1}. ${kind}**${n.name}** (${n.role}, layer ${n.layer}) in \`${n.location.file}\``);
       const fields = bp.types[n.id]?.fields ?? [];
       if (fields.length)
-        lines.push(`   - полета: ${fields.map((f) => `\`${f.name}: ${typeText(f.type, byId)}\``).join(', ')}`);
+        lines.push(`   - fields: ${fields.map((f) => `\`${f.name}: ${typeText(f.type, byId)}\``).join(', ')}`);
       for (const m of n.members) lines.push(`   - \`${signature(m, byId)}\``);
       const base = bp.edges.find((e) => e.kind === 'implements' && e.from.node === n.id);
-      if (base) lines.push(`   - имплементира ${byId.get(base.to.node)?.name ?? base.to.node}`);
+      if (base) lines.push(`   - implements ${byId.get(base.to.node)?.name ?? base.to.node}`);
     });
     lines.push('');
   }
 
-  const missing = bp.nodes.flatMap((n) => {
-    const r = real.get(n.id);
-    const gone = r ? n.members.filter((m) => !r.members.some((x) => x.name === m.name)) : [];
-    return gone.length ? [{ n, gone }] : [];
-  });
-  if (missing.length) {
-    lines.push('## Липсващи методи в съществуващи класове', '');
-    for (const { n, gone } of missing) {
-      lines.push(`- **${n.name}** в \`${n.location.file}\``);
-      for (const m of gone) lines.push(`  - \`${signature(m, byId)}\``);
+  if (report.changes.length) {
+    lines.push('## Change', '');
+    for (const c of report.changes) {
+      lines.push(`- **${c.name}** in \`${c.file}:${c.line}\``);
+      for (const m of c.missing) lines.push(`  - add \`${m}\``);
+      for (const d of c.differs) lines.push(`  - \`${d.code}\` → \`${d.designed}\``);
+      if (c.fields.length) lines.push(`  - add fields: ${c.fields.map((f) => `\`${f}\``).join(', ')}`);
     }
     lines.push('');
   }
 
+  if (report.extra.length) {
+    lines.push(
+      '## Remove',
+      '',
+      `Not part of ${bp.style.label} at this level. Move their logic into the classes above first, then delete the files and their registrations.`,
+      '',
+    );
+    for (const e of report.extra) lines.push(`- ${e.kind} **${e.name}** — \`${e.file}:${e.line}\``);
+    lines.push('');
+  }
+
+  const ghosts = new Set(graph.nodes.filter((n) => (n.tags ?? []).includes('ghost')).map((n) => n.id));
   const routes = bp.nodes.filter((n) => n.kind === 'route' && ghosts.has(n.id));
   if (routes.length) {
-    lines.push('## Route-ове', '');
+    lines.push('## Routes', '');
     for (const r of routes) {
       const to = bp.edges.find((e) => e.kind === 'routes-to' && e.from.node === r.id)?.to;
       const target = to ? `${byId.get(to.node)?.name ?? to.node}${to.member ? `#${to.member}` : ''}` : '';
       const line = bp.registrations.find((x) => x.route === r.id);
-      lines.push(`- \`${r.name}\` → ${target}${line ? ` · в \`${line.file}\`: \`${line.text}\`` : ''}`);
+      lines.push(`- \`${r.name}\` → ${target}${line ? ` · in \`${line.file}\`: \`${line.text}\`` : ''}`);
     }
     lines.push('');
   }
-  if (bp.stack.wiring) lines.push('## Връзване', '', bp.stack.wiring, '');
-  lines.push('## Слоевете', '', 'Всеки слой зависи само от изброените; обратната посока е нарушение.', '');
-  for (const l of bp.style.layers) lines.push(`- **${l}** → ${(allow[l] ?? []).join(', ') || 'нищо'}`);
+  if (bp.stack.wiring) lines.push('## Wiring', '', bp.stack.wiring, '');
+  lines.push('## Layers', '', 'Each layer depends only on the listed ones; the reverse direction is a violation.', '');
+  for (const l of bp.style.layers) lines.push(`- **${l}** → ${(allow[l] ?? []).join(', ') || 'nothing'}`);
+  if (!report.mismatches && !routes.length) lines.push('', 'Everything in the design is in the code and matches.');
   return `${lines.join('\n')}\n`;
 }

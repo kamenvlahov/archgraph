@@ -81,6 +81,7 @@ export interface Style {
   style: string;
   label: string;
   about: string;
+  brief: string; // about на английски, за плана на агента
   layers: string[]; // отвън навътре (STYLES)
   entry: string; // слоят на входа
   parts: Record<string, StylePart>;
@@ -113,7 +114,7 @@ export interface Stack {
   label: string;
   language: string;
   bootstrap: string;
-  wiring?: string;
+  wiring?: string; // на английски: влиза в плана на агента
   case: 'camel' | 'snake';
   module: string;
   class: { id: string; file: string };

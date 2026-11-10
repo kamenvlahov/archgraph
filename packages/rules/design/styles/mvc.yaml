@@ -1,6 +1,7 @@
 style: mvc
 label: MVC
 about: Controller взима данните от модела и ги дава на изгледа. Моделът сам се чете и записва (Active Record).
+brief: The controller reads data from the model and passes it to the view. The model reads and saves itself (Active Record).
 entry: controller
 parts:
   model: { layer: model, role: model, name: '{Entity}', file: entity, per: entity, method: storage }

@@ -7,6 +7,7 @@
 style: layered
 label: Layered
 about: Класическите слоеве. Входът вика service, той вика repository, данните са entity.
+brief: Classic layers. The entry calls a service, the service calls a repository, data lives in entities.
 entry: presentation
 parts:
   dto: { layer: application, role: dto, name: '{Action}{Entity}Dto', file: dto, per: endpoint, when: body }

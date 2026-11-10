@@ -1,6 +1,7 @@
 style: onion
 label: Onion
 about: Моделът и договорите му са в центъра; приложението е около тях, инфраструктурата и входът са най-отвън.
+brief: The model and its contracts are at the center; the application wraps them, infrastructure and the entry are outermost.
 entry: infrastructure
 parts:
   dto: { layer: application-services, role: dto, name: '{Action}{Entity}Dto', file: dto, per: endpoint, when: body }

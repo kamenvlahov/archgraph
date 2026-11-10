@@ -17,6 +17,7 @@ export {
   statusReport,
   type StatusClass,
   type StatusEffort,
+  type StatusChange,
   type StatusExtra,
   type StatusReport,
 } from './status.ts';

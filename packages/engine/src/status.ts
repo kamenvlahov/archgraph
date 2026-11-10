@@ -48,6 +48,16 @@ export interface StatusExtra {
   file: string;
   line: number;
 }
+// Написан клас, който трябва да се промени: методите от чертежа, които липсват, разминатите сигнатури
+// (чертеж и код) и липсващите полета. Сигнатурите са текст, независим от езика на съобщенията.
+export interface StatusChange {
+  name: string;
+  file: string;
+  line: number;
+  missing: string[];
+  differs: { designed: string; code: string }[];
+  fields: string[];
+}
 export interface StatusEffort {
   size: 'малък' | 'среден' | 'голям';
   files: number;
@@ -64,6 +74,8 @@ export interface StatusReport {
   layers: string[];
   classes: StatusClass[];
   extra: StatusExtra[];
+  moves: { name: string; from: string; to: string }[];
+  changes: StatusChange[];
   mismatches: number;
   effort?: StatusEffort;
   sections: { title: string; lines: string[] }[]; // текстът за MCP, без заглавието и усилието
@@ -114,29 +126,40 @@ export function statusReport(graph: GraphModel, design: Design, bp: Blueprint): 
   const fields: string[] = [];
   const edited = new Set<string>(); // написаните класове, които трябва да се променят
   const changed = new Set<string>();
+  const changes: StatusChange[] = [];
   for (const n of bp.nodes) {
     const code = real.get(n.id);
     if (!code || n.kind === 'route' || n.kind === 'template') continue;
     const where = `${code.location.file}:${code.location.line}`;
+    const change: StatusChange = {
+      name: n.name,
+      file: code.location.file,
+      line: code.location.line,
+      missing: [],
+      differs: [],
+      fields: [],
+    };
     for (const m of n.members) {
       const found = code.members.find((x) => x.name === m.name);
       if (!found) {
         missing.push(`- ${n.name}#${sig(m)} — ${where}`);
-        edited.add(code.location.file);
-        changed.add(n.id);
+        change.missing.push(sig(m));
       } else if (isCtor(m) && extends_(m, found)) {
         const more = found.inputs.slice(m.inputs.length).map((p) => `${p.name}: ${text(p.type)}`);
         extra.push(`- ${n.name}: ${more.join(', ')} — ${where}`);
       } else if (!sameSignature(m, found)) {
         differs.push(`- ${n.name}#${m.name} — ${where}\n  чертеж: \`${sig(m)}\`\n  код:    \`${sig(found)}\``);
-        edited.add(code.location.file);
-        changed.add(n.id);
+        change.differs.push({ designed: sig(m), code: sig(found) });
       }
     }
     const have = new Set((graph.types[n.id]?.fields ?? []).map((f) => f.name));
     const lack = (bp.types[n.id]?.fields ?? []).filter((f) => !have.has(f.name));
     if (lack.length) {
       fields.push(`- ${n.name}: ${lack.map((f) => `${f.name}: ${text(f.type)}`).join(', ')} — ${where}`);
+      change.fields.push(...lack.map((f) => `${f.name}: ${text(f.type)}`));
+    }
+    if (change.missing.length || change.differs.length || change.fields.length) {
+      changes.push(change);
       edited.add(code.location.file);
       changed.add(n.id);
     }
@@ -171,9 +194,12 @@ export function statusReport(graph: GraphModel, design: Design, bp: Blueprint): 
   );
   const movable = foreignNodes.filter((n) => n.language === bp.stack.language && wanted.has(n.name));
   const movedFrom = new Map(movable.map((n) => [n.name, n.location.file]));
-  const moves = movable.map(
-    (n) => `- ${n.name}: ${n.location.file} → ${(wanted.get(n.name) as (typeof ghosts)[number]).location.file}`,
-  );
+  const moved = movable.map((n) => ({
+    name: n.name,
+    from: n.location.file,
+    to: (wanted.get(n.name) as (typeof ghosts)[number]).location.file,
+  }));
+  const moves = moved.map((m) => `- ${m.name}: ${m.from} → ${m.to}`);
   const removed = foreignNodes.filter((n) => !movable.includes(n));
   const foreign = removed.map((n) => `- ${n.kind} ${n.name} — ${n.location.file}:${n.location.line}`);
 
@@ -236,6 +262,8 @@ export function statusReport(graph: GraphModel, design: Design, bp: Blueprint): 
       file: n.location.file,
       line: n.location.line,
     })),
+    moves: moved,
+    changes,
     mismatches: classes.filter((c) => c.state !== 'ok').length + removed.length,
     ...(effort ? { effort } : {}),
     sections: [

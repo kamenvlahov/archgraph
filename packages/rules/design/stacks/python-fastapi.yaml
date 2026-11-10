@@ -2,7 +2,7 @@ stack: python-fastapi
 label: Python · FastAPI
 language: python
 bootstrap: pip install fastapi uvicorn
-wiring: Router-ът на модула се включва в app/main.py с app.include_router; зависимостите се подават с Depends.
+wiring: Include the module router in app/main.py with app.include_router; pass dependencies with Depends.
 case: snake
 module: '{entities_snake}'
 class: { id: 'python:app.{Module}.{Folder}.{Name}', file: 'app/{Module}/{Folder}.py' }
