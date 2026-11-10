@@ -321,3 +321,20 @@ test('repository-то връща entity-та, търсенето е метод �
   expect(bp.nodes.map((n) => n.name)).toContain('AlbumPhoto');
   expect(bp.nodes.filter((n) => n.name === 'Photo').map((n) => n.role)).toEqual(['entity']);
 });
+
+test('create получава параметрите от пътя; действие без id не е метод на агрегата', () => {
+  const bp = blueprint({
+    stack: 'php-mezzio',
+    style: 'ddd',
+    endpoints: [
+      { method: 'POST', path: '/albums/{albumId}/photos', input: { title: 'string' } },
+      { method: 'POST', path: '/users/login', input: { email: 'string' } },
+      { method: 'POST', path: '/invoices/{id}/cancel' },
+    ],
+  });
+  const members = (name: string) =>
+    bp.nodes.find((n) => n.name === name)?.members.map((m) => `${m.name}(${m.inputs.map((p) => p.name).join(',')})`);
+  expect(members('Photo')).toEqual(['create(albumId,title)']);
+  expect(members('User')).toEqual([]);
+  expect(members('Invoice')).toEqual(['cancel()']);
+});

@@ -397,12 +397,12 @@ export function blueprint(design: Design): Blueprint {
       }
       // домейнът не знае за DTO-тата от application: получава полетата им
       const domainInputs: Port[] = fields(e.input, entityNode).map((f) => ({ name: f.name, type: f.type }));
-      if (part.method === 'domain' && !read && r.action !== 'delete')
-        found.push(
-          r.action === 'create'
-            ? member(n, cs(['create']), domainInputs, { name: 'return', type: named(n) }, true)
-            : member(n, vars['action'] as string, domainInputs),
-        );
+      // create получава и параметрите от пътя (POST /albums/{albumId}/photos → albumId); друго действие е метод
+      // на агрегата само ако е върху един от тях (update или /invoices/{id}/cancel), не login или logout
+      if (part.method === 'domain' && !read && r.action === 'create')
+        found.push(member(n, cs(['create']), [...params, ...domainInputs], { name: 'return', type: named(n) }, true));
+      else if (part.method === 'domain' && !read && r.action !== 'delete' && (r.action === 'update' || r.params.length))
+        found.push(member(n, vars['action'] as string, domainInputs));
       for (const m of found) addMember(n, m);
       methods.set(
         key,
