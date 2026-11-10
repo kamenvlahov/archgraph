@@ -1,6 +1,28 @@
 import { resolve } from 'node:path';
-import { GraphQuery, label, pattern, scan, where, type Target } from '@archgraph/engine';
-import { patternPlan, plan } from '@archgraph/planner';
+import {
+  blueprint,
+  designStatus,
+  designWarnings,
+  GraphQuery,
+  label,
+  pattern,
+  scan,
+  skeleton,
+  where,
+  type ScanReport,
+  type Target,
+} from '@archgraph/engine';
+import { designPlan, patternPlan, plan } from '@archgraph/planner';
+import {
+  DESIGN_STACKS,
+  DESIGN_STYLES,
+  loadDesign,
+  saveDesign,
+  validFields,
+  validOutput,
+  type Design,
+  type DesignEndpoint,
+} from '@archgraph/rules';
 
 // MCP сървър (JSON-RPC 2.0, по едно съобщение на ред през stdio). Протоколът е малък, затова е
 // написан на ръка, без SDK: initialize, tools/list, tools/call, ping.
@@ -100,6 +122,57 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: { target, project } },
   },
   {
+    name: 'design',
+    description:
+      'Чертежът на проекта (.archgraph/design.yaml): стек, архитектура, ендпойнтите с входа и изхода им, предупрежденията и планът какво още да се напише — по слоеве, със сигнатурите и реда за регистрация. Ползвай го преди да пишеш код по чертежа.',
+    inputSchema: { type: 'object', properties: { project } },
+  },
+  {
+    name: 'design_edit',
+    description:
+      'Промяна на чертежа: нов чертеж (stack и style), добавяне или промяна на ендпойнт (endpoint; същият метод и път се заменя) или махане (remove: "GET /galleries/{id}"). Полетата са {име: тип}: string, int, float, bool, date, datetime, клас, [тип] за масив, {поле: тип} за вложен обект. Изходът е какво връщат методите: тип (Gallery, [Gallery]) или полета (става клас за отговора). Не пиши код с това — само чертежа; потребителят го вижда в графа.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        stack: { type: 'string', description: DESIGN_STACKS.map((s) => s.stack).join(' | ') },
+        style: { type: 'string', description: DESIGN_STYLES.map((s) => s.style).join(' | ') },
+        endpoint: {
+          type: 'object',
+          properties: {
+            method: { type: 'string', enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] },
+            path: { type: 'string', description: '/galleries/{id}' },
+            input: { type: 'object', description: '{име: тип}' },
+            output: { description: 'тип, [тип] или {име: тип}' },
+            entity: { type: 'string', description: 'по избор, ако пътят подвежда' },
+            action: { type: 'string', description: 'по избор, ако пътят подвежда' },
+          },
+          required: ['method', 'path'],
+        },
+        remove: { type: 'string', description: 'METHOD /път на ендпойнт за махане' },
+        project,
+      },
+    },
+  },
+  {
+    name: 'design_status',
+    description:
+      'Проверка на кода срещу чертежа след писане: какво още го няма, липсващи методи и полета в написаните класове, различни сигнатури (параметри, изход) и нарушения на слоевете. Сканира наново. Пускай го след всяка порция код по чертежа.',
+    inputSchema: { type: 'object', properties: { project } },
+  },
+  {
+    name: 'skeleton',
+    description:
+      'Скелетът на файл от чертежа: namespace, импорти, класът, конструкторът със зависимостите, полетата и методите със сигнатурите, с коментар кого вика всеки метод. Логиката в телата я пишеш ти.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', description: 'пътят от плана: src/Gallery/Handler/GetGalleryHandler.php' },
+        project,
+      },
+      required: ['file'],
+    },
+  },
+  {
     name: 'rescan',
     description: 'Сканира проекта отново след промени в кода. Другите инструменти ползват последното сканиране.',
     inputSchema: { type: 'object', properties: { project } },
@@ -108,7 +181,7 @@ const TOOLS = [
 
 export class Server {
   private readonly options: ServerOptions;
-  private readonly graphs = new Map<string, Promise<{ query: GraphQuery; summary: string }>>();
+  private readonly graphs = new Map<string, Promise<Scanned>>();
 
   constructor(options: ServerOptions) {
     this.options = options;
@@ -135,7 +208,7 @@ export class Server {
           capabilities: { tools: {} },
           serverInfo: { name: 'archgraph', version: '0.0.0' },
           instructions:
-            'Графът на архитектурата на проекта: кой кого вика, кой от кого зависи, сигнатури с file:line. Ползвай го преди да ровиш из файловете.',
+            'Графът на архитектурата на проекта: кой кого вика, кой от кого зависи, сигнатури с file:line. Ползвай го преди да ровиш из файловете. Ако проектът има чертеж (design): пиши по плана и скелетите му и след всяка порция код пусни design_status.',
         };
       }
       case 'ping':
@@ -162,7 +235,18 @@ export class Server {
       this.graphs.delete(root);
       return (await this.graph(root)).summary;
     }
-    const { query } = await this.graph(root);
+    if (tool === 'design_edit') {
+      const text = editDesign(root, args);
+      this.graphs.delete(root);
+      return text;
+    }
+    if (tool === 'skeleton') {
+      const code = skeleton(blueprint(designOf(root)), String(args['file'] ?? ''));
+      if (!code) throw new Error(`${String(args['file'])} не е файл от чертежа; файловете са в плана (design)`);
+      return code;
+    }
+    if (tool === 'design_status') this.graphs.delete(root);
+    const { query, report } = await this.graph(root);
     switch (tool) {
       case 'trace': {
         const direction = args['direction'] === 'up' ? 'up' : 'down';
@@ -186,6 +270,23 @@ export class Server {
         const from = typeof args['from'] === 'string' && args['from'] ? args['from'] : undefined;
         return patternPlan(pattern(query.graph, example, String(args['to'] ?? ''), from), example.node.name);
       }
+      case 'design': {
+        const design = loadDesign(root);
+        if (!design)
+          return `Проектът няма чертеж. Започни с design_edit: stack (${DESIGN_STACKS.map((s) => s.stack).join(', ')}) и style (${DESIGN_STYLES.map((s) => s.style).join(', ')}).`;
+        const warnings = designWarnings(design);
+        return [
+          '## Ендпойнтите в чертежа',
+          ...design.endpoints.map((e) => `- ${endpointText(e)}`),
+          ...(warnings.length ? ['', '## Предупреждения', ...warnings.map((w) => `- ${w}`)] : []),
+          '',
+          designPlan(query.graph, blueprint(design), report.design ?? { done: 0, total: 0 }),
+        ].join('\n');
+      }
+      case 'design_status': {
+        const design = designOf(root);
+        return designStatus(query.graph, design, blueprint(design));
+      }
       case 'violations':
         return query.violations(args['target'] === undefined ? undefined : one(query, args['target']).node);
       case 'find_by_role': {
@@ -200,11 +301,12 @@ export class Server {
   }
 
   // Графът се сканира веднъж за проект и се пази в паметта до `rescan`.
-  private graph(root: string): Promise<{ query: GraphQuery; summary: string }> {
+  private graph(root: string): Promise<Scanned> {
     let entry = this.graphs.get(root);
     if (!entry) {
       entry = scan(root, { scip: this.options.scip }).then(({ graph, report }) => ({
         query: new GraphQuery(graph),
+        report,
         summary: `${root}: ${graph.nodes.length} нода, ${graph.edges.length} ребра (${Object.entries(report.files)
           .map(([l, n]) => `${l} ${n}`)
           .join(', ')})`,
@@ -214,6 +316,71 @@ export class Server {
     }
     return entry;
   }
+}
+
+interface Scanned {
+  query: GraphQuery;
+  report: ScanReport;
+  summary: string;
+}
+
+function designOf(root: string): Design {
+  const design = loadDesign(root);
+  if (!design) throw new Error('проектът няма чертеж (.archgraph/design.yaml); започни с design_edit');
+  return design;
+}
+
+const endpointText = (e: DesignEndpoint) =>
+  [
+    `${e.method} ${e.path}`,
+    e.input && Object.keys(e.input).length ? `вход ${JSON.stringify(e.input)}` : '',
+    e.output !== undefined ? `изход ${JSON.stringify(e.output)}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+// Нов чертеж, ендпойнт (заменя същия метод и път) или махане. Проверките са като в UI-а (PUT /api/design).
+function editDesign(root: string, args: Record<string, unknown>): string {
+  const old = loadDesign(root);
+  const stack = typeof args['stack'] === 'string' ? args['stack'] : old?.stack;
+  const style = typeof args['style'] === 'string' ? args['style'] : old?.style;
+  if (!DESIGN_STACKS.some((s) => s.stack === stack))
+    throw new Error(`stack е един от: ${DESIGN_STACKS.map((s) => s.stack).join(', ')}`);
+  if (!DESIGN_STYLES.some((s) => s.style === style))
+    throw new Error(`style е един от: ${DESIGN_STYLES.map((s) => s.style).join(', ')}`);
+  let endpoints = old?.endpoints ?? [];
+  const key = (method: string, path: string) =>
+    `${method.toUpperCase()} ${path.replace(/\{[^}]*\}|:\w+/g, '{}').replace(/\/$/, '')}`;
+  const done: string[] = [];
+  if (typeof args['remove'] === 'string') {
+    const [method = '', path = ''] = args['remove'].trim().split(/\s+/);
+    const left = endpoints.filter((e) => key(e.method, e.path) !== key(method, path));
+    if (left.length === endpoints.length) throw new Error(`в чертежа няма ${args['remove']}`);
+    endpoints = left;
+    done.push(`махнат ${args['remove']}`);
+  }
+  if (args['endpoint'] !== undefined) {
+    const e = args['endpoint'] as DesignEndpoint;
+    const method = String(e.method ?? '').toUpperCase();
+    if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(method) || !e.path?.startsWith('/'))
+      throw new Error('endpoint е {method: GET|POST|PUT|PATCH|DELETE, path: /път}');
+    if (e.input !== undefined && !validFields(e.input))
+      throw new Error('input е {име: тип}; имената са букви, цифри и _; [тип] е масив, {поле: тип} — обект');
+    if (e.output !== undefined && !validOutput(e.output))
+      throw new Error('output е тип (Gallery), [тип] или {име: тип}');
+    const next: DesignEndpoint = { ...e, method };
+    const at = endpoints.findIndex((x) => key(x.method, x.path) === key(method, e.path));
+    endpoints = at < 0 ? [...endpoints, next] : endpoints.map((x, i) => (i === at ? next : x));
+    done.push(`${at < 0 ? 'добавен' : 'променен'} ${endpointText(next)}`);
+  }
+  const design: Design = { stack: stack as string, style: style as string, endpoints };
+  saveDesign(root, design);
+  const warnings = designWarnings(design);
+  return [
+    `Чертежът е записан (${design.style} · ${design.stack}, ${design.endpoints.length} ендпойнта)${done.length ? `: ${done.join('; ')}` : ''}.`,
+    ...warnings.map((w) => `Внимание: ${w}`),
+    'Планът е в design.',
+  ].join('\n');
 }
 
 class RpcError extends Error {

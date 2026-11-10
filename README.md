@@ -91,7 +91,7 @@ code --extensionDevelopmentPath=$PWD/apps/vscode ~/projects/shop
 
 ### MCP сървър
 
-За Claude Code и всеки MCP клиент. Инструменти: `trace`, `dependents`, `describe_node`, `find_by_role`, `plan`, `pattern`, `violations`, `rescan`. Отговорите са кратък текст с `file:line`.
+За Claude Code и всеки MCP клиент. Инструменти: `trace`, `dependents`, `describe_node`, `find_by_role`, `plan`, `pattern`, `violations`, `rescan`, а за чертежа `design` (ендпойнтите и планът), `design_edit` (промяна на чертежа), `skeleton` (скелетът на файл) и `design_status` (кодът срещу чертежа: липсващо, различни сигнатури, нарушения). Отговорите са кратък текст с `file:line`.
 
 ```sh
 claude mcp add archgraph -s user -- node ~/projects/archgraph/apps/mcp/src/main.ts

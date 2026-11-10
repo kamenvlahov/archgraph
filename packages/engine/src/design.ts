@@ -13,6 +13,8 @@ import {
 import {
   DESIGN_STACKS,
   DESIGN_STYLES,
+  validFields,
+  validOutput,
   type Architecture,
   type Design,
   type DesignCondition,
@@ -106,6 +108,12 @@ export function designWarnings(design: Design): string[] {
     const other = seen.get(key);
     if (other) out.push(`${other} и ${e.method} ${e.path} са едно и също действие (${key}); дай им различни пътища`);
     else seen.set(key, `${e.method} ${e.path}`);
+  }
+  for (const e of design.endpoints) {
+    if (e.input !== undefined && !validFields(e.input))
+      out.push(`${e.method} ${e.path}: входът е {име: тип}; имената са букви, цифри и _`);
+    if (e.output !== undefined && !validOutput(e.output))
+      out.push(`${e.method} ${e.path}: изходът е тип, [тип] или {име: тип}; имената са букви, цифри и _`);
   }
   const entities = [...new Set(all.map((r) => r.entity))];
   for (const [i, a] of entities.entries())

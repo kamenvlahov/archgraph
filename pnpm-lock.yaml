@@ -199,6 +199,9 @@ importers:
       '@archgraph/planner':
         specifier: workspace:*
         version: link:../../packages/planner
+      '@archgraph/rules':
+        specifier: workspace:*
+        version: link:../../packages/rules
 
   apps/vscode:
     devDependencies:

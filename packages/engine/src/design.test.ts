@@ -1,13 +1,17 @@
-import { appendFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { saveDesign, type Design } from '@archgraph/rules';
 import { blueprint, designWarnings, readEndpoint } from './design.ts';
 import { skeleton } from './skeleton.ts';
+import { designStatus } from './status.ts';
 import { GraphQuery } from './query.ts';
 import { processView } from './process.ts';
 import { Project } from './scan.ts';
+
+let root = '';
+afterEach(() => rmSync(root, { recursive: true, force: true }));
 
 const ep = (s: string) => ({ method: s.split(' ')[0] as string, path: s.split(' ')[1] as string });
 
@@ -46,6 +50,9 @@ test('GET без id до ендпойнт с id е списък; предупр�
   };
   expect(blueprint(design).nodes.map((n) => n.name)).toContain('ListGalleriesHandler');
   expect(designWarnings(design)).toEqual(['Gallery и Galery са различни ресурси; печатна грешка ли е?']);
+  expect(
+    designWarnings({ ...design, endpoints: [{ ...ep('GET /gallery'), output: { '[id, name]': 'array' } }] }),
+  ).toEqual(['GET /gallery: изходът е тип, [тип] или {име: тип}; имената са букви, цифри и _']);
   expect(designWarnings({ ...design, endpoints: [ep('GET /gallery/{id}'), ep('GET /gallery/view/{id}')] })).toEqual([
     'GET /gallery/{id} и GET /gallery/view/{id} са едно и също действие (get Gallery); дай им различни пътища',
   ]);
@@ -108,9 +115,6 @@ function write(root: string, design: Design) {
 }
 
 describe('чертеж', () => {
-  let root = '';
-  afterEach(() => rmSync(root, { recursive: true, force: true }));
-
   test.each([
     ['php-mezzio', 'layered'],
     ['php-mezzio', 'ddd'],
@@ -173,6 +177,38 @@ describe('чертеж', () => {
         .map((m) => `${n.name}#${m.name}`),
     );
     expect(missing).toEqual([]);
+    // и проверката срещу чертежа не намира разминавания
+    const status = designStatus(p.graph, design, bp);
+    expect(status).not.toMatch(/Липсващи|Различни|Нарушения/);
+  });
+
+  test('статусът хваща липсващ метод, различен тип на изхода и липсващо поле', async () => {
+    root = mkdtempSync(join(tmpdir(), 'archgraph-design-'));
+    const design: Design = {
+      stack: 'php-mezzio',
+      style: 'layered',
+      endpoints: [{ method: 'GET', path: '/galleries/{id}', output: { name: 'string', title: 'string' } }],
+    };
+    saveDesign(root, design);
+    const bp = blueprint(design);
+    for (const file of new Set(bp.nodes.map((n) => n.location.file))) {
+      const code = skeleton(bp, file);
+      if (!code || file.endsWith('.phtml')) continue;
+      mkdirSync(dirname(join(root, file)), { recursive: true });
+      appendFileSync(join(root, file), code);
+    }
+    const service = join(root, 'src/Gallery/Service/GalleryService.php');
+    writeFileSync(service, readFileSync(service, 'utf8').replace('): GetGalleryResult', '): Gallery'));
+    const result = join(root, 'src/Gallery/Dto/GetGalleryResult.php');
+    writeFileSync(result, readFileSync(result, 'utf8').replace(/\n\s*public readonly string \$title,/, ''));
+    const repo = join(root, 'src/Gallery/Repository/GalleryRepository.php');
+    writeFileSync(repo, readFileSync(repo, 'utf8').replace(/public function findById[^;]*;/, ''));
+    const p = await Project.open(root, { scip: false });
+    const status = designStatus(p.graph, design, bp);
+    expect(status).toContain('## Различни сигнатури (1)');
+    expect(status).toContain('GalleryService#get');
+    expect(status).toContain('## Липсващи полета (1)\n- GetGalleryResult: title: string');
+    expect(status).toContain('## Липсващи методи (1)\n- GalleryRepository#findById(id: int): Gallery');
   });
 
   test('веригата минава през слоевете на стила и слоят на истинския код идва от чертежа', async () => {
@@ -234,4 +270,31 @@ test('входът става полета на DTO (или параметри �
     kind: 'array',
     of: { kind: 'named', id: 'python:app.invoices.schemas.InvoiceItem' },
   });
+});
+
+test('статусът хваща липсващ метод, различен тип на изхода и липсващо поле', async () => {
+  root = mkdtempSync(join(tmpdir(), 'archgraph-design-'));
+  const design: Design = {
+    stack: 'php-mezzio',
+    style: 'layered',
+    endpoints: [{ method: 'GET', path: '/galleries/{id}', output: { name: 'string', title: 'string' } }],
+  };
+  saveDesign(root, design);
+  const bp = blueprint(design);
+  for (const file of new Set(bp.nodes.map((n) => n.location.file))) {
+    const code = skeleton(bp, file);
+    if (!code || file.endsWith('.phtml')) continue;
+    mkdirSync(dirname(join(root, file)), { recursive: true });
+    appendFileSync(join(root, file), code);
+  }
+  const edit = (file: string, from: RegExp | string, to: string) =>
+    writeFileSync(join(root, file), readFileSync(join(root, file), 'utf8').replace(from, to));
+  edit('src/Gallery/Service/GalleryService.php', '): GetGalleryResult', '): Gallery');
+  edit('src/Gallery/Dto/GetGalleryResult.php', /\n\s*public readonly string \$title,/, '');
+  edit('src/Gallery/Repository/GalleryRepository.php', /public function findById[^;]*;/, '');
+  const p = await Project.open(root, { scip: false });
+  const status = designStatus(p.graph, design, bp);
+  expect(status).toContain('## Различни сигнатури (1)\n- GalleryService#get');
+  expect(status).toContain('## Липсващи полета (1)\n- GetGalleryResult: title: string');
+  expect(status).toContain('## Липсващи методи (1)\n- GalleryRepository#findById(id: int): Gallery');
 });

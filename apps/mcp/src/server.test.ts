@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { join } from 'node:path';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { Server } from './server.ts';
 
@@ -162,6 +164,10 @@ test('протокол: initialize, tools/list, известия и непозн
     'plan',
     'pattern',
     'violations',
+    'design',
+    'design_edit',
+    'design_status',
+    'skeleton',
     'rescan',
   ]);
   expect(await server.handle({ jsonrpc: '2.0', id: 3, method: 'resources/list' })).toEqual({
@@ -208,4 +214,41 @@ test('pattern: план „като този“ през MCP', async () => {
   expect(isError).toBe(false);
   expect(text).toContain('# План: Invoice по образеца на OrderService');
   expect(text).toContain('`src/ConfigProvider.php:27`');
+});
+
+test('чертеж: design_edit, design, skeleton и design_status — целият цикъл на агента', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'archgraph-mcp-'));
+  try {
+    const server = new Server({ cwd: root, scip: false });
+    expect((await call(server, 'design', {})).text).toContain('Проектът няма чертеж');
+    expect((await call(server, 'design_edit', { stack: 'php-mezzio', style: 'nope' })).isError).toBe(true);
+    const added = await call(server, 'design_edit', {
+      stack: 'php-mezzio',
+      style: 'layered',
+      endpoint: { method: 'GET', path: '/galleries/{id}', output: { name: 'string', photos: [{ url: 'string' }] } },
+    });
+    expect(added.text).toContain('добавен GET /galleries/{id}');
+    const bad = await call(server, 'design_edit', { endpoint: { method: 'GET', path: '/x', input: { 'a b': 'int' } } });
+    expect(bad.isError).toBe(true);
+
+    const design = (await call(server, 'design', {})).text;
+    expect(design).toContain('- GET /galleries/{id} · изход {"name":"string","photos":[{"url":"string"}]}');
+    expect(design).toContain('GetGalleryResult');
+
+    expect((await call(server, 'design_status', {})).text).toContain('## Още ги няма');
+    // агентът пише всеки файл по скелета
+    for (const file of design.match(/src\/[\w/]+\.php/g) ?? []) {
+      const code = await call(server, 'skeleton', { file });
+      if (code.isError) continue;
+      mkdirSync(dirname(join(root, file)), { recursive: true });
+      writeFileSync(join(root, file), code.text);
+    }
+    const status = (await call(server, 'design_status', {})).text;
+    expect(status).not.toMatch(/Още ги няма|Липсващи|Различни/);
+    expect((await call(server, 'skeleton', { file: 'src/Nope.php' })).isError).toBe(true);
+
+    expect((await call(server, 'design_edit', { remove: 'GET /galleries/{x}' })).text).toContain('0 ендпойнта');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
