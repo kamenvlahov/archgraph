@@ -403,8 +403,27 @@ test('собственикът: съобщенията носят влезлия
   expect(members('AlbumRepository')).toEqual(['findAll(userId)', 'save(entity)', 'findById(id)']);
   expect(members('PhotoRepository')).toEqual(['save(entity)', 'search(userId,q)']);
   expect(members('UserRepository')).toEqual(['findById(id)', 'save(entity)']);
-  expect(members('Album')).toEqual(['create(userId,title)']);
+  expect(members('Album')).toEqual(['create(userId,title)', 'checkOwner(userId)']);
   expect(members('Photo')).toEqual(['create(albumId,title)']);
+  // снимката е на албума: handler-ът зарежда албума ѝ и проверява собственика; при албума — самия него
+  expect(members('CreatePhotoCommandHandler')).toEqual([
+    '__construct(photoRepository,albumRepository)',
+    'handle(message)',
+  ]);
+  expect(members('GetAlbumQueryHandler')).toEqual(['__construct(albumRepository)', 'handle(message)']);
+  expect(members('ListAlbumsQueryHandler')).toEqual(['__construct(albumRepository)', 'handle(message)']);
+  const calls = (from: string) =>
+    bp.edges
+      .filter((e) => e.kind === 'calls' && e.from.node === node(from)?.id)
+      .map((e) => `${bp.nodes.find((n) => n.id === e.to.node)?.name}#${e.to.member}`);
+  expect(calls('CreatePhotoCommandHandler')).toEqual([
+    'PhotoRepository#save',
+    'Photo#create',
+    'AlbumRepository#findById',
+    'Album#checkOwner',
+  ]);
+  expect(calls('GetAlbumQueryHandler')).toEqual(['AlbumRepository#findById', 'Album#checkOwner']);
+  expect(calls('ListAlbumsQueryHandler')).toEqual(['AlbumRepository#findAll']);
 });
 
 test('предупреждения за ресурсите: непознат собственик, кръг, auth извън чертежа', () => {

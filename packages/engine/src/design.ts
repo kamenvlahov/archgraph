@@ -150,6 +150,18 @@ export function designEntities(design: Design): string[] {
   return [...new Set([...readAll(design).map((r) => r.entity), ...Object.keys(design.resources ?? {})])];
 }
 
+// Имената на ресурса за шаблоните на стила и стека: Album, Albums, album_snake…
+function entityVars(entity: string): Record<string, string> {
+  return {
+    Entity: entity,
+    Entities: plural(entity),
+    entity_snake: words2(entity).join('_'),
+    entities_snake: words2(plural(entity)).join('_'),
+    'entity-kebab': words2(entity).join('-'),
+    'entities-kebab': words2(plural(entity)).join('-'),
+  };
+}
+
 function oneEdit(a: string, b: string): boolean {
   if (Math.abs(a.length - b.length) > 1 || a === b) return false;
   let i = 0;
@@ -195,12 +207,7 @@ export function blueprint(design: Design): Blueprint {
       (c === 'create' && r.action === 'create');
     const actionWords = words2(r.action);
     const vars: Record<string, string> = {
-      Entity: r.entity,
-      Entities: plural(r.entity),
-      entity_snake: words2(r.entity).join('_'),
-      entities_snake: words2(plural(r.entity)).join('_'),
-      'entity-kebab': words2(r.entity).join('-'),
-      'entities-kebab': words2(plural(r.entity)).join('-'),
+      ...entityVars(r.entity),
       Action: pascal(actionWords),
       action: cs(actionWords),
       action_snake: actionWords.join('_'),
@@ -227,9 +234,10 @@ export function blueprint(design: Design): Blueprint {
       here.set(key, n);
       return n;
     };
-    const classNode = (key: string, part: StylePart, name = fill(part.name, vars)): Node => {
+    // класът на част от стила; с други променливи — на друг ресурс (repository-то на собственика)
+    const place = (part: StylePart, name: string, from: Record<string, string>): Node => {
       const v = {
-        ...vars,
+        ...from,
         Name: name,
         Folder: stack.folders?.[part.file] ?? part.file,
         dotted: dotted(name, part.file),
@@ -238,18 +246,25 @@ export function blueprint(design: Design): Blueprint {
       const id = part.kind === 'template' ? `template:${file}` : fill(stack.class.id, { ...v, file });
       classVars.set(id, v);
       where(part.layer, file);
-      return node(key, () => ({
+      const n = nodes.get(id) ?? {
         id,
         kind: part.kind ?? 'class',
         name,
         language: stack.language,
         role: part.role,
         layer: part.layer,
-        context: vars['Module'] as string,
+        context: from['Module'] as string,
         location: { file, line: 1, endLine: 1 },
         members: [],
         tags: ['ghost'],
-      }));
+      };
+      nodes.set(id, n);
+      return n;
+    };
+    const classNode = (key: string, part: StylePart, name = fill(part.name, vars)): Node => {
+      const n = place(part, name, vars);
+      here.set(key, n);
+      return n;
     };
 
     // Входът: формата е от стека (handler на ендпойнт, controller на ресурс, функция).
@@ -457,6 +472,19 @@ export function blueprint(design: Design): Blueprint {
       methods.set(key, methods.get(part.implements as string) ?? []);
     }
 
+    // Зависимостта влиза в конструктора; при функция (FastAPI) е параметър: `service = Depends(...)`.
+    const inject = (from: Node, fromKey: string, to: Node) => {
+      const port = cs(words2(to.name));
+      const at =
+        from.kind === 'function'
+          ? (methods.get(fromKey)?.[0] ?? from.name)
+          : (CONSTRUCTOR[stack.language] ?? 'constructor');
+      if (from.kind !== 'function') addMember(from, member(from, at, []));
+      const ctor = from.members.find((m) => m.name === at);
+      if (ctor && !ctor.inputs.some((p) => p.name === port)) ctor.inputs.push({ name: port, type: named(to) });
+      addEdge(edge('injects', { node: to.id }, { node: from.id, member: at, port }));
+    };
+
     // Веригата: извиквания, създаване и изгледи; при извикване на клас — и инжектиране.
     for (const f of style.flow) {
       const from = here.get(f.from);
@@ -474,17 +502,61 @@ export function blueprint(design: Design): Blueprint {
       }
       // entity и DTO се зареждат и създават, не се инжектират
       const injectable = !['entity', 'model', 'dto', 'view'].includes(style.parts[f.to]?.role ?? '');
-      if (kind === 'calls' && injectable && (methods.get(f.to) ?? []).length) {
-        const port = cs(words2(to.name));
-        const at =
-          from.kind === 'function'
-            ? (methods.get(f.from)?.[0] ?? from.name)
-            : (CONSTRUCTOR[stack.language] ?? 'constructor');
-        if (from.kind !== 'function') addMember(from, member(from, at, []));
-        // при функция (FastAPI) зависимостта е параметър: `service = Depends(...)`
-        const ctor = from.members.find((m) => m.name === at);
-        if (ctor && !ctor.inputs.some((p) => p.name === port)) ctor.inputs.push({ name: port, type: named(to) });
-        addEdge(edge('injects', { node: to.id }, { node: from.id, member: at, port }));
+      if (kind === 'calls' && injectable && (methods.get(f.to) ?? []).length) inject(from, f.from, to);
+    }
+
+    // Чий е записът: агрегатът най-горе във веригата до влезлия (Album) проверява собственика с
+    // checkOwner(userId), а който работи със снимка, зарежда и албума ѝ през неговото repository.
+    // Списъкът и търсенето вече са само на влезлия (findAll(userId)); create на Album сам задава собственика.
+    const chain = caller && r.entity !== design.auth && r.params.length ? [r.entity, ...owners(design, r.entity)] : [];
+    const above = chain.slice(1, chain.indexOf(design.auth as string));
+    const root = above.at(-1) ?? (chain.length ? r.entity : undefined);
+    const contract = Object.entries(style.parts).find(([, p]) => p.method === 'storage' && !p.implements);
+    const users = contract
+      ? style.flow.filter((f) => f.to === contract[0] && (f.kind ?? 'calls') === 'calls' && holds(f.when))
+      : [];
+    const entityPart = Object.values(style.parts).find((p) => p.role === 'entity' || p.role === 'model');
+    const varsOf = (entity: string) => {
+      const v = { ...vars, ...entityVars(entity) };
+      return { ...v, Module: fill(stack.module, v) };
+    };
+    for (const owner of contract ? above : []) {
+      const [key, part] = contract as [string, StylePart];
+      const ov = varsOf(owner);
+      const entity = entityPart ? place(entityPart, fill(entityPart.name, ov), ov) : undefined;
+      const one: Port = { name: 'return', type: entity ? named(entity) : { kind: 'unknown', hint: owner } };
+      const repo = place(part, fill(part.name, ov), ov);
+      const findById = member(repo, cs(['find', 'by', 'id']), [idPort(['id'])], one);
+      addMember(repo, findById);
+      for (const impl of Object.values(style.parts).filter((p) => p.implements === key)) {
+        const store = place(impl, fill(impl.name, ov), ov);
+        addMember(store, { ...findById, location: store.location });
+        addEdge(edge('implements', { node: store.id }, { node: repo.id }));
+      }
+      for (const f of users) {
+        const from = here.get(f.from);
+        if (!from) continue;
+        for (const fm of methods.get(f.from) ?? [])
+          addEdge(edge('calls', { node: from.id, member: fm }, { node: repo.id, member: findById.name }));
+        if (style.parts[f.to]?.role !== 'model') inject(from, f.from, repo);
+      }
+    }
+    const domain = Object.values(style.parts).some((p) => p.method === 'domain');
+    if (root && caller && domain && entityPart) {
+      const ov = varsOf(root);
+      const aggregate = root === r.entity && entityNode ? entityNode : place(entityPart, fill(entityPart.name, ov), ov);
+      const none: Port = { name: 'return', type: { kind: 'primitive', name: stack.types.void } };
+      addMember(aggregate, member(aggregate, cs(['check', 'owner']), [caller], none));
+      for (const f of users) {
+        const from = here.get(f.from);
+        for (const fm of from ? (methods.get(f.from) ?? []) : [])
+          addEdge(
+            edge(
+              'calls',
+              { node: (from as Node).id, member: fm },
+              { node: aggregate.id, member: cs(['check', 'owner']) },
+            ),
+          );
       }
     }
 
