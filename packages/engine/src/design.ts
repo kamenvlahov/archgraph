@@ -606,7 +606,10 @@ export function merge(
   bp: Blueprint,
 ): { nodes: Node[]; edges: Edge[]; types: Record<string, TypeShape>; done: number; total: number } {
   const ids = new Set(real.map((n) => n.id));
-  const routes = new Map(real.filter((n) => n.kind === 'route').map((n) => [routeKey(n.name), n.id]));
+  // route-ът на друг език (PHP при чертеж на NestJS) не е написан по този чертеж
+  const routes = new Map(
+    real.filter((n) => n.kind === 'route' && n.language === bp.stack.language).map((n) => [routeKey(n.name), n.id]),
+  );
   const actual = new Map<string, string>(); // id в чертежа → id в кода
   for (const n of bp.nodes) {
     if (ids.has(n.id)) actual.set(n.id, n.id);

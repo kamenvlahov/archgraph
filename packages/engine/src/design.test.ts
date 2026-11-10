@@ -441,3 +441,44 @@ test('предупреждения за ресурсите: непознат с�
     'Tag: собственикът Label не е ресурс от чертежа',
   ]);
 });
+
+test('проверка срещу друга архитектура и език без запис: липсващи, излишни, за местене и усилие', async () => {
+  root = mkdtempSync(join(tmpdir(), 'archgraph-design-'));
+  const design: Design = {
+    stack: 'php-mezzio',
+    style: 'ddd',
+    endpoints: [
+      { method: 'GET', path: '/albums', output: [{ title: 'string' }] },
+      { method: 'POST', path: '/albums', input: { title: 'string' } },
+    ],
+  };
+  saveDesign(root, design);
+  writeFileSync(join(root, 'composer.json'), '{"require": {"mezzio/mezzio": "^3.0"}}');
+  const bp = blueprint(design);
+  for (const file of new Set(bp.nodes.map((n) => n.location.file))) {
+    const code = skeleton(bp, file);
+    if (!code) continue;
+    mkdirSync(dirname(join(root, file)), { recursive: true });
+    appendFileSync(join(root, file), code);
+  }
+  const p = await Project.open(root, { scip: false });
+  expect(designStatus(p.graph, design, bp)).toContain('Всичко от чертежа е в кода и съвпада.');
+
+  const onion = { ...design, style: 'onion' };
+  const status = designStatus(p.graph, onion, blueprint(onion));
+  expect(status).toContain(
+    '## Усилие: малък рефакторинг, 10 файла\n- 2 нови класа за писане (3 метода)\n- 1 клас за местене',
+  );
+  expect(status).toContain('## Още ги няма (2)\n- class AlbumService → src/Album/Service/AlbumService.php');
+  expect(status).toContain('- AlbumItem: src/Album/Application/AlbumItem.php → src/Album/Dto/AlbumItem.php');
+  expect(status).toContain('## Излишни за Onion (4)\n- class CreateAlbumCommand —');
+  expect(status).toContain('## Нарушения на архитектурата');
+  expect(status).not.toContain('Всичко от чертежа');
+
+  // друг език: route-овете на PHP не са написани по чертежа на NestJS, а PHP класовете са за пренаписване
+  const nest = { ...design, stack: 'ts-nestjs' };
+  const ported = designStatus(p.graph, nest, blueprint(nest));
+  expect(ported).toMatch(/готово 0 от \d+/);
+  expect(ported).toMatch(/- \d+ класа за махане; логиката им \(около \d+ реда\) се пренася в новите/);
+  expect(ported).not.toContain('Да се преместят');
+});

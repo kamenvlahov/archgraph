@@ -36,10 +36,10 @@ parts:
       method: storage,
       implements: outport,
     }
-  entity: { layer: domain, role: entity, name: '{Entity}', file: entity, per: entity }
+  entity: { layer: domain, role: entity, name: '{Entity}', file: entity, per: entity, method: domain }
 flow:
   - { from: entry, to: command, kind: creates }
   - { from: entry, to: inport }
   - { from: service, to: outport }
-  - { from: service, to: entity, kind: creates, when: create }
+  - { from: service, to: entity, when: write } # create (static), update и действията на агрегата
   - { from: adapter, to: entity, kind: creates }

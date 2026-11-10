@@ -169,8 +169,15 @@ const TOOLS = [
   {
     name: 'design_status',
     description:
-      'Проверка на кода срещу чертежа след писане: какво още го няма, липсващи методи и полета в написаните класове, различни сигнатури (параметри, изход) и нарушения на слоевете. Сканира наново. Пускай го след всяка порция код по чертежа.',
-    inputSchema: { type: 'object', properties: { project } },
+      'Проверка на кода срещу чертежа след писане: какво още го няма, липсващи методи и полета в написаните класове, различни сигнатури (параметри, изход), класове от друга архитектура и нарушения на слоевете, с усилието за рефакторинг. Сканира наново. Пускай го след всяка порция код по чертежа. Със style или stack проверява срещу друга архитектура или език, без да записва: какво ще се счупи и колко работа е преходът.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        style: { type: 'string', description: `по избор, без запис: ${DESIGN_STYLES.map((s) => s.style).join(' | ')}` },
+        stack: { type: 'string', description: `по избор, без запис: ${DESIGN_STACKS.map((s) => s.stack).join(' | ')}` },
+        project,
+      },
+    },
   },
   {
     name: 'skeleton',
@@ -301,7 +308,14 @@ export class Server {
         ].join('\n');
       }
       case 'design_status': {
-        const design = designOf(root);
+        const saved = designOf(root);
+        const style = typeof args['style'] === 'string' && args['style'] ? args['style'] : saved.style;
+        const stack = typeof args['stack'] === 'string' && args['stack'] ? args['stack'] : saved.stack;
+        if (!DESIGN_STYLES.some((s) => s.style === style))
+          throw new Error(`style е един от: ${DESIGN_STYLES.map((s) => s.style).join(', ')}`);
+        if (!DESIGN_STACKS.some((s) => s.stack === stack))
+          throw new Error(`stack е един от: ${DESIGN_STACKS.map((s) => s.stack).join(', ')}`);
+        const design = { ...saved, style, stack };
         return designStatus(query.graph, design, blueprint(design));
       }
       case 'violations':

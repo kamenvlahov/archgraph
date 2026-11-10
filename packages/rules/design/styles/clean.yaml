@@ -26,10 +26,10 @@ parts:
       method: storage,
       implements: gateway,
     }
-  entity: { layer: entities, role: entity, name: '{Entity}', file: entity, per: entity }
+  entity: { layer: entities, role: entity, name: '{Entity}', file: entity, per: entity, method: domain }
 flow:
   - { from: entry, to: input, kind: creates }
   - { from: entry, to: usecase }
   - { from: usecase, to: gateway }
-  - { from: usecase, to: entity, kind: creates, when: create }
+  - { from: usecase, to: entity, when: write } # create (static), update и действията на агрегата
   - { from: store, to: entity, kind: creates }

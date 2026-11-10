@@ -26,10 +26,10 @@ parts:
       method: storage,
       implements: repository,
     }
-  entity: { layer: domain-model, role: entity, name: '{Entity}', file: entity, per: entity }
+  entity: { layer: domain-model, role: entity, name: '{Entity}', file: entity, per: entity, method: domain }
 flow:
   - { from: entry, to: dto, kind: creates }
   - { from: entry, to: service }
   - { from: service, to: repository }
-  - { from: service, to: entity, kind: creates, when: create }
+  - { from: service, to: entity, when: write } # create (static), update и действията на агрегата
   - { from: store, to: entity, kind: creates }

@@ -246,6 +246,12 @@ test('чертеж: design_edit, design, skeleton и design_status — цели�
     const status = (await call(server, 'design_status', {})).text;
     expect(status).not.toMatch(/Още ги няма|Липсващи|Различни/);
     expect((await call(server, 'skeleton', { file: 'src/Nope.php' })).isError).toBe(true);
+    // друга архитектура без запис: гърми и казва колко е работата
+    expect((await call(server, 'design_status', { style: 'nope' })).isError).toBe(true);
+    const onion = (await call(server, 'design_status', { style: 'onion' })).text;
+    expect(onion).toContain('# Чертеж: Onion');
+    expect(onion).toMatch(/## Усилие: \S+ рефакторинг/);
+    expect((await call(server, 'design', {})).text).toContain('Layered');
 
     expect((await call(server, 'design_edit', { remove: 'GET /galleries/{x}' })).text).toContain('0 ендпойнта');
 
