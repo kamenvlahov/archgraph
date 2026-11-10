@@ -40,3 +40,15 @@ flow:
   - { from: handler, to: repository }
   - { from: handler, to: aggregate, when: write }
   - { from: store, to: aggregate, kind: creates }
+# Нивото на ресурса (resources.X.level): 3 е стилът горе; 2 — един service за ресурса вместо command/query
+# и handler за всяко действие; 1 — входът вика repository-то и агрегата направо.
+levels:
+  2:
+    parts:
+      message: { name: '{Action}{Entity}Dto', file: dto, when: body }
+      handler: { name: '{Entity}Service', file: service, per: entity, method: action }
+  1:
+    drop: [message, handler]
+    flow:
+      - { from: entry, to: repository }
+      - { from: entry, to: aggregate, when: write }

@@ -1,6 +1,15 @@
 import type { GraphModel, Member, TypeRef } from '@archgraph/model';
-import { assignLayers, DESIGN_STACKS, DESIGN_STYLES, loadDesign, type Design, type RoleFacts } from '@archgraph/rules';
-import { blueprint, designWarnings, merge, type Blueprint } from './design.ts';
+import {
+  assignLayers,
+  DESIGN_STACKS,
+  DESIGN_STYLES,
+  LEVELS,
+  loadDesign,
+  type Design,
+  type DesignLevel as Level,
+  type RoleFacts,
+} from '@archgraph/rules';
+import { blueprint, designEntities, designWarnings, merge, type Blueprint } from './design.ts';
 import { typeText } from './query.ts';
 import { violations } from './violations.ts';
 
@@ -62,10 +71,17 @@ export function designStatus(graph: GraphModel, design: Design, bp: Blueprint): 
   // CreateAlbumCommand в onion, целият PHP код при NestJS. Помощните класове, които никой стил не чертае
   // (PhotoFiles, middleware), не се броят.
   const ids = new Set(bp.nodes.map((n) => n.id));
+  // Нивото също: LoginUserCommand е излишен, ако аутентикацията е на ниво 1.
+  const entities = designEntities(design);
+  const atLevel = (level: Level) => Object.fromEntries(entities.map((e) => [e, { ...design.resources?.[e], level }]));
   const others = new Set(
     DESIGN_STACKS.flatMap((stack) =>
-      DESIGN_STYLES.filter((s) => s.style !== design.style || stack.stack !== design.stack).flatMap((s) =>
-        blueprint({ ...design, stack: stack.stack, style: s.style }).nodes.map((n) => n.id),
+      DESIGN_STYLES.flatMap((s) =>
+        LEVELS.flatMap((level) =>
+          blueprint({ ...design, stack: stack.stack, style: s.style, resources: atLevel(level) }).nodes.map(
+            (n) => n.id,
+          ),
+        ),
       ),
     ),
   );

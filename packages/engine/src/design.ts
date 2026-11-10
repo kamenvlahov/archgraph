@@ -24,6 +24,8 @@ import {
   type Stack,
   type Style,
   type StylePart,
+  styleAt,
+  LEVELS,
 } from '@archgraph/rules';
 
 // Чертежът (етап 11) като нодове: всеки ендпойнт става верига от участниците на стила с имената,
@@ -117,6 +119,13 @@ export function designWarnings(design: Design): string[] {
     else if (res.owner && owners(design, name).includes(name)) out.push(`${name}: собствениците образуват кръг`);
     if (res.fields !== undefined && !validFields(res.fields))
       out.push(`${name}: полетата са {име: тип}; имената са букви, цифри и _`);
+    if (res.level !== undefined && !LEVELS.includes(res.level)) out.push(`${name}: нивото е 1, 2 или 3`);
+    else if (res.level && res.level < 3) {
+      const style = DESIGN_STYLES.find((s) => s.style === design.style);
+      if (style && !style.levels) out.push(`${name}: ${style.label} няма по-просто ниво; ресурсът е като ниво 3`);
+      else if (style && res.level === 2 && !style.levels?.[2])
+        out.push(`${name}: в ${style.label} ниво 2 е същото като 3`);
+    }
   }
   if (!design.auth && design.endpoints.some((e) => e.public))
     out.push('публични ендпойнти има смисъл само с auth (ресурсът на влезлия)');
@@ -198,6 +207,8 @@ export function blueprint(design: Design): Blueprint {
   const readings = readAll(design);
   for (const [i, e] of design.endpoints.entries()) {
     const r = readings[i] as Reading;
+    // стилът на нивото на ресурса: аутентикацията на 1, албумите на 3
+    const st = styleAt(style, design.resources?.[r.entity]?.level);
     const read = e.method === 'GET';
     const holds = (c?: DesignCondition) =>
       !c ||
@@ -289,8 +300,8 @@ export function blueprint(design: Design): Blueprint {
       members: [],
       tags: ['ghost'],
     }));
-    for (const [key, part] of Object.entries(style.parts)) if (holds(part.when)) classNode(key, part);
-    for (const [key, part] of Object.entries(style.parts)) {
+    for (const [key, part] of Object.entries(st.parts)) if (holds(part.when)) classNode(key, part);
+    for (const [key, part] of Object.entries(st.parts)) {
       const impl = here.get(key);
       const contract = part.implements ? here.get(part.implements) : undefined;
       if (impl && contract) addEdge(edge('implements', { node: impl.id }, { node: contract.id }));
@@ -298,9 +309,9 @@ export function blueprint(design: Design): Blueprint {
 
     // Типовете в сигнатурите: entity, DTO на ендпойнта, параметрите на пътя.
     const named = (n: Node): TypeRef => ({ kind: 'named', id: n.id });
-    const entityNode = [...here.entries()].find(([k]) => ['entity', 'model'].includes(style.parts[k]?.role ?? ''))?.[1];
+    const entityNode = [...here.entries()].find(([k]) => ['entity', 'model'].includes(st.parts[k]?.role ?? ''))?.[1];
     const entityType: TypeRef = entityNode ? named(entityNode) : { kind: 'unknown', hint: r.entity };
-    const dto = [...here.entries()].find(([k]) => style.parts[k]?.role === 'dto')?.[1];
+    const dto = [...here.entries()].find(([k]) => st.parts[k]?.role === 'dto')?.[1];
     const idPort = (words: string[]): Port => ({ name: cs(words), type: { kind: 'primitive', name: stack.types.id } });
     const params: Port[] = r.params.map((p) => idPort(words2(p)));
     // влезлият: id-то му идва от входа (токена), не от пътя; само при неговите данни и без `public`
@@ -359,7 +370,7 @@ export function blueprint(design: Design): Blueprint {
     const fields = (spec: Fields = {}, owner?: Node): Field[] =>
       Object.entries(spec).map(([name, t]) => ({ name: cs(words2(name)), type: fieldType(t, name, owner) }));
     // съобщението (DDD) е единственият вход на handler-а: носи и параметрите от пътя
-    const carries = Object.values(style.parts).some((p) => p.method === 'handle');
+    const carries = Object.values(st.parts).some((p) => p.method === 'handle');
     if (dto) addFields(dto, [...(carries ? ids : []), ...fields(e.input, dto)]);
     // без DTO входът са параметри на методите (GET: query параметрите)
     const query: Port[] = dto ? [] : fields(e.input).map((f) => ({ name: f.name, type: f.type }));
@@ -369,9 +380,12 @@ export function blueprint(design: Design): Blueprint {
       addFields(entityNode, [idPort(['id']), ...(ownerId ? [ownerId] : []), ...fields(resource.fields, entityNode)]);
     // Изходът е какво връщат методите: избран тип (Gallery, Gallery[], int) или полета, от които става
     // клас за отговора до DTO-тата (при списък — един елемент). Без изход — entity-то.
-    const resultPart =
-      Object.values(style.parts).find((p) => p.role === 'dto') ??
-      Object.values(style.parts).find((p) => p.role === 'entity' || p.role === 'model');
+    // без DTO в стила (ниво 1) класът за отговора е до входа: оформянето на отговора е негова работа
+    const resultPart: StylePart | undefined =
+      Object.values(st.parts).find((p) => p.role === 'dto') ??
+      (Object.values(style.parts).some((p) => p.role === 'dto')
+        ? { layer: style.entry, role: 'dto', name: '', file: 'dto', per: 'endpoint' }
+        : Object.values(st.parts).find((p) => p.role === 'entity' || p.role === 'model'));
     // where: 'top' — самият изход, 'item' — елемент на масив (при списък изходът е масив от елементи)
     const outputType = (spec: FieldSpec, where: 'top' | 'item'): TypeRef => {
       if (typeof spec === 'string') return fieldType(spec, 'result');
@@ -418,7 +432,7 @@ export function blueprint(design: Design): Blueprint {
     addMember(entry, member(entry, entryMethod, entryInputs, entryOutput));
     methods.set('entry', [entryMethod]);
     for (const [key, n] of here) {
-      const part = style.parts[key];
+      const part = st.parts[key];
       if (!part?.method) continue;
       const found: Member[] = [];
       if (part.method === 'action') found.push(member(n, vars['action'] as string, inputs, output));
@@ -464,7 +478,7 @@ export function blueprint(design: Design): Blueprint {
       );
     }
     // Имплементацията има методите на договора си.
-    for (const [key, part] of Object.entries(style.parts)) {
+    for (const [key, part] of Object.entries(st.parts)) {
       const impl = here.get(key);
       const contract = part.implements ? here.get(part.implements) : undefined;
       if (!impl || !contract) continue;
@@ -486,7 +500,7 @@ export function blueprint(design: Design): Blueprint {
     };
 
     // Веригата: извиквания, създаване и изгледи; при извикване на клас — и инжектиране.
-    for (const f of style.flow) {
+    for (const f of st.flow) {
       const from = here.get(f.from);
       const to = here.get(f.to);
       if (!from || !to || !holds(f.when)) continue;
@@ -501,7 +515,7 @@ export function blueprint(design: Design): Blueprint {
         else addEdge(edge(kind, { node: from.id, member: fm }, { node: to.id }));
       }
       // entity и DTO се зареждат и създават, не се инжектират
-      const injectable = !['entity', 'model', 'dto', 'view'].includes(style.parts[f.to]?.role ?? '');
+      const injectable = !['entity', 'model', 'dto', 'view'].includes(st.parts[f.to]?.role ?? '');
       if (kind === 'calls' && injectable && (methods.get(f.to) ?? []).length) inject(from, f.from, to);
     }
 
@@ -511,11 +525,11 @@ export function blueprint(design: Design): Blueprint {
     const chain = caller && r.entity !== design.auth && r.params.length ? [r.entity, ...owners(design, r.entity)] : [];
     const above = chain.slice(1, chain.indexOf(design.auth as string));
     const root = above.at(-1) ?? (chain.length ? r.entity : undefined);
-    const contract = Object.entries(style.parts).find(([, p]) => p.method === 'storage' && !p.implements);
+    const contract = Object.entries(st.parts).find(([, p]) => p.method === 'storage' && !p.implements);
     const users = contract
-      ? style.flow.filter((f) => f.to === contract[0] && (f.kind ?? 'calls') === 'calls' && holds(f.when))
+      ? st.flow.filter((f) => f.to === contract[0] && (f.kind ?? 'calls') === 'calls' && holds(f.when))
       : [];
-    const entityPart = Object.values(style.parts).find((p) => p.role === 'entity' || p.role === 'model');
+    const entityPart = Object.values(st.parts).find((p) => p.role === 'entity' || p.role === 'model');
     const varsOf = (entity: string) => {
       const v = { ...vars, ...entityVars(entity) };
       return { ...v, Module: fill(stack.module, v) };
@@ -528,7 +542,7 @@ export function blueprint(design: Design): Blueprint {
       const repo = place(part, fill(part.name, ov), ov);
       const findById = member(repo, cs(['find', 'by', 'id']), [idPort(['id'])], one);
       addMember(repo, findById);
-      for (const impl of Object.values(style.parts).filter((p) => p.implements === key)) {
+      for (const impl of Object.values(st.parts).filter((p) => p.implements === key)) {
         const store = place(impl, fill(impl.name, ov), ov);
         addMember(store, { ...findById, location: store.location });
         addEdge(edge('implements', { node: store.id }, { node: repo.id }));
@@ -538,10 +552,10 @@ export function blueprint(design: Design): Blueprint {
         if (!from) continue;
         for (const fm of methods.get(f.from) ?? [])
           addEdge(edge('calls', { node: from.id, member: fm }, { node: repo.id, member: findById.name }));
-        if (style.parts[f.to]?.role !== 'model') inject(from, f.from, repo);
+        if (st.parts[f.to]?.role !== 'model') inject(from, f.from, repo);
       }
     }
-    const domain = Object.values(style.parts).some((p) => p.method === 'domain');
+    const domain = Object.values(st.parts).some((p) => p.method === 'domain');
     if (root && caller && domain && entityPart) {
       const ov = varsOf(root);
       const aggregate = root === r.entity && entityNode ? entityNode : place(entityPart, fill(entityPart.name, ov), ov);

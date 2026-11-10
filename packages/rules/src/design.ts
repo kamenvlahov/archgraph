@@ -20,7 +20,11 @@ export interface Design {
 export interface Resource {
   owner?: string;
   fields?: Fields;
+  level?: Level; // на колко парчета се разбива: 1 просто, 2 service за ресурса, 3 стилът изцяло (без ниво)
 }
+
+export type Level = 1 | 2 | 3;
+export const LEVELS: Level[] = [1, 2, 3];
 
 export interface DesignEndpoint {
   method: string; // GET, POST…
@@ -80,7 +84,28 @@ export interface Style {
   layers: string[]; // отвън навътре (STYLES)
   entry: string; // слоят на входа
   parts: Record<string, StylePart>;
-  flow: { from: string; to: string; kind?: 'calls' | 'creates' | 'renders'; when?: Condition }[];
+  flow: Flow[];
+  // по-простите нива: части с промени, махнати части и ребрата, които ги заместват (кумулативно: 1 = 2 + 1)
+  levels?: Partial<Record<1 | 2, { parts?: Record<string, Partial<StylePart>>; drop?: string[]; flow?: Flow[] }>>;
+}
+
+export type Flow = { from: string; to: string; kind?: 'calls' | 'creates' | 'renders'; when?: Condition };
+
+// Стилът на дадено ниво. Ниво 3 (и без ниво) е стилът изцяло; стил без `levels` няма по-просто ниво.
+export function styleAt(style: Style, level: Level | undefined): Style {
+  if (!level || level === 3 || !style.levels) return style;
+  const steps = level === 1 ? [style.levels[2], style.levels[1]] : [style.levels[2]];
+  return steps.reduce<Style>((st, step) => {
+    if (!step) return st;
+    const drop = new Set(step.drop ?? []);
+    const parts = Object.fromEntries(
+      Object.entries(st.parts)
+        .filter(([key]) => !drop.has(key))
+        .map(([key, p]) => [key, { ...p, ...step.parts?.[key] }]),
+    );
+    const flow = [...st.flow, ...(step.flow ?? [])].filter((f) => !drop.has(f.from) && !drop.has(f.to));
+    return { ...st, parts, flow };
+  }, style);
 }
 
 export interface Stack {
@@ -124,6 +149,9 @@ export const DESIGN_STYLES: Style[] = loadAll<Omit<Style, 'layers'>>(join(DIR, '
   if (!layers) throw new Error(`design/styles: стилът „${s.style}“ го няма в STYLES`);
   for (const [key, p] of Object.entries(s.parts))
     if (!layers.includes(p.layer)) throw new Error(`design/styles/${s.style}: ${key} е в непознат слой „${p.layer}“`);
+  for (const step of Object.values(s.levels ?? {}))
+    for (const key of [...Object.keys(step.parts ?? {}), ...(step.drop ?? [])])
+      if (!s.parts[key]) throw new Error(`design/styles/${s.style}: нивата пипат непозната част „${key}“`);
   return { ...s, layers };
 });
 
@@ -170,6 +198,7 @@ export function saveDesign(root: string, design: Design) {
     name,
     {
       ...(r.owner ? { owner: r.owner } : {}),
+      ...(r.level && r.level !== 3 ? { level: r.level } : {}),
       ...(r.fields && Object.keys(r.fields).length ? { fields: r.fields } : {}),
     },
   ]);

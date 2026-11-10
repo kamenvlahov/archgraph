@@ -43,3 +43,15 @@ flow:
   - { from: service, to: outport }
   - { from: service, to: entity, when: write } # create (static), update и действията на агрегата
   - { from: adapter, to: entity, kind: creates }
+# Нивото на ресурса: 3 — port и service за всяко действие; 2 — по един за ресурса; 1 — адаптерът вика
+# изходния port направо.
+levels:
+  2:
+    parts:
+      inport: { name: '{Entity}UseCase', per: entity, method: action }
+      service: { name: '{Entity}Service', per: entity, method: action }
+  1:
+    drop: [command, inport, service]
+    flow:
+      - { from: entry, to: outport }
+      - { from: entry, to: entity, when: write }

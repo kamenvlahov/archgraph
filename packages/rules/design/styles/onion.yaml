@@ -33,3 +33,10 @@ flow:
   - { from: service, to: repository }
   - { from: service, to: entity, when: write } # create (static), update и действията на агрегата
   - { from: store, to: entity, kind: creates }
+# Нивото на ресурса: 3 и 2 са стилът горе (service за ресурса); 1 — входът вика repository-то направо.
+levels:
+  1:
+    drop: [dto, service]
+    flow:
+      - { from: entry, to: repository }
+      - { from: entry, to: entity, when: write }

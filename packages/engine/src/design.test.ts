@@ -482,3 +482,57 @@ test('проверка срещу друга архитектура и език 
   expect(ported).toMatch(/- \d+ класа за махане; логиката им \(около \d+ реда\) се пренася в новите/);
   expect(ported).not.toContain('Да се преместят');
 });
+
+test('ниво на ресурса: 1 — входът вика repository-то; 2 — service за ресурса; стил без нива предупреждава', () => {
+  const endpoints = [
+    { method: 'POST', path: '/users/login', input: { email: 'string' }, output: { token: 'string' } },
+    { method: 'GET', path: '/albums' },
+  ];
+  const at = (style: string, level?: 1 | 2) =>
+    blueprint({ stack: 'php-mezzio', style, resources: level ? { User: { level } } : {}, endpoints });
+  const members = (bp: ReturnType<typeof at>, name: string) =>
+    bp.nodes.find((n) => n.name === name)?.members.map((m) => `${m.name}(${m.inputs.map((p) => p.name).join(',')})`);
+  const names = (bp: ReturnType<typeof at>) => bp.nodes.map((n) => n.name);
+
+  const one = at('ddd', 1);
+  expect(names(one)).not.toContain('LoginUserCommand');
+  expect(names(one)).not.toContain('LoginUserCommandHandler');
+  expect(members(one, 'LoginUserHandler')).toEqual(['__construct(userRepository)', 'handle(request)']);
+  // класът за отговора е до входа, не в домейна
+  expect(one.nodes.find((n) => n.name === 'LoginUserResult')?.layer).toBe('interfaces');
+  // другият ресурс си остава на ниво 3
+  expect(names(one)).toContain('ListAlbumsQueryHandler');
+
+  const two = at('ddd', 2);
+  expect(members(two, 'UserService')).toEqual(['__construct(userRepository)', 'login(input)']);
+  expect(names(two)).toContain('LoginUserDto');
+
+  expect(names(at('hexagonal', 2))).toEqual(expect.arrayContaining(['UserUseCase', 'UserService']));
+  expect(
+    designWarnings({ stack: 'php-mezzio', style: 'layered', resources: { User: { level: 1 } }, endpoints }),
+  ).toEqual(['User: Layered няма по-просто ниво; ресурсът е като ниво 3']);
+});
+
+test('статусът на по-ниско ниво: класовете на ниво 3 са излишни', async () => {
+  root = mkdtempSync(join(tmpdir(), 'archgraph-design-'));
+  const design: Design = {
+    stack: 'php-mezzio',
+    style: 'ddd',
+    endpoints: [{ method: 'POST', path: '/users/login', input: { email: 'string' } }],
+  };
+  saveDesign(root, design);
+  writeFileSync(join(root, 'composer.json'), '{"require": {"mezzio/mezzio": "^3.0"}}');
+  const bp = blueprint(design);
+  for (const file of new Set(bp.nodes.map((n) => n.location.file))) {
+    const code = skeleton(bp, file);
+    if (!code) continue;
+    mkdirSync(dirname(join(root, file)), { recursive: true });
+    appendFileSync(join(root, file), code);
+  }
+  const p = await Project.open(root, { scip: false });
+  const simple = { ...design, resources: { User: { level: 1 as const } } };
+  const status = designStatus(p.graph, simple, blueprint(simple));
+  expect(status).toContain('## Излишни за DDD (2)\n- class LoginUserCommand —');
+  expect(status).toContain('- class LoginUserCommandHandler —');
+  expect(status).toContain('## Различни сигнатури (1)\n- LoginUserHandler#__construct');
+});

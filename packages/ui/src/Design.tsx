@@ -179,6 +179,18 @@ function Resources({ info }: { info: DesignInfo }) {
                 {open === name ? '▾' : '▸'} {name}
               </span>
               <select
+                title="на колко парчета се разбива: 1 просто, 2 service за ресурса, 3 use case за всяко действие"
+                value={r.level ?? 3}
+                onChange={(e) => {
+                  const level = Number(e.target.value) as 1 | 2 | 3;
+                  void setResource(name, { ...r, level: level === 3 ? undefined : level });
+                }}
+              >
+                <option value={3}>ниво 3</option>
+                <option value={2}>ниво 2</option>
+                <option value={1}>ниво 1</option>
+              </select>
+              <select
                 title="чий е"
                 value={r.owner ?? ''}
                 onChange={(e) => void setResource(name, { ...r, owner: e.target.value || undefined })}

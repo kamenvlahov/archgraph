@@ -33,3 +33,13 @@ flow:
   - { from: usecase, to: gateway }
   - { from: usecase, to: entity, when: write } # create (static), update и действията на агрегата
   - { from: store, to: entity, kind: creates }
+# Нивото на ресурса: 3 — use case за всяко действие; 2 — един interactor за ресурса; 1 — входът вика gateway-а.
+levels:
+  2:
+    parts:
+      usecase: { name: '{Entity}Interactor', per: entity, method: action }
+  1:
+    drop: [input, usecase]
+    flow:
+      - { from: entry, to: gateway }
+      - { from: entry, to: entity, when: write }

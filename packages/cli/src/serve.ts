@@ -23,6 +23,7 @@ import {
   CATALOG,
   DESIGN_STACKS,
   DESIGN_STYLES,
+  LEVELS,
   loadDesign,
   saveDesign,
   STYLE_ALLOW,
@@ -197,9 +198,13 @@ export async function serve(path: string, port: number, options: ScanOptions): P
         });
       const resource = Object.entries(design.resources ?? {}).find(
         ([name, r]) =>
-          !/^[A-Z]\w*$/.test(name) || !fields(r.fields) || (r.owner !== undefined && typeof r.owner !== 'string'),
+          !/^[A-Z]\w*$/.test(name) ||
+          !fields(r.fields) ||
+          (r.owner !== undefined && typeof r.owner !== 'string') ||
+          (r.level !== undefined && !LEVELS.includes(r.level)),
       );
-      if (resource) return send(res, 400, { error: `ресурсът е Име с {owner?, fields?}: ${JSON.stringify(resource)}` });
+      if (resource)
+        return send(res, 400, { error: `ресурсът е Име с {owner?, level?, fields?}: ${JSON.stringify(resource)}` });
       saveDesign(graph.root, design);
       await project.update(['.archgraph/design.yaml']);
       changed(['.archgraph/design.yaml']);

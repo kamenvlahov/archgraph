@@ -23,6 +23,7 @@ import {
   type Design,
   type DesignEndpoint,
   type DesignResource,
+  LEVELS,
 } from '@archgraph/rules';
 
 // MCP сървър (JSON-RPC 2.0, по едно съобщение на ред през stdio). Протоколът е малък, затова е
@@ -158,6 +159,12 @@ const TOOLS = [
             name: { type: 'string', description: 'Album' },
             owner: { type: 'string', description: 'чий е: друг ресурс (User, Album)' },
             fields: { type: 'object', description: '{име: тип}: полетата на entity-то' },
+            level: {
+              type: 'integer',
+              enum: [1, 2, 3],
+              description:
+                'на колко парчета се разбива: 1 просто (входът вика repository-то), 2 service за ресурса, 3 стилът изцяло (use case за всяко действие); за части, които няма да се разширяват — по-ниско',
+            },
           },
           required: ['name'],
         },
@@ -372,7 +379,12 @@ const endpointText = (e: DesignEndpoint) =>
     .join(' · ');
 
 const resourceText = (name: string, r: DesignResource) =>
-  [name, r.owner ? `на ${r.owner}` : '', r.fields ? `полета ${JSON.stringify(r.fields)}` : '']
+  [
+    name,
+    r.owner ? `на ${r.owner}` : '',
+    r.level ? `ниво ${r.level}` : '',
+    r.fields ? `полета ${JSON.stringify(r.fields)}` : '',
+  ]
     .filter(Boolean)
     .join(' · ');
 
@@ -418,11 +430,20 @@ function editDesign(root: string, args: Record<string, unknown>): string {
     done.push(`махнат ресурс ${gone}`);
   }
   if (args['resource'] !== undefined) {
-    const { name, owner, fields } = args['resource'] as { name?: string } & DesignResource;
+    const { name, owner, fields, level } = args['resource'] as { name?: string } & DesignResource;
     if (!name || !/^[A-Z]\w*$/.test(name)) throw new Error('resource.name е име на клас: Album');
+    if (level !== undefined && !LEVELS.includes(level)) throw new Error('resource.level е 1, 2 или 3');
     if (fields !== undefined && !validFields(fields))
       throw new Error('resource.fields е {име: тип}; имената са букви, цифри и _');
-    resources[name] = { ...(owner ? { owner } : {}), ...(fields ? { fields } : {}) };
+    // само подадените свойства се сменят; owner: "" маха собственика
+    const { owner: _, ...kept } = resources[name] ?? {};
+    const was = resources[name]?.owner;
+    resources[name] = {
+      ...kept,
+      ...((owner ?? was) ? { owner: (owner ?? was) as string } : {}),
+      ...(fields ? { fields } : {}),
+      ...(level ? { level } : {}),
+    };
     done.push(`ресурс ${resourceText(name, resources[name])}`);
   }
   const auth = typeof args['auth'] === 'string' ? args['auth'] : old?.auth;

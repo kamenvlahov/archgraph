@@ -27,3 +27,4 @@ flow:
   - { from: service, to: repository }
   - { from: service, to: entity, kind: creates, when: create }
   - { from: repository, to: entity, kind: creates }
+# Без нива: presentation не може да прескочи service (STYLE_ALLOW), а service за ресурса е вече ниво 2.

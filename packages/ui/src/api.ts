@@ -60,6 +60,7 @@ export interface Fields {
 export interface Resource {
   owner?: string | undefined;
   fields?: Fields | undefined;
+  level?: 1 | 2 | 3 | undefined;
 }
 export interface Design {
   stack: string;

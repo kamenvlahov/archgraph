@@ -8,3 +8,4 @@ parts:
 flow:
   - { from: entry, to: model }
   - { from: entry, to: view, kind: renders }
+# Без нива: controller и модел са вече най-простото.
