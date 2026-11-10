@@ -16,6 +16,7 @@ export function designStatus(graph: GraphModel, design: Design, bp: Blueprint): 
 
   const missing: string[] = [];
   const differs: string[] = [];
+  const extra: string[] = [];
   const fields: string[] = [];
   for (const n of bp.nodes) {
     const code = real.get(n.id);
@@ -24,7 +25,10 @@ export function designStatus(graph: GraphModel, design: Design, bp: Blueprint): 
     for (const m of n.members) {
       const found = code.members.find((x) => x.name === m.name);
       if (!found) missing.push(`- ${n.name}#${sig(m)} — ${where}`);
-      else if (!sameSignature(m, found))
+      else if (isCtor(m) && extends_(m, found)) {
+        const more = found.inputs.slice(m.inputs.length).map((p) => `${p.name}: ${text(p.type)}`);
+        extra.push(`- ${n.name}: ${more.join(', ')} — ${where}`);
+      } else if (!sameSignature(m, found))
         differs.push(`- ${n.name}#${m.name} — ${where}\n  чертеж: \`${sig(m)}\`\n  код:    \`${sig(found)}\``);
     }
     const have = new Set((graph.types[n.id]?.fields ?? []).map((f) => f.name));
@@ -57,14 +61,27 @@ export function designStatus(graph: GraphModel, design: Design, bp: Blueprint): 
     );
   section('Липсващи методи', missing);
   section('Различни сигнатури', differs);
+  // конструктор с още зависимости разширява чертежа, не му противоречи: напр. връзка между ресурси
+  section('Зависимости извън чертежа', extra);
   section('Липсващи полета', fields);
   const ids = new Set(bp.nodes.map((n) => n.id));
   section(
     'Нарушения на архитектурата',
     (graph.violations ?? []).filter((v) => v.nodes.some((x) => ids.has(x))).map((v) => `- ${v.message}`),
   );
-  if (out.length === 1) out.push('', 'Всичко от чертежа е в кода и съвпада.');
+  if (out.every((l) => !l.startsWith('## ') || l.startsWith('## Зависимости')))
+    out.push('', 'Всичко от чертежа е в кода и съвпада.');
   return out.join('\n');
+}
+
+const isCtor = (m: Member) => ['__construct', 'constructor', '__init__'].includes(m.name);
+
+// Конструкторът в кода има зависимостите от чертежа (в същия ред) и още.
+function extends_(designed: Member, code: Member): boolean {
+  return (
+    code.inputs.length > designed.inputs.length &&
+    designed.inputs.every((p, i) => sameType(p.type, (code.inputs[i] as (typeof code.inputs)[number]).type))
+  );
 }
 
 // Сигнатурата съвпада, ако броят на параметрите е същият и типовете не си противоречат. Липсващ тип в кода

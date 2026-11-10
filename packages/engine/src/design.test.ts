@@ -341,3 +341,29 @@ test('create получава параметрите от пътя; действ
   expect(members('User')).toEqual([]);
   expect(members('Invoice')).toEqual(['cancel()']);
 });
+
+test('статусът отделя допълнителните зависимости в конструктора от разминаванията', async () => {
+  root = mkdtempSync(join(tmpdir(), 'archgraph-design-'));
+  const design: Design = { stack: 'php-mezzio', style: 'layered', endpoints: [ep('GET /galleries/{id}')] };
+  saveDesign(root, design);
+  const bp = blueprint(design);
+  writeFileSync(join(root, 'composer.json'), '{"require": {"mezzio/mezzio": "^3.0"}}');
+  for (const file of new Set(bp.nodes.map((n) => n.location.file))) {
+    const code = skeleton(bp, file);
+    if (!code || file.endsWith('.phtml')) continue;
+    mkdirSync(dirname(join(root, file)), { recursive: true });
+    appendFileSync(join(root, file), code);
+  }
+  const service = join(root, 'src/Gallery/Service/GalleryService.php');
+  writeFileSync(
+    service,
+    readFileSync(service, 'utf8').replace(
+      'private readonly GalleryRepository $galleryRepository,',
+      'private readonly GalleryRepository $galleryRepository,\n        private readonly \\PDO $db,',
+    ),
+  );
+  const status = designStatus((await Project.open(root, { scip: false })).graph, design, bp);
+  expect(status).toContain('## Зависимости извън чертежа (1)\n- GalleryService: db: PDO');
+  expect(status).not.toContain('Различни');
+  expect(status).toContain('Всичко от чертежа е в кода и съвпада.');
+});
