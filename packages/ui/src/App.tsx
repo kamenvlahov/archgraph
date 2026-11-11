@@ -22,12 +22,13 @@ import {
   inEditor,
   onChange,
   openInEditor,
+  trialQuery,
   type DesignInfo,
   type Shape,
   type StatusReport,
   type Trial,
 } from './api.ts';
-import { ArchitectureAside, ArchitectureView, cleanTrial, Pickers } from './Architecture.tsx';
+import { ArchitectureAside, ArchitectureView, cleanTrial, Pickers, TrialBanner } from './Architecture.tsx';
 import { DesignNav, DesignStart, EndpointEditor, Layers, removeEndpoint, routeKey } from './Design.tsx';
 import { layout, NODE_WIDTH, type Lane } from './layout.ts';
 import { LayerView } from './LayerView.tsx';
@@ -41,6 +42,7 @@ interface Entry {
   file: string;
   line: number;
   ghost?: boolean; // от чертежа, още го няма в кода
+  trial?: Record<string, number>; // при проба: колко класа във веригата липсват, се местят, се променят, се махат
 }
 
 const nodeTypes = { process: ProcessNode, lane: LaneNode };
@@ -179,7 +181,7 @@ export function App() {
   const trialKey = JSON.stringify(trial ?? {});
   const hasDesign = !!design?.design;
   useEffect(() => {
-    if (!arch || !hasDesign) return;
+    if (!hasDesign || (!arch && trialKey === '{}')) return;
     setReport(undefined);
     designStatus(JSON.parse(trialKey) as Trial)
       .then((r) => {
@@ -204,13 +206,23 @@ export function App() {
   }, [version]);
   useEffect(() => {
     if (!entry) return;
-    get<ProcessView>(`/api/processes/${encodeURIComponent(entry)}?depth=${depth}`)
+    // при проба процесът е по проверявания чертеж
+    const trying = trialKey === '{}' ? '' : `&${trialQuery(JSON.parse(trialKey) as Trial)}`;
+    get<ProcessView>(`/api/processes/${encodeURIComponent(entry)}?depth=${depth}${trying}`)
       .then((v) => {
         setError(undefined);
         setView(v);
       })
       .catch((e: Error) => setError(e.message));
-  }, [entry, depth, version]);
+  }, [entry, depth, version, trialKey]);
+  // При проба ендпойнтите вляво носят броячите си: какво трябва да стане във веригата на всеки.
+  const [counts, setCounts] = useState<Map<string, Record<string, number>>>();
+  useEffect(() => {
+    if (trialKey === '{}') return setCounts(undefined);
+    get<Entry[]>(`/api/endpoints?${trialQuery(JSON.parse(trialKey) as Trial)}`)
+      .then((entries) => setCounts(new Map(entries.map((e) => [e.id, e.trial ?? {}]))))
+      .catch(() => setCounts(undefined));
+  }, [trialKey, version]);
 
   // Търсенето показва и класове и методи: начало на процес, когато ендпойнтът липсва.
   useEffect(() => {
@@ -327,6 +339,7 @@ export function App() {
           open={filter !== ''}
           onOpen={openProcess}
           onRemove={design?.design ? (e) => void removeEndpoint(design, e.label) : undefined}
+          counts={counts}
         />
         {found.length > 0 && (
           <>
@@ -390,7 +403,12 @@ export function App() {
               <Process
                 view={view}
                 error={error}
-                lanes={lanes ? project?.layers : undefined}
+                lanes={lanes ? (trial ? report?.layers : project?.layers) : undefined}
+                banner={
+                  trial && design?.design ? (
+                    <TrialBanner info={design} trial={trial} report={report} onCancel={() => setTrial(undefined)} />
+                  ) : undefined
+                }
                 top={
                   design?.design && label ? (
                     <EndpointEditor
@@ -418,12 +436,14 @@ function RouteList({
   open,
   onOpen,
   onRemove,
+  counts,
 }: {
   entries: Entry[];
   current: string | undefined;
   open: boolean;
   onOpen: (id: string) => void;
   onRemove: ((entry: Entry) => void) | undefined; // ендпойнтите от чертежа се махат с ✕
+  counts: Map<string, Record<string, number>> | undefined; // при проба
 }) {
   const [flipped, setFlipped] = useState(new Set<string>());
   const tree = useMemo(() => routeTree(entries), [entries]);
@@ -446,6 +466,7 @@ function RouteList({
           title={`${l.entry.label}\n${l.entry.ghost ? 'още го няма в кода' : `${l.entry.file}:${l.entry.line}`}`}
         >
           <EntryLabel entry={l.entry} name={l.name} />
+          {counts && <TrialCounts counts={counts.get(l.entry.id) ?? {}} />}
           {onRemove && l.entry.ghost && (
             <span
               className="x"
@@ -483,6 +504,27 @@ function RouteList({
   return render(tree);
 }
 
+const COUNTS: [string, string][] = [
+  ['missing', 'нови'],
+  ['move', 'мести се'],
+  ['changed', 'промени'],
+  ['extra', 'махат се'],
+];
+// Броячите на ендпойнт при проба; без нищо за правене е ✓.
+function TrialCounts({ counts }: { counts: Record<string, number> }) {
+  const shown = COUNTS.filter(([k]) => counts[k]);
+  if (!shown.length) return <span className="counts ok">✓</span>;
+  return (
+    <span className="counts">
+      {shown.map(([k, label]) => (
+        <span key={k} className={k} title={`${counts[k]} ${label}`}>
+          {counts[k]}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function EntryLabel({ entry, name }: { entry: Entry; name: string }) {
   const [method, ...rest] = entry.label.split(' ');
   if (entry.role !== 'route' || !rest.length) return <>{entry.label}</>;
@@ -500,12 +542,14 @@ function Process({
   lanes,
   aside,
   top,
+  banner,
 }: {
   view: ProcessView | undefined;
   error: string | undefined;
   lanes: string[] | undefined;
   aside?: ReactNode; // друг панел вдясно (шаблон „като този“)
   top?: ReactNode; // над нода в десния панел (ендпойнтът от чертежа)
+  banner?: ReactNode; // лентата на пробата над графа
 }) {
   const [bands, setBands] = useState<Lane[]>([]);
   const [nodes, setNodes] = useState<FlowNode[]>([]);
@@ -597,11 +641,16 @@ function Process({
     .filter((e) => e.from.node !== e.to.node)
     .map((e) => {
       const vertical = e.kind === 'implements';
+      // при проба: новата връзка е червен пунктир, отпадащата — бледи точки
       const color = e.violation
         ? 'var(--bad)'
-        : vertical
-          ? 'var(--r-interface)'
-          : `var(--r-${roles.get(e.to.node) ?? 'class'}, var(--r-class))`;
+        : e.trial === 'new'
+          ? 'var(--bad)'
+          : e.trial === 'gone'
+            ? 'var(--gone)'
+            : vertical
+              ? 'var(--r-interface)'
+              : `var(--r-${roles.get(e.to.node) ?? 'class'}, var(--r-class))`;
       const dim = neighbours && !(neighbours.has(e.from.node) && neighbours.has(e.to.node));
       return {
         id: e.id,
@@ -618,8 +667,9 @@ function Process({
         style: {
           stroke: color,
           strokeWidth: e.violation ? 3 : 2.2,
-          opacity: dim ? 0.08 : 0.85,
-          strokeDasharray: vertical || e.kind === 'maybe' ? '6 5' : undefined,
+          opacity: dim ? 0.08 : e.trial === 'gone' ? 0.6 : 0.85,
+          strokeDasharray:
+            e.trial === 'new' ? '7 5' : e.trial === 'gone' ? '2 5' : vertical || e.kind === 'maybe' ? '6 5' : undefined,
         },
       };
     });
@@ -628,6 +678,7 @@ function Process({
   return (
     <>
       <div id="stage">
+        {banner}
         {error && <div className="empty">{error}</div>}
         {!error && !view && <div className="empty">Избери ендпойнт отляво</div>}
         {view && (

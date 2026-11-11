@@ -8,6 +8,8 @@ export {
   type ProcessNode,
   type ProcessView,
   type Slot,
+  type TrialMarks,
+  type TrialState,
 } from './process.ts';
 export { pattern, renamer, type PatternResult } from './pattern.ts';
 export { layers, layerView, type LayerSummary, type LayerView, type Unit } from './layer.ts';
@@ -15,6 +17,7 @@ export { ADAPTERS, InvalidGraphError, Project, scan, type ScanOptions, type Scan
 export {
   designStatus,
   statusReport,
+  trialScope,
   type StatusClass,
   type StatusEffort,
   type StatusChange,

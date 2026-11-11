@@ -5,6 +5,7 @@ import type { ProcessMember, ProcessNode as Data, Slot } from '@archgraph/engine
 export type FlowNode = Node<{ view: Data; dim: boolean }, 'process'>;
 
 const VISIBILITY: Record<string, string> = { private: '−', protected: '#' };
+const STATE: Record<string, string> = { missing: 'липсва', move: 'мести се', changed: 'промени', extra: 'маха се' };
 
 // Нодът по mockup-а: заглавие с роля, методите от процеса като редове, параметрите като входове
 // отляво, резултатът като изход отдясно. Останалите методи са свити под „още N“.
@@ -15,6 +16,7 @@ export function ProcessNode({ data, selected }: NodeProps<FlowNode>) {
     'node',
     view.kind === 'interface' && 'iface',
     view.tags.includes('ghost') && 'ghost',
+    view.state && `trial-${view.state}`,
     dim && 'dim',
     selected && 'sel',
   ];
@@ -30,6 +32,7 @@ export function ProcessNode({ data, selected }: NodeProps<FlowNode>) {
         <span className="nm" title={view.name}>
           {view.name}
         </span>
+        {view.state && <span className="state">{STATE[view.state]}</span>}
         {view.violations.length > 0 && (
           <span className="bad" title={view.violations.join('\n')}>
             ⚠ {view.violations.length}
@@ -164,7 +167,7 @@ function SlotRow({ slot, side, handle }: { slot: Slot; side: 'in' | 'out'; handl
   ) : null;
   return (
     <>
-      <div className={`row ${side} mono`}>
+      <div className={`row ${side} mono${slot.trial ? ` trial-${slot.trial}` : ''}`}>
         <i className="dot" style={{ background: color }} />
         {side === 'in' ? (
           <>

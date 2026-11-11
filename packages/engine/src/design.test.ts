@@ -5,8 +5,8 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { saveDesign, type Design } from '@archgraph/rules';
 import { blueprint, designWarnings, readEndpoint } from './design.ts';
 import { skeleton } from './skeleton.ts';
-import { designStatus } from './status.ts';
-import { GraphQuery } from './query.ts';
+import { designStatus, trialScope } from './status.ts';
+import { GraphQuery, type Target } from './query.ts';
 import { processView } from './process.ts';
 import { Project } from './scan.ts';
 
@@ -540,4 +540,51 @@ test('статусът на по-ниско ниво: класовете на н
   expect(status).toContain('## Излишни за DDD (2)\n- class LoginUserCommand —');
   expect(status).toContain('- class LoginUserCommandHandler —');
   expect(status).toContain('## Различни сигнатури (1)\n- LoginUserHandler#__construct');
+});
+
+test('процесът по пробата: какво се променя, маха и липсва, и кои връзки са нови или отпадат', async () => {
+  root = mkdtempSync(join(tmpdir(), 'archgraph-design-'));
+  const design: Design = {
+    stack: 'php-mezzio',
+    style: 'ddd',
+    endpoints: [{ method: 'POST', path: '/albums', input: { title: 'string' } }],
+  };
+  saveDesign(root, design);
+  writeFileSync(join(root, 'composer.json'), '{"require": {"mezzio/mezzio": "^3.0"}}');
+  const bp = blueprint(design);
+  for (const file of new Set(bp.nodes.map((n) => n.location.file))) {
+    const code = skeleton(bp, file);
+    if (!code) continue;
+    mkdirSync(dirname(join(root, file)), { recursive: true });
+    appendFileSync(join(root, file), code);
+  }
+  // handler-ът вика command handler-а, както в написан код (скелетът има само коментар)
+  const handler = join(root, 'src/Album/Handler/CreateAlbumHandler.php');
+  writeFileSync(
+    handler,
+    readFileSync(handler, 'utf8').replace(
+      "throw new \\LogicException('TODO: CreateAlbumHandler::handle');",
+      "$this->createAlbumCommandHandler->handle(new \\App\\Album\\Application\\CreateAlbumCommand('x'));\n        throw new \\LogicException();",
+    ),
+  );
+  const p = await Project.open(root, { scip: false });
+  const { query, marks } = trialScope(p.graph, { ...design, style: 'onion' });
+  const [route] = query.find('POST /albums');
+  const view = processView(query, route as Target, 6, marks);
+  const node = (name: string) => view.nodes.find((n) => n.name === name);
+  expect(node('CreateAlbumHandler')?.state).toBe('changed');
+  expect(node('CreateAlbumHandler')?.deps).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ name: 'createAlbumCommandHandler', trial: 'gone' }),
+      expect.objectContaining({ name: 'albumService', type: 'AlbumService', trial: 'new' }),
+    ]),
+  );
+  expect(node('CreateAlbumCommandHandler')?.state).toBe('extra');
+  expect(node('AlbumService')).toMatchObject({ state: 'missing', layer: 'application-services' });
+  const edge = (to: string) => view.edges.find((e) => e.to.node === node(to)?.id);
+  expect(edge('AlbumService')?.trial).toBe('new');
+  expect(edge('CreateAlbumCommandHandler')?.trial).toBe('gone');
+  // без проба нищо не е маркирано
+  const plain = processView(new GraphQuery(p.graph), new GraphQuery(p.graph).find('POST /albums')[0] as Target, 6);
+  expect(plain.nodes.some((n) => n.state) || plain.edges.some((e) => e.trial)).toBe(false);
 });

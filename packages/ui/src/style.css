@@ -1180,29 +1180,44 @@ aside .endpoint .public {
 #stage.empty {
   height: auto;
 }
-.arch .trial {
-  position: sticky;
-  top: 0;
+.trial {
   z-index: 5;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 16px;
-  margin: 0 -18px 14px;
   padding: 10px 18px;
   background: linear-gradient(90deg, #3a3122, #2a2722);
   border-bottom: 1px solid rgba(242, 184, 75, 0.35);
 }
-.arch .trial b {
+.arch .trial {
+  position: sticky;
+  top: 0;
+  margin: 0 -18px 14px;
+}
+/* в „Граф“ лентата е над платното, а то заема останалото */
+#stage:has(> .trial) {
+  display: flex;
+  flex-direction: column;
+}
+#stage:has(> .trial) > .react-flow {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+.trial b {
   color: var(--move);
 }
-.arch .trial .actions {
+.trial .bad {
+  color: var(--bad);
+}
+.trial .actions {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-left: auto;
 }
-.arch .trial .btn {
+.trial .btn {
   flex: none;
   padding: 6px 14px;
 }
@@ -1459,4 +1474,89 @@ aside .endpoint .public {
   height: 7px;
   border-radius: 50%;
   background: var(--move);
+}
+
+/* Процесът при проба: какво трябва да стане с класа и с връзките му (като чиповете в „Архитектура“). */
+.node .hd .state {
+  font-size: 10px;
+  white-space: nowrap;
+}
+.node.trial-missing {
+  opacity: 1;
+  border: 1.5px dashed var(--bad);
+  background: rgba(255, 92, 108, 0.06);
+}
+.node.trial-missing .state {
+  color: var(--bad);
+}
+.node.trial-move {
+  border-color: var(--move);
+}
+.node.trial-move .state {
+  color: var(--move);
+}
+.node.trial-changed {
+  border-color: var(--sig);
+}
+.node.trial-changed .state {
+  color: var(--sig);
+}
+.node.trial-extra {
+  opacity: 0.6;
+  border-color: rgba(255, 92, 108, 0.45);
+}
+.node.trial-extra .nm {
+  text-decoration: line-through;
+  text-decoration-color: var(--bad);
+}
+.node.trial-extra .state {
+  color: var(--bad);
+}
+.node .row.trial-gone {
+  color: #b98f97;
+  text-decoration: line-through;
+  text-decoration-color: var(--bad);
+}
+.node .row.trial-new {
+  color: #ffb3bb;
+}
+.node .row.trial-new::before {
+  content: '+';
+  color: var(--bad);
+  margin-right: 2px;
+}
+nav li .counts {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 6px;
+  font:
+    10.5px/1 'JetBrains Mono',
+    ui-monospace,
+    Menlo,
+    Consolas,
+    monospace;
+}
+nav li .counts span {
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+nav li .counts .missing {
+  color: var(--bad);
+  border: 1px dashed var(--bad);
+}
+nav li .counts .move {
+  color: var(--move);
+  border: 1px solid var(--move);
+}
+nav li .counts .changed {
+  color: var(--sig);
+  border: 1px solid var(--sig);
+}
+nav li .counts .extra {
+  color: #c9a3aa;
+  background: rgba(255, 92, 108, 0.08);
+  border: 1px solid rgba(255, 92, 108, 0.35);
+}
+nav li .counts.ok {
+  color: var(--t-dto);
 }

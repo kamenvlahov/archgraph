@@ -94,13 +94,17 @@ export interface Trial {
   stack?: string | undefined;
   levels?: Record<string, 1 | 2 | 3>;
 }
-export function designStatus(trial: Trial = {}): Promise<StatusReport> {
+// `style=onion&levels=Album:1`: същото за проверката, процеса и броячите на ендпойнтите
+export function trialQuery(trial: Trial = {}): string {
   const q = new URLSearchParams();
   if (trial.style) q.set('style', trial.style);
   if (trial.stack) q.set('stack', trial.stack);
   const levels = Object.entries(trial.levels ?? {}).map(([name, level]) => `${name}:${level}`);
   if (levels.length) q.set('levels', levels.join(','));
-  return get(`/api/design/status?${q}`);
+  return q.toString();
+}
+export function designStatus(trial: Trial = {}): Promise<StatusReport> {
+  return get(`/api/design/status?${trialQuery(trial)}`);
 }
 export interface Effort {
   done: number;

@@ -147,6 +147,15 @@ test('serve: чертежът от празна папка, и от панела
       styles: Record<string, { total: number }>;
     };
     expect(Object.keys(efforts.styles)).toContain('onion');
+    // пробата и в графа: броячите на ендпойнтите и процесът по проверявания чертеж
+    const counted = (await (await fetch(`${base}/api/endpoints?style=ddd`)).json()) as {
+      trial: Record<string, number>;
+    }[];
+    expect(counted[0]?.trial.missing).toBeGreaterThan(0);
+    const process = (await (
+      await fetch(`${base}/api/processes/${encodeURIComponent('POST /invoices')}?style=ddd`)
+    ).json()) as { nodes: { name: string; state?: string }[] };
+    expect(process.nodes).toContainEqual(expect.objectContaining({ name: 'CreateInvoiceCommand', state: 'missing' }));
   } finally {
     server.close();
   }

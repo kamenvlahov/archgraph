@@ -10,8 +10,8 @@ import {
   type RoleFacts,
 } from '@archgraph/rules';
 import { blueprint, designEntities, designWarnings, merge, moduleOf, type Blueprint } from './design.ts';
-import { roleOf } from './process.ts';
-import { typeText } from './query.ts';
+import { roleOf, type TrialMarks, type TrialState } from './process.ts';
+import { GraphQuery, typeText } from './query.ts';
 import { violations } from './violations.ts';
 
 // Докъде е кодът спрямо чертежа (етап 11): какво още го няма, кои методи и полета липсват в написаните
@@ -29,6 +29,7 @@ const NO_FACTS: RoleFacts = {
 
 // Класът от чертежа в изгледа „Архитектура“: в кой модул и слой е и как е в кода.
 export interface StatusClass {
+  id: string;
   name: string;
   kind: string;
   role: string;
@@ -40,6 +41,7 @@ export interface StatusClass {
 }
 // Клас от друга архитектура, ниво или стек, който този чертеж няма.
 export interface StatusExtra {
+  id: string;
   name: string;
   kind: string;
   role: string;
@@ -238,6 +240,7 @@ export function statusReport(graph: GraphModel, design: Design, bp: Blueprint): 
     .map((n) => {
       const from = movedFrom.get(n.name);
       return {
+        id: n.id,
         name: n.name,
         kind: n.kind,
         role: roleOf(n, bp.types[n.id] !== undefined),
@@ -255,6 +258,7 @@ export function statusReport(graph: GraphModel, design: Design, bp: Blueprint): 
     layers: bp.style.layers,
     classes,
     extra: removed.map((n) => ({
+      id: n.id,
       name: n.name,
       kind: n.kind,
       role: roleOf(n, graph.types[n.id] !== undefined),
@@ -287,6 +291,33 @@ export function statusReport(graph: GraphModel, design: Design, bp: Blueprint): 
         lines: found.filter((v) => v.nodes.some((x) => ids.has(x) || others.has(x))).map((v) => `- ${v.message}`),
       },
     ],
+  };
+}
+
+// Пробата като граф за процеса, без запис: кодът с новите класове и връзки от проверявания чертеж,
+// слоевете по неговата архитектура и какво трябва да стане с всеки клас (`processView(query, …, marks)`).
+export function trialScope(graph: GraphModel, design: Design): { query: GraphQuery; marks: TrialMarks } {
+  const bp = blueprint(design);
+  const report = statusReport(graph, design, bp);
+  const ghosts = new Set(graph.nodes.filter((n) => (n.tags ?? []).includes('ghost')).map((n) => n.id));
+  const code = graph.nodes.filter((n) => !ghosts.has(n.id));
+  const codeEdges = graph.edges.filter((e) => !ghosts.has(e.from.node) && !ghosts.has(e.to.node));
+  const plan = merge(graph.root, code, bp);
+  const nodes = [...assignLayers(code, bp.architecture, NO_FACTS), ...plan.nodes];
+  const edges = [...codeEdges, ...plan.edges, ...plan.links];
+  const trial: GraphModel = { ...graph, nodes, edges, types: { ...graph.types, ...plan.types } };
+  const found = violations(nodes, edges, bp.architecture);
+  if (found.length) trial.violations = found;
+  else delete trial.violations;
+
+  const states = new Map<string, TrialState>();
+  for (const c of report.classes) if (c.state !== 'ok') states.set(c.id, c.state);
+  for (const e of report.extra) states.set(e.id, 'extra');
+  const from = new Set(report.moves.map((m) => m.from));
+  for (const n of code) if (from.has(n.location.file)) states.set(n.id, 'move');
+  return {
+    query: new GraphQuery(trial),
+    marks: { states, code: new Set(codeEdges.map((e) => `${e.from.node}>${e.to.node}`)) },
   };
 }
 

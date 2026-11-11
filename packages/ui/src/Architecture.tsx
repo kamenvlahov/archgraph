@@ -145,6 +145,55 @@ export function Pickers({
   );
 }
 
+// Жълтата лента на пробата, в „Архитектура“ и в „Граф“: какво е сменено, колко остава и „Приложи“.
+export function TrialBanner({
+  info,
+  trial,
+  report,
+  onCancel,
+}: {
+  info: DesignInfo;
+  trial: Trial;
+  report: StatusReport | undefined;
+  onCancel: () => void;
+}) {
+  const design = info.design as Design;
+  const [saving, setSaving] = useState<string>();
+  const apply = () => {
+    setSaving('Записвам…');
+    saveDesign(applied(design, trial))
+      .then(onCancel)
+      .catch((e: Error) => setSaving(e.message));
+  };
+  return (
+    <div className="trial">
+      <span>
+        <b>Проба: {trialLabel(info, trial)}</b> · нищо не е записано
+      </span>
+      {report && (
+        <span className="mono">
+          готово {report.done} от {report.total}
+          {report.mismatches > 0 && <span className="bad"> · {report.mismatches} несъвпадения</span>}
+        </span>
+      )}
+      {report?.effort && (
+        <span className="mono">
+          {report.effort.size} рефакторинг · {files(report.effort.files)}
+        </span>
+      )}
+      <span className="actions">
+        {saving && <span className="mono">{saving}</span>}
+        <button className="btn" onClick={onCancel}>
+          Откажи
+        </button>
+        <button className="btn pri" onClick={apply} title="записва чертежа; кодът не се пипа">
+          Приложи
+        </button>
+      </span>
+    </div>
+  );
+}
+
 export function ArchitectureView({
   info,
   trial,
@@ -161,7 +210,6 @@ export function ArchitectureView({
   onOpen: (name: string) => void;
 }) {
   const design = info.design as Design;
-  const [saving, setSaving] = useState<string>();
   if (error)
     return (
       <div id="stage" className="empty">
@@ -183,40 +231,9 @@ export function ArchitectureView({
   const inRow = (c: StatusClass, row: string) => (row === 'друго' ? !known.has(c.layer) : c.layer === row);
   const level = (m: string): Level => trial?.levels?.[m] ?? design.resources?.[m]?.level ?? 3;
   const columns = { gridTemplateColumns: `170px repeat(${modules.length}, minmax(150px, 1fr))` };
-  const apply = () => {
-    if (!trial) return;
-    setSaving('Записвам…');
-    saveDesign(applied(design, trial))
-      .then(onCancel)
-      .catch((e: Error) => setSaving(e.message));
-  };
   return (
     <div id="stage" className="arch">
-      {trial && (
-        <div className="trial">
-          <span>
-            <b>Проба: {trialLabel(info, trial)}</b> · нищо не е записано
-          </span>
-          <span className="mono">
-            готово {report.done} от {report.total}
-            {report.mismatches > 0 && <span className="bad"> · {report.mismatches} несъвпадения</span>}
-          </span>
-          {report.effort && (
-            <span className="mono">
-              {report.effort.size} рефакторинг · {files(report.effort.files)}
-            </span>
-          )}
-          <span className="actions">
-            {saving && <span className="mono">{saving}</span>}
-            <button className="btn" onClick={onCancel}>
-              Откажи
-            </button>
-            <button className="btn pri" onClick={apply} title="записва чертежа; кодът не се пипа">
-              Приложи
-            </button>
-          </span>
-        </div>
-      )}
+      {trial && <TrialBanner info={info} trial={trial} report={report} onCancel={onCancel} />}
       <div className="grid" style={columns}>
         <div />
         {modules.map((m) => {
@@ -242,11 +259,7 @@ export function ArchitectureView({
               return (
                 <div key={m} className={items.length ? 'cell' : 'cell empty'}>
                   {items.map((c) => (
-                    <Chip
-                      key={c.name}
-                      item={c}
-                      onOpen={trial || c.state === 'missing' || c.state === 'move' ? undefined : onOpen}
-                    />
+                    <Chip key={c.name} item={c} onOpen={onOpen} />
                   ))}
                 </div>
               );
@@ -316,7 +329,7 @@ function Chip({ item, onOpen }: { item: StatusClass | StatusExtra; onOpen?: ((na
     <span
       className={`c ${state}${onOpen ? ' link' : ''}`}
       title={title}
-      onClick={onOpen ? () => onOpen(item.name) : undefined}
+      onClick={onOpen ? () => onOpen(item.id) : undefined}
     >
       <i style={{ background: `var(--r-${item.role}, var(--r-class))` }} />
       <span className="n">{item.name}</span>

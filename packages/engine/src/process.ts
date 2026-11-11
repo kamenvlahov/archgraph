@@ -28,6 +28,15 @@ export interface ProcessNode {
   fields: Slot[]; // собствените полета без зависимостите
   usedBy: Usage[]; // кой ползва класа в целия проект (извиква, инжектира, създава, наследява)
   violations: string[]; // нарушенията на архитектурата, в които участва (етап 7)
+  state?: TrialState; // при проба: какво трябва да стане с класа
+}
+
+// Пробата в процеса: класът липсва, мести се, трябва да се промени или да се махне; връзката
+// (проводник или зависимост) е нова или отпада заедно с махнатия клас.
+export type TrialState = 'missing' | 'move' | 'changed' | 'extra';
+export interface TrialMarks {
+  states: Map<string, TrialState>;
+  code: Set<string>; // `from>to` за всяка връзка в кода, за да се види коя е нова
 }
 
 export interface ProcessMember {
@@ -55,6 +64,7 @@ export interface Slot {
   kind: 'primitive' | 'dto' | 'entity' | 'contract' | 'class' | 'collection' | 'external' | 'unknown';
   optional?: boolean;
   fields?: Slot[];
+  trial?: 'new' | 'gone'; // при проба, само за зависимостите
 }
 
 export interface ProcessEdge {
@@ -64,6 +74,7 @@ export interface ProcessEdge {
   to: { node: string; member?: string };
   inferred: boolean;
   violation?: string; // зависимостта е извън `allow` между слоеве или контексти
+  trial?: 'new' | 'gone';
 }
 
 const ARROWS: Record<string, ProcessEdge['kind']> = {
@@ -77,7 +88,12 @@ const ARROWS: Record<string, ProcessEdge['kind']> = {
 };
 
 // `start` може да е и няколко начала (ghost нодовете на шаблон): всички са в първата колона.
-export function processView(query: GraphQuery, start: Target | Target[], depth: number): ProcessView {
+export function processView(
+  query: GraphQuery,
+  start: Target | Target[],
+  depth: number,
+  trial?: TrialMarks,
+): ProcessView {
   const starts = Array.isArray(start) ? start : [start];
   const { graph } = query;
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
@@ -109,6 +125,7 @@ export function processView(query: GraphQuery, start: Target | Target[], depth: 
       fields: [],
       usedBy: usedBy(n),
       violations: (graph.violations ?? []).filter((v) => v.nodes.includes(n.id)).map((v) => v.message),
+      ...(state(n.id) ? { state: state(n.id) as TrialState } : {}),
     };
     nodes.set(n.id, view);
     return view;
@@ -137,11 +154,26 @@ export function processView(query: GraphQuery, start: Target | Target[], depth: 
   const deps = (n: Node): Slot[] =>
     graph.edges
       .filter((e) => e.kind === 'injects' && e.to.node === n.id)
-      .map((e) => ({
-        name: e.to.port ?? '',
-        type: byId.get(e.from.node)?.name ?? e.from.node,
-        kind: kindOf(e.from.node),
-      }));
+      .map((e) => {
+        const change = trial && link(e.from.node, n.id);
+        const type = byId.get(e.from.node)?.name ?? e.from.node;
+        // ребро от чертежа към конструктор, който още няма параметъра: името е по типа, както в чертежа
+        return {
+          name: e.to.port ?? type.charAt(0).toLowerCase() + type.slice(1),
+          type,
+          kind: kindOf(e.from.node),
+          ...(change ? { trial: change } : {}),
+        };
+      });
+  // При проба: връзка към махнат клас отпада, а такава, която я няма в кода, е нова.
+  const state = (id: string) => trial?.states.get(id);
+  const link = (a: string, b: string): 'new' | 'gone' | undefined => {
+    if (!trial) return undefined;
+    const gone = (id: string) =>
+      ['extra', 'move'].includes(trial.states.get(id) ?? '') && byId.get(id)?.tags?.includes('ghost') !== true;
+    if (gone(a) || gone(b)) return 'gone';
+    return trial.code.has(`${a}>${b}`) ? undefined : 'new';
+  };
   const unresolved = Map.groupBy(graph.unresolved ?? [], (u) => `${u.from.node}#${u.from.member}`);
   const owners = new Map(graph.nodes.flatMap((n) => n.members.map((m) => [m, n.id] as const)));
   const owner = (m: Member) => owners.get(m) ?? '';
@@ -192,7 +224,15 @@ export function processView(query: GraphQuery, start: Target | Target[], depth: 
         const from = { node: t.node.id, ...(t.member ? { member: t.member.name } : {}) };
         const to = { node: child.node.id, ...(child.member ? { member: child.member.name } : {}) };
         const id = `${kind}:${from.node}#${from.member ?? ''}->${to.node}#${to.member ?? ''}`;
-        edges.set(id, { id, kind, from, to, inferred: arrow === '→? ' || arrow === '?? ' });
+        const change = link(from.node, to.node);
+        edges.set(id, {
+          id,
+          kind,
+          from,
+          to,
+          inferred: arrow === '→? ' || arrow === '?? ',
+          ...(change ? { trial: change } : {}),
+        });
         // Имплементацията стои под договора си, а не колона по-надясно.
         next.push([child, kind === 'implements' ? column : column + 1, kind === 'routes-to']);
       }

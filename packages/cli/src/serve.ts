@@ -13,6 +13,7 @@ import {
   processView,
   skeleton,
   statusReport,
+  trialScope,
   Project,
   roleOf,
   type Blueprint,
@@ -38,11 +39,11 @@ import {
 //
 //   GET  /api/project                  име, корен, файлове по език, framework-и
 //   GET  /api/roles                    каталогът на ролите: слой и цвят
-//   GET  /api/endpoints                входните точки: route-овете (без тях controller-ите)
+//   GET  /api/endpoints                входните точки: route-овете (без тях controller-ите); с проба (style, stack, levels) — и колко класа във веригата на всеки се променят
 //   GET  /api/layers                   слоевете с броя единици
 //   GET  /api/layers/{name}            целият слой по модули, компактно
 //   GET  /api/search?q=                класове, функции и методи по име
-//   GET  /api/processes/{target}?depth процесът от ендпойнт, клас или метод (target е URL-encoded)
+//   GET  /api/processes/{target}?depth[&style&stack&levels] процесът от ендпойнт, клас или метод (target е URL-encoded); с проба — по проверявания чертеж
 //   GET  /api/nodes?file=&line=        нодът и методът на това място (курсорът в редактора)
 //   POST /api/plans  {task, targets}   Markdown план за AI
 //   POST /api/patterns {example, to, from?}  „като този“: ghost нодове, регистрации и план
@@ -128,17 +129,45 @@ export async function serve(path: string, port: number, options: ScanOptions, ho
         ...(project.report.design ? { design: project.report.design } : {}),
       });
     if (route === 'GET /api/roles') return send(res, 200, CATALOG);
-    if (route === 'GET /api/endpoints') return send(res, 200, endpoints(graph));
+    if (route === 'GET /api/endpoints') {
+      if (!isTrial(url.searchParams)) return send(res, 200, endpoints(graph));
+      // при проба: колко класа във веригата на всеки ендпойнт липсват, се местят, се променят или се махат
+      const design = trialDesign(graph.root, url.searchParams);
+      if (typeof design === 'string') return send(res, design === NO_DESIGN ? 404 : 400, { error: design });
+      const { query: trial, marks } = trialScope(graph, design);
+      const byId = new Map(trial.graph.nodes.map((n) => [n.id, n]));
+      return send(
+        res,
+        200,
+        endpoints(trial.graph).map((e) => {
+          const node = byId.get(e.id) as Node;
+          // класът, който се мести, е два нода (старото и новото място), но е едно нещо за правене
+          const seen = new Map<string, Set<string>>();
+          for (const n of processView(trial, { node }, 6, marks).nodes)
+            if (n.state) seen.set(n.state, (seen.get(n.state) ?? new Set()).add(n.name));
+          return { ...e, trial: Object.fromEntries([...seen].map(([k, v]) => [k, v.size])) };
+        }),
+      );
+    }
     if (route === 'GET /api/layers') return send(res, 200, layers(graph, project.report.layers));
     if (req.method === 'GET' && url.pathname.startsWith('/api/layers/'))
       return send(res, 200, layerView(graph, decodeURIComponent(url.pathname.slice('/api/layers/'.length))));
     if (route === 'GET /api/search') return send(res, 200, search(graph.nodes, url.searchParams.get('q') ?? ''));
     if (req.method === 'GET' && url.pathname.startsWith('/api/processes/')) {
       const name = decodeURIComponent(url.pathname.slice('/api/processes/'.length));
+      const depth = Math.min(12, Math.max(1, Number(url.searchParams.get('depth') ?? 6)));
+      // при проба (style, stack или levels) процесът е по проверявания чертеж
+      if (isTrial(url.searchParams)) {
+        const design = trialDesign(graph.root, url.searchParams);
+        if (typeof design === 'string') return send(res, design === NO_DESIGN ? 404 : 400, { error: design });
+        const trial = trialScope(graph, design);
+        const [target, ...more] = trial.query.find(name);
+        if (!target || more.length) return send(res, 404, { error: `няма един нод „${name}“` });
+        return send(res, 200, processView(trial.query, target, depth, trial.marks));
+      }
       const found = query.find(name);
       const [target] = found;
       if (found.length !== 1 || !target) return send(res, 404, { error: `няма един нод „${name}“ (${found.length})` });
-      const depth = Math.min(12, Math.max(1, Number(url.searchParams.get('depth') ?? 6)));
       return send(res, 200, processView(query, target, depth));
     }
     if (route === 'GET /api/nodes') {
@@ -222,21 +251,8 @@ export async function serve(path: string, port: number, options: ScanOptions, ho
     }
     // Пробата: чертежът със сменени стил, стек или нива, без да се записва.
     if (route === 'GET /api/design/status') {
-      const saved = loadDesign(graph.root);
-      if (!saved) return send(res, 404, { error: 'проектът няма чертеж' });
-      const q = url.searchParams;
-      const style = q.get('style') || saved.style;
-      const stack = q.get('stack') || saved.stack;
-      if (!DESIGN_STACKS.some((x) => x.stack === stack) || !DESIGN_STYLES.some((x) => x.style === style))
-        return send(res, 400, { error: 'непознат stack или style' });
-      const resources = { ...saved.resources };
-      for (const pair of (q.get('levels') ?? '').split(',').filter(Boolean)) {
-        const [name = '', value] = pair.split(':');
-        const level = Number(value);
-        if (!LEVELS.includes(level as 1 | 2 | 3)) return send(res, 400, { error: `нивото е 1, 2 или 3: ${pair}` });
-        resources[name] = { ...resources[name], level: level as 1 | 2 | 3 };
-      }
-      const design = { ...saved, style, stack, resources };
+      const design = trialDesign(graph.root, url.searchParams);
+      if (typeof design === 'string') return send(res, design === NO_DESIGN ? 404 : 400, { error: design });
       return send(res, 200, statusReport(graph, design, blueprint(design)));
     }
     if (route === 'GET /api/design/efforts') {
@@ -363,4 +379,25 @@ function objects(bp: Blueprint): string[] {
   for (const n of bp.nodes) for (const m of n.members) add(m.output?.type);
   for (const shape of Object.values(bp.types)) for (const f of shape.fields) add(f.type);
   return [...new Set(bp.nodes.filter((n) => ids.has(n.id) && n.kind === 'class').map((n) => n.name))];
+}
+
+const NO_DESIGN = 'проектът няма чертеж';
+const isTrial = (q: URLSearchParams) => ['style', 'stack', 'levels'].some((k) => q.has(k));
+
+// Записаният чертеж със сменените от пробата стил, стек и нива (`levels=User:1,Album:2`), или грешката.
+function trialDesign(root: string, q: URLSearchParams): Design | string {
+  const saved = loadDesign(root);
+  if (!saved) return NO_DESIGN;
+  const style = q.get('style') || saved.style;
+  const stack = q.get('stack') || saved.stack;
+  if (!DESIGN_STACKS.some((x) => x.stack === stack) || !DESIGN_STYLES.some((x) => x.style === style))
+    return 'непознат stack или style';
+  const resources = { ...saved.resources };
+  for (const pair of (q.get('levels') ?? '').split(',').filter(Boolean)) {
+    const [name = '', value] = pair.split(':');
+    const level = Number(value);
+    if (!LEVELS.includes(level as 1 | 2 | 3)) return `нивото е 1, 2 или 3: ${pair}`;
+    resources[name] = { ...resources[name], level: level as 1 | 2 | 3 };
+  }
+  return { ...saved, style, stack, resources };
 }

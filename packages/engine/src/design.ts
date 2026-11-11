@@ -623,7 +623,14 @@ export function merge(
   root: string,
   real: Node[],
   bp: Blueprint,
-): { nodes: Node[]; edges: Edge[]; types: Record<string, TypeShape>; done: number; total: number } {
+): {
+  nodes: Node[];
+  edges: Edge[];
+  links: Edge[]; // ребрата от чертежа между два написани нода: при сканиране не влизат, при проба са новото
+  types: Record<string, TypeShape>;
+  done: number;
+  total: number;
+} {
   const ids = new Set(real.map((n) => n.id));
   // route-ът на друг език (PHP при чертеж на NestJS) не е написан по този чертеж
   const routes = new Map(
@@ -651,16 +658,21 @@ export function merge(
       return { ...x, node: id };
     return { node: id, member: x.member };
   };
-  const edges = bp.edges.flatMap((e) => {
-    if (!ghostIds.has(e.from.node) && !ghostIds.has(e.to.node)) return [];
-    return [edge(e.kind, end(e.from), end(e.to), 'inferred')];
-  });
+  const touches = (e: Edge) => ghostIds.has(e.from.node) || ghostIds.has(e.to.node);
+  const edges = bp.edges.filter(touches).map((e) => edge(e.kind, end(e.from), end(e.to), 'inferred'));
+  // при проба портът остава, дори конструкторът още да няма параметъра: така новата зависимост има име
+  const keep = (x: Edge['from']): Edge['from'] => {
+    const y = end(x);
+    return y.member === x.member && x.port !== undefined ? { ...y, port: x.port } : y;
+  };
+  const links = bp.edges.filter((e) => !touches(e)).map((e) => edge(e.kind, keep(e.from), keep(e.to), 'inferred'));
   // Истинските шаблони ги няма в графа (адаптери за шаблони — етап 10): нодът е от чертежа, без ghost.
   const templates = bp.nodes.filter((n) => n.kind === 'template' && actual.has(n.id)).map((n) => ({ ...n, tags: [] }));
   const types = Object.fromEntries(Object.entries(bp.types).filter(([id]) => ghostIds.has(id)));
   return {
     nodes: [...ghosts, ...templates],
     edges,
+    links,
     types,
     done: bp.nodes.length - ghosts.length,
     total: bp.nodes.length,
