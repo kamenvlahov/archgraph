@@ -25,6 +25,17 @@ export interface GraphModel {
   types: Record<TypeId, TypeShape>;
   unresolved?: UnresolvedCall[];
   violations?: Violation[];
+  requests?: OutboundRequest[];
+}
+
+// HTTP заявка от кода (етап 12): метод (`*`, ако не се вижда) и път с `{}` за променливите части.
+// `to` е route-ът в този граф; заявка без него отива към друга услуга или навън.
+export interface OutboundRequest {
+  from: { node: string; member: string };
+  method: string;
+  path: string;
+  line: number;
+  to?: string;
 }
 
 // Нарушение на архитектурата (етап 7): зависимост извън `allow` между слоеве или контексти, цикъл

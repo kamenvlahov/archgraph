@@ -1,7 +1,7 @@
 import type { Edge, Location, Node, TypeId, TypeRef, TypeShape } from './types.ts';
 
-// Договорът между engine-а и езиковите адаптери. Тук са само типове,
-// за да не зависи моделът от tree-sitter или от конкретен език.
+// Договорът между engine-а и езиковите адаптери: типовете и един общ шаблон (PATH_LIKE),
+// без зависимост от tree-sitter или от конкретен език.
 
 export interface SourceFile {
   path: string; // относителен от корена на проекта, както в Location.file
@@ -15,7 +15,21 @@ export interface GraphFragment {
   types: Record<TypeId, TypeShape>;
   calls?: CallSite[];
   annotations?: Annotation[];
+  paths?: PathCall[];
 }
+
+// Извикване в тяло на метод или функция с низ, който прилича на път или адрес (`'/api/tickets'`,
+// f"/tickets/{id}", `https://…`). Адаптерът не знае HTTP: дава името на извиканото и низовите
+// аргументи по ред, а engine-ът решава дали е заявка (етап 12). Интерполацията в низа е `{}`.
+export interface PathCall {
+  from: Caller;
+  line: number;
+  name: string; // последното име: `get` в `this.http.get`, `_call`, `fetch`
+  strings: string[];
+}
+
+// `/api/x`, `/albums/{}`, `https://host/x`: само такива низове правят извикването интересно
+export const PATH_LIKE = /^(\/[\w{}\-.~%@:]|https?:\/\/)/;
 
 // Синтактичен факт за правилата на framework-а (route-ове сега, по-късно роли и bindings).
 // Адаптерът не знае framework-а. Дава декораторите и атрибутите с литералните им аргументи,

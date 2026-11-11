@@ -131,6 +131,7 @@ export class GraphQuery {
       if (e.kind === 'calls') result.push([to, e.confidence === 'exact' ? '→ ' : '→? ']);
       else if (e.kind === 'creates') result.push([to, 'new ']);
       else if (e.kind === 'renders') result.push([to, '▭ ']);
+      else if (e.kind === 'requests') result.push([to, '⇝ ']); // HTTP заявка към route (етап 12)
     }
     // Неразрешено извикване с един кандидат по име: показва се като възможно продължение.
     for (const u of this.unresolvedFrom.get(targetId(t)) ?? []) {
@@ -150,10 +151,11 @@ export class GraphQuery {
     const result: [Target, string][] = [];
     const add = (node: Node, member: string | undefined) => {
       for (const e of this.in.get(node.id) ?? []) {
-        if (e.kind !== 'calls' && e.kind !== 'creates' && e.kind !== 'routes-to') continue;
+        if (!['calls', 'creates', 'routes-to', 'requests'].includes(e.kind)) continue;
         if (member !== undefined && e.to.member !== member) continue;
         const from = this.target(e.from.node, e.from.member);
-        if (from) result.push([from, e.kind === 'creates' ? 'new ← ' : e.kind === 'routes-to' ? '⇠ ' : '← ']);
+        const arrow = { creates: 'new ← ', 'routes-to': '⇠ ', requests: '⇜ ' }[e.kind] ?? '← ';
+        if (from) result.push([from, arrow]);
       }
     };
     add(t.node, t.member?.name);

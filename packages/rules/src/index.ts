@@ -8,6 +8,7 @@ export {
   assignLayers,
   layerOrder,
   loadArchitecture,
+  loadWorkspace,
   STYLE_ALLOW,
   STYLES,
   type Architecture,

@@ -644,13 +644,15 @@ function Process({
       // при проба: новата връзка е червен пунктир, отпадащата — бледи точки
       const color = e.violation
         ? 'var(--bad)'
-        : e.trial === 'new'
-          ? 'var(--bad)'
-          : e.trial === 'gone'
-            ? 'var(--gone)'
-            : vertical
-              ? 'var(--r-interface)'
-              : `var(--r-${roles.get(e.to.node) ?? 'class'}, var(--r-class))`;
+        : e.kind === 'requests'
+          ? 'var(--r-route)'
+          : e.trial === 'new'
+            ? 'var(--bad)'
+            : e.trial === 'gone'
+              ? 'var(--gone)'
+              : vertical
+                ? 'var(--r-interface)'
+                : `var(--r-${roles.get(e.to.node) ?? 'class'}, var(--r-class))`;
       const dim = neighbours && !(neighbours.has(e.from.node) && neighbours.has(e.to.node));
       return {
         id: e.id,
@@ -661,6 +663,10 @@ function Process({
         sourceHandle: vertical ? 'bottom' : e.from.member ? `out-${e.from.member}` : 'out',
         targetHandle: vertical ? 'top' : e.to.member ? `in-${e.to.member}` : 'in',
         // нарушение на слой или контекст: червен проводник с ⚠ и съобщението в подсказка
+        // HTTP заявка към route (етап 12), може и в друга услуга
+        ...(e.kind === 'requests'
+          ? { label: 'HTTP', labelStyle: { fill: 'var(--r-route)' }, labelBgStyle: { fill: 'var(--panel)' } }
+          : {}),
         ...(e.violation
           ? { label: '⚠', labelStyle: { fill: 'var(--bad)' }, labelBgStyle: { fill: 'var(--panel)' } }
           : {}),
@@ -669,7 +675,15 @@ function Process({
           strokeWidth: e.violation ? 3 : 2.2,
           opacity: dim ? 0.08 : e.trial === 'gone' ? 0.6 : 0.85,
           strokeDasharray:
-            e.trial === 'new' ? '7 5' : e.trial === 'gone' ? '2 5' : vertical || e.kind === 'maybe' ? '6 5' : undefined,
+            e.kind === 'requests'
+              ? '10 5'
+              : e.trial === 'new'
+                ? '7 5'
+                : e.trial === 'gone'
+                  ? '2 5'
+                  : vertical || e.kind === 'maybe'
+                    ? '6 5'
+                    : undefined,
         },
       };
     });

@@ -1,5 +1,6 @@
 import {
   edge,
+  PATH_LIKE,
   type Annotation,
   type Arg,
   type CallSite,
@@ -12,6 +13,7 @@ import {
   type Member,
   type Node as GraphNode,
   type NodeKind,
+  type PathCall,
   type Port,
   type SourceFile,
   type TypeRef,
@@ -37,6 +39,7 @@ const TAGS: Record<string, string> = {
 interface Out {
   edges: Edge[];
   calls: CallSite[];
+  paths: PathCall[];
   types: Record<string, TypeShape>;
   annotations: Annotation[];
 }
@@ -52,11 +55,12 @@ export const phpAdapter: LanguageAdapter = {
   extensions: ['.php'],
   async read(files: SourceFile[]): Promise<GraphFragment> {
     const parser = await phpParser();
-    const out: Out = { edges: [], calls: [], types: {}, annotations: [] };
+    const out: Out = { edges: [], calls: [], paths: [], types: {}, annotations: [] };
     const nodes = files.flatMap((file) =>
       withTree(parser, file.text, (tree) => readFile(tree.rootNode, file.path, out)),
     );
-    return { nodes, edges: out.edges, types: out.types, calls: out.calls, annotations: out.annotations };
+    const { edges, types, calls, annotations, paths } = out;
+    return { nodes, edges, types, calls, annotations, paths };
   },
 };
 
@@ -153,6 +157,25 @@ function outsideCalls(n: Node, file: string, scope: Scope, out: Out) {
       location: location(call, file),
     });
   }
+}
+
+// Низовете сред аргументите, по ред. Променлива в низа или конкатенация е `{}`: "/albums/$id" → /albums/{}
+function literalStrings(args: Node | null): string[] {
+  const text = (v: Node | undefined): string | undefined => {
+    if (v?.type === 'string' || v?.type === 'encapsed_string')
+      return v.namedChildren
+        .map((c) => (c.type === 'string_content' ? c.text : c.type === 'escape_sequence' ? c.text.slice(1) : '{}'))
+        .join('');
+    if (v?.type === 'binary_expression' && v.childForFieldName('operator')?.text === '.') {
+      const [l, r] = [text(v.childForFieldName('left') ?? undefined), text(v.childForFieldName('right') ?? undefined)];
+      return l === undefined && r === undefined ? undefined : `${l ?? '{}'}${r ?? '{}'}`;
+    }
+    return undefined;
+  };
+  return (args?.namedChildren ?? []).flatMap((a) => {
+    const s = text(a.namedChildren.at(-1));
+    return s === undefined ? [] : [s];
+  });
 }
 
 function argValue(v: Node | undefined, scope: Scope): Arg {
@@ -378,6 +401,11 @@ interface Body {
 // Извикванията в тялото на метод. Локалните променливи се помнят по реда на присвояване.
 function readCalls(fn: Node, member: Member, b: Body) {
   const from = { node: b.node, member: member.name };
+  // извикване с низ като път (`$client->request('GET', "/albums/$id")`): engine-ът решава дали е HTTP
+  const path = (n: Node, name: string) => {
+    const strings = literalStrings(n.childForFieldName('arguments'));
+    if (strings.some((s) => PATH_LIKE.test(s))) b.out.paths.push({ from, line: lineOf(n), name, strings });
+  };
   const vars = new Map<string, Expr>(member.inputs.map((p) => [`$${p.name}`, { kind: 'type', type: p.type }]));
   const self = b.scope.self;
   const expr = (n: Node | null): Expr | undefined => {
@@ -449,10 +477,12 @@ function readCalls(fn: Node, member: Member, b: Body) {
       case 'nullsafe_member_call_expression': {
         const on = expr(n.childForFieldName('object'));
         const name = n.childForFieldName('name');
+        path(n, name?.text ?? '');
         if (on) b.out.calls.push({ from, line: lineOf(name ?? n), kind: 'method', on, name: name?.text ?? '' });
         break;
       }
       case 'scoped_call_expression':
+        path(n, n.childForFieldName('name')?.text ?? '');
         b.out.calls.push({
           from,
           line: lineOf(n.childForFieldName('name') ?? n),
@@ -469,6 +499,7 @@ function readCalls(fn: Node, member: Member, b: Body) {
       case 'function_call_expression': {
         // Неквалифицирана функция в namespace: PHP търси първо в namespace-а, после глобално.
         const fn = n.childForFieldName('function') ?? n;
+        path(n, fn.text.split('\\').at(-1) ?? '');
         const ids = new Set([resolveFunction(fn.text, b.scope), fn.text.includes('\\') ? '' : fn.text]);
         for (const id of ids) if (id) b.out.calls.push({ from, line: lineOf(fn), kind: 'function', id: `php:${id}` });
         break;

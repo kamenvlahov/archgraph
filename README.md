@@ -71,6 +71,18 @@ npm i -g @sourcegraph/scip-typescript @sourcegraph/scip-python
 - PHP засега е само по евристика.
 - `--no-scip` пропуска индексаторите. На ComfyUI сканирането е 4 s вместо 70 s.
 
+### Няколко услуги (HTTP между тях)
+
+HTTP заявките в кода се разпознават сами: `this.http.get(`/api/albums/${id}`)`, `client.post('/orders')`, `fetch(...)`, `_call(settings, "GET", "/api/portal/tickets")`. Заявката към route в същия проект е връзка в графа (`⇝ HTTP`). За заявки към друга услуга се описват другите проекти в `.archgraph/workspace.yaml`:
+
+```yaml
+projects:
+  desk: ../../penka-local/desk/backend
+  portal: ../frontend
+```
+
+Тогава `trace` и графът минават от проект в проект: от метод в portal през route-а в api до handler-а в desk. Нодовете на другите проекти са с id `име::…`. Промените в тях се виждат след ново отваряне.
+
 ### Интерфейс
 
 ```sh

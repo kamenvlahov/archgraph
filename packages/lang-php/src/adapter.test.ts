@@ -113,3 +113,23 @@ enum E: string implements I {}`,
     'implements php:App\\E -> php:App\\I',
   ]);
 });
+
+test('извиквания с низ като път: променлива и конкатенация са {}', async () => {
+  const { paths } = await phpAdapter.read([
+    {
+      path: 'src/Desk.php',
+      text: `<?php
+class Desk {
+    public function ticket(int $id): array {
+        $a = $this->client->request('GET', "/api/tickets/$id");
+        return $this->client->post('/api/tickets/' . $id . '/replies');
+    }
+}
+`,
+    },
+  ]);
+  expect(paths?.map((p) => [p.name, p.strings])).toEqual([
+    ['request', ['GET', '/api/tickets/{}']],
+    ['post', ['/api/tickets/{}/replies']],
+  ]);
+});

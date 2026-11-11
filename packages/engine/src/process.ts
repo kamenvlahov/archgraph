@@ -69,7 +69,7 @@ export interface Slot {
 
 export interface ProcessEdge {
   id: string;
-  kind: 'routes-to' | 'calls' | 'creates' | 'renders' | 'implements' | 'maybe';
+  kind: 'routes-to' | 'calls' | 'creates' | 'renders' | 'implements' | 'maybe' | 'requests';
   from: { node: string; member?: string };
   to: { node: string; member?: string };
   inferred: boolean;
@@ -85,6 +85,7 @@ const ARROWS: Record<string, ProcessEdge['kind']> = {
   '▭ ': 'renders',
   '⇒ ': 'implements',
   '?? ': 'maybe',
+  '⇝ ': 'requests',
 };
 
 // `start` може да е и няколко начала (ghost нодовете на шаблон): всички са в първата колона.

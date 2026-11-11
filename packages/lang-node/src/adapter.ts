@@ -1,6 +1,7 @@
 import { posix } from 'node:path';
 import {
   edge,
+  PATH_LIKE,
   type Annotation,
   type Arg,
   type CallSite,
@@ -12,6 +13,7 @@ import {
   type Location,
   type Member,
   type Node as GraphNode,
+  type PathCall,
   type Port,
   type SourceFile,
   type TypeRef,
@@ -31,6 +33,7 @@ interface Ctx {
   imports: Map<string, { module: string; name: string }>;
   edges: Edge[];
   calls: CallSite[];
+  paths: PathCall[];
   types: Record<string, TypeShape>;
   annotations: Annotation[];
 }
@@ -49,6 +52,7 @@ export const nodeAdapter: LanguageAdapter = {
     const known = new Set(all);
     const edges: Edge[] = [];
     const calls: CallSite[] = [];
+    const paths: PathCall[] = [];
     const types: Record<string, TypeShape> = {};
     const annotations: Annotation[] = [];
     const nodes = files.flatMap((file) => {
@@ -60,12 +64,13 @@ export const nodeAdapter: LanguageAdapter = {
         imports: new Map(),
         edges,
         calls,
+        paths,
         types,
         annotations,
       };
       return withTree(parser, file.text, (tree) => readModule(tree.rootNode, ctx));
     });
-    return { nodes, edges, types, calls, annotations };
+    return { nodes, edges, types, calls, annotations, paths };
   },
 };
 
@@ -321,6 +326,15 @@ function annotate(nodes: Node[], on: { node: string; member?: string }, ctx: Ctx
       location: location(d, ctx.file),
     });
   }
+}
+
+// Низовете сред аргументите, по ред; `${x}` в шаблонен низ е `{}`: `/albums/${id}` → /albums/{}
+function literalStrings(args: Node | null): string[] {
+  return (args?.namedChildren ?? []).flatMap((a) => {
+    if (a.type === 'string') return [a.namedChildren.map((c) => c.text).join('')];
+    if (a.type === 'template_string') return [a.text.slice(1, -1).replace(/\$\{[^}]*\}/g, '{}')];
+    return [];
+  });
 }
 
 function argValue(a: Node, ctx: Ctx): Arg {
@@ -625,6 +639,14 @@ function readCalls(fn: Node, member: Member, b: Body) {
       }
       case 'call_expression': {
         const callee = n.childForFieldName('function');
+        const strings = literalStrings(n.childForFieldName('arguments'));
+        if (strings.some((s) => PATH_LIKE.test(s)))
+          ctx.paths.push({
+            from,
+            line: lineOf(n),
+            name: (callee?.childForFieldName('property') ?? callee)?.text ?? '',
+            strings,
+          });
         if (callee?.type === 'identifier' && !vars.has(callee.text)) {
           const ref = named(callee.text, ctx);
           if (ref.kind === 'named') ctx.calls.push({ from, line: lineOf(callee), kind: 'function', id: ref.id });

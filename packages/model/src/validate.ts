@@ -176,7 +176,7 @@ export function validate(input: unknown, registry: Registry = CORE_REGISTRY): Va
   };
 
   if (!isObj(input, '$')) return { ok: false, errors };
-  only(input, ['version', 'root', 'nodes', 'edges', 'types', 'unresolved', 'violations'], '$');
+  only(input, ['version', 'root', 'nodes', 'edges', 'types', 'unresolved', 'violations', 'requests'], '$');
   if (input.version !== MODEL_VERSION) fail('$.version', `трябва да е ${MODEL_VERSION}`);
   str(input, 'root', '$');
   if (isArr(input.nodes, '$.nodes')) input.nodes.forEach((n, i) => node(n, `$.nodes[${i}]`));
@@ -193,6 +193,21 @@ export function validate(input: unknown, registry: Registry = CORE_REGISTRY): Va
       }
       str(u, 'name', p);
       if (!Number.isInteger(u.line) || (u.line as number) < 1) fail(`${p}.line`, 'трябва да е цяло число ≥ 1');
+    });
+  if (input.requests !== undefined && isArr(input.requests, '$.requests'))
+    input.requests.forEach((r, i) => {
+      const p = `$.requests[${i}]`;
+      if (!isObj(r, p)) return;
+      only(r, ['from', 'method', 'path', 'line', 'to'], p);
+      if (isObj(r.from, `${p}.from`)) {
+        only(r.from, ['node', 'member'], `${p}.from`);
+        str(r.from, 'node', `${p}.from`);
+        str(r.from, 'member', `${p}.from`);
+      }
+      str(r, 'method', p);
+      str(r, 'path', p);
+      str(r, 'to', p, false);
+      if (!Number.isInteger(r.line) || (r.line as number) < 1) fail(`${p}.line`, 'трябва да е цяло число ≥ 1');
     });
   if (input.violations !== undefined && isArr(input.violations, '$.violations'))
     input.violations.forEach((v, i) => {
@@ -256,6 +271,11 @@ export function validate(input: unknown, registry: Registry = CORE_REGISTRY): Va
     if (!n) fail(`$.unresolved[${i}].from.node`, `няма нод "${u.from.node}"`);
     else if (!n.members.some((m) => m.name === u.from.member))
       fail(`$.unresolved[${i}].from.member`, `"${n.id}" няма member "${u.from.member}"`);
+  });
+
+  model.requests?.forEach((r, i) => {
+    if (!nodes.has(r.from.node)) fail(`$.requests[${i}].from.node`, `няма нод "${r.from.node}"`);
+    if (r.to !== undefined && !nodes.has(r.to)) fail(`$.requests[${i}].to`, `няма нод "${r.to}"`);
   });
 
   model.violations?.forEach((v, i) => {

@@ -11,6 +11,7 @@ import {
   loadArchitecture,
   loadDesign,
   loadFrameworks,
+  loadWorkspace,
   routes,
   services,
   type FrameworkRules,
@@ -25,6 +26,7 @@ import {
   validate,
   type GraphModel,
   type CallSite,
+  type PathCall,
   type GraphFragment,
   type Edge,
   type LanguageAdapter,
@@ -32,6 +34,8 @@ import {
   type ValidationError,
 } from '@archgraph/model';
 import { callEdges } from './calls.ts';
+import { requests } from './requests.ts';
+import { combine } from './workspace.ts';
 import { blueprint, merge } from './design.ts';
 import { linkEdges } from './edges.ts';
 import { violations } from './violations.ts';
@@ -44,6 +48,7 @@ export interface ScanOptions {
   exclude?: string[]; // добавя се към DEFAULT_EXCLUDES
   maxFileSize?: number;
   scip?: boolean; // по подразбиране true: пуска SCIP индексаторите, които са инсталирани
+  workspace?: boolean; // false: без другите проекти от .archgraph/workspace.yaml
 }
 
 export interface ScanReport {
@@ -84,6 +89,7 @@ export class Project {
   report: ScanReport;
   private readonly options: ScanOptions;
   private readonly fragments = new Map<string, { adapter: LanguageAdapter; part: GraphFragment }>();
+  private readonly others: { name: string; project: Project }[] = []; // работното пространство (етап 12)
 
   private constructor(root: string, options: ScanOptions) {
     this.root = root;
@@ -96,6 +102,12 @@ export class Project {
     const project = new Project(resolve(path), options);
     const files = listFiles(project.root, project.excludes());
     for (const file of files) await project.read(file, files);
+    if (options.workspace !== false)
+      for (const [name, path] of Object.entries(loadWorkspace(project.root)))
+        project.others.push({
+          name,
+          project: await Project.open(resolve(project.root, path), { ...options, workspace: false }),
+        });
     project.link(options.scip !== false);
     return project;
   }
@@ -145,6 +157,7 @@ export class Project {
     const graph: GraphModel = { version: MODEL_VERSION, root, nodes: [], edges: [], types: {} };
     let calls: CallSite[] = [];
     let annotations: Annotation[] = [];
+    let paths: PathCall[] = [];
     for (const { adapter, part } of this.fragments.values()) {
       // concat, а не push(...): голям проект има повече нодове, отколкото стекът побира като аргументи.
       graph.nodes = graph.nodes.concat(part.nodes);
@@ -152,6 +165,7 @@ export class Project {
       Object.assign(graph.types, part.types);
       calls = calls.concat(part.calls ?? []);
       annotations = annotations.concat(part.annotations ?? []);
+      paths = paths.concat(part.paths ?? []);
       report.files[adapter.language] = (report.files[adapter.language] ?? 0) + 1;
     }
     const renamed = renameDuplicates(graph.nodes);
@@ -172,7 +186,10 @@ export class Project {
     const inferred = callEdges(graph.nodes, graph.edges, graph.types, exact.rest, registered.services);
     // Едно и също извикване може да се среща няколко пъти в метода, а реброто е едно.
     const called = new Map([...inferred.edges, ...exact.edges].map((e) => [e.id, e]));
-    graph.edges = graph.edges.concat([...called.values()], routed.edges, registered.edges);
+    // HTTP заявките в кода; тези към route в този проект са ребра `requests` (етап 12)
+    const asked = requests(paths, graph.nodes);
+    graph.edges = graph.edges.concat([...called.values()], routed.edges, registered.edges, asked.edges);
+    if (asked.requests.length > 0) graph.requests = asked.requests;
     if (inferred.unresolved.length > 0) graph.unresolved = inferred.unresolved;
     const facts = roleFacts(heritage, annotations, graph.edges);
     graph.nodes = assignRoles(graph.nodes, frameworks, facts);
@@ -201,7 +218,12 @@ export class Project {
 
     const result = validate(graph, extendRegistry(CORE_REGISTRY, VIEWS));
     if (!result.ok) throw new InvalidGraphError(result.errors);
-    this.graph = graph;
+    this.graph = this.others.length
+      ? combine(
+          graph,
+          this.others.map((o) => ({ name: o.name, graph: o.project.graph })),
+        )
+      : graph;
     this.report = report;
   }
 }

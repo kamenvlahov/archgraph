@@ -155,3 +155,26 @@ test('src като пакет: импортите `from src.x` намират н
   expect(nodes.map((n) => n.id)).toEqual(['python:src.core.Base', 'python:src.app.A']);
   expect(edges.map((e) => e.id)).toEqual(['extends:python:src.app.A->python:src.core.Base']);
 });
+
+test('извиквания с низ като път: f-string интерполацията е {}', async () => {
+  const { paths } = await pythonAdapter.read([
+    {
+      path: 'app/desk.py',
+      text: `async def ticket(settings, ticket_id: int):
+    return await _call(settings, "GET", f"/api/portal/tickets/{ticket_id}", params={"x": "y"})
+
+
+async def ignored(cache):
+    return cache.get("users")
+`,
+    },
+  ]);
+  expect(paths).toEqual([
+    {
+      from: { node: 'python:app.desk.ticket', member: 'ticket' },
+      line: 2,
+      name: '_call',
+      strings: ['GET', '/api/portal/tickets/{}'],
+    },
+  ]);
+});

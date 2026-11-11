@@ -182,3 +182,24 @@ interface K extends I, ns.I {}`,
     'extends node:src/a.ts#K -> node:src/base.ts#I',
   ]);
 });
+
+test('извиквания с низ като път: `${x}` в шаблонен низ е {}', async () => {
+  const { paths } = await nodeAdapter.read([
+    {
+      path: 'src/api.ts',
+      text: `export class Api {
+  constructor(private http: HttpClient) {}
+  album(id: number) {
+    return this.http.get<Album>(\`/api/albums/\${id}\`);
+  }
+  title() {
+    return this.router.navigate(['/albums']);
+  }
+}
+`,
+    },
+  ]);
+  expect(paths).toEqual([
+    { from: { node: 'node:src/api.ts#Api', member: 'album' }, line: 4, name: 'get', strings: ['/api/albums/{}'] },
+  ]);
+});

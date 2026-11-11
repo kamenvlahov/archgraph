@@ -616,3 +616,42 @@ class Cart { public function sum(): int { return (new Order())->total(); } }`,
     'cycle: цикъл: Cart, Order зависят един от друг',
   ]);
 });
+
+test('HTTP заявките: route в същия проект и в друг от работното пространство', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'archgraph-ws-'));
+  const file = (path: string, text: string) => {
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    writeFileSync(join(root, path), text);
+  };
+  // клиентът вика FastAPI примера (друг проект) и себе си; регистрацията на route не е заявка
+  file(
+    '.archgraph/workspace.yaml',
+    `projects:\n  shop: ${join(import.meta.dirname, '../../../fixtures/python-fastapi')}\n`,
+  );
+  file('package.json', '{"dependencies": {"express": "^4"}}');
+  file(
+    'src/client.ts',
+    `export class Client {
+  constructor(private http: Http) {}
+  order(id: number) { return this.http.get(\`/orders/\${id}\`); }
+  place() { return this.http.post('/orders', {}); }
+  search() { return this.http.get('/orders/search'); }
+  health() { return this.http.get('/health'); }
+}
+export function routes(app: App) { app.get('/health', health); }
+`,
+  );
+  const { graph } = await scan(root, { scip: false });
+  const asked = Object.fromEntries((graph.requests ?? []).map((r) => [`${r.method} ${r.path}`, r.to ?? '—']));
+  expect(asked).toMatchObject({
+    'GET /orders/{}': 'shop::python:route:GET /orders/{order_id}',
+    'POST /orders': 'shop::python:route:POST /orders',
+    'GET /orders/search': 'shop::python:route:GET /orders/{order_id}',
+  });
+  expect(graph.edges.filter((e) => e.kind === 'requests').map((e) => e.to.node)).toContain(
+    'shop::python:route:POST /orders',
+  );
+  const shopNode = graph.nodes.find((n) => n.id === 'shop::python:route:POST /orders');
+  expect(shopNode?.tags).toContain('project:shop');
+  expect(shopNode?.location.file).toMatch(/^\.\.\/.*fixtures\/python-fastapi\//);
+});

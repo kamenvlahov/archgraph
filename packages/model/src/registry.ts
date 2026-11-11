@@ -13,6 +13,7 @@ export const CORE_EDGE_KINDS = [
   'returns',
   'uses-type',
   'binds',
+  'requests',
 ];
 
 export interface Registry {

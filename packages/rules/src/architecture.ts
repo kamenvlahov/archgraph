@@ -83,6 +83,23 @@ export function loadArchitecture(root: string): Architecture | undefined {
   return arch;
 }
 
+// Работното пространство (етап 12): другите проекти, с които този си говори по HTTP. Име → път,
+// абсолютен или спрямо корена. `.archgraph/workspace.yaml`:
+//   projects:
+//     desk: ../../penka-local/desk/backend
+export function loadWorkspace(root: string): Record<string, string> {
+  const file = join(root, '.archgraph/workspace.yaml');
+  if (!existsSync(file)) return {};
+  const y = (parse(readFileSync(file, 'utf8')) ?? {}) as { projects?: Record<string, unknown> };
+  const projects: Record<string, string> = {};
+  for (const [name, path] of Object.entries(y.projects ?? {})) {
+    if (!/^[\w-]+$/.test(name) || typeof path !== 'string')
+      throw new Error(`.archgraph/workspace.yaml: „${name}“ трябва да е име: път`);
+    projects[name] = path;
+  }
+  return projects;
+}
+
 // Редът на слоевете за интерфейса: изричните, иначе тези на стила.
 export function layerOrder(arch: Architecture | undefined, fallback: string[]): string[] {
   if (!arch) return fallback;

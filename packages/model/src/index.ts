@@ -11,5 +11,7 @@ export type {
   GraphFragment,
   Indexer,
   LanguageAdapter,
+  PathCall,
   SourceFile,
 } from './adapter.ts';
+export { PATH_LIKE } from './adapter.ts';

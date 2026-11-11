@@ -1,5 +1,6 @@
 import {
   edge,
+  PATH_LIKE,
   type Annotation,
   type Arg,
   type CallSite,
@@ -11,6 +12,7 @@ import {
   type Location,
   type Member,
   type Node as GraphNode,
+  type PathCall,
   type Port,
   type SourceFile,
   type TypeRef,
@@ -45,6 +47,7 @@ interface Ctx {
   imports: Map<string, string>; // локално име → пълно име (модул.Име или модул)
   edges: Edge[];
   calls: CallSite[];
+  paths: PathCall[];
   types: Record<string, TypeShape>;
   annotations: Annotation[];
   nested: GraphNode[]; // вложени функции с декоратор (D-013)
@@ -74,6 +77,7 @@ export const pythonAdapter: LanguageAdapter = {
     const srcIsPackage = all.includes('src/__init__.py');
     const edges: Edge[] = [];
     const calls: CallSite[] = [];
+    const paths: PathCall[] = [];
     const types: Record<string, TypeShape> = {};
     const annotations: Annotation[] = [];
     const nodes = files.flatMap((file) => {
@@ -85,13 +89,14 @@ export const pythonAdapter: LanguageAdapter = {
         imports: new Map(),
         edges,
         calls,
+        paths,
         types,
         annotations,
         nested: [],
       };
       return withTree(parser, file.text, (tree) => readModule(tree.rootNode, ctx));
     });
-    return { nodes, edges, types, calls, annotations };
+    return { nodes, edges, types, calls, annotations, paths };
   },
 };
 
@@ -241,6 +246,19 @@ function callArgs(call: Node, ctx: Ctx): Arg[] {
       return [{ ...value, name: a.childForFieldName('name')?.text ?? '' }];
     }
     return [argValue(a, ctx)];
+  });
+}
+
+// Низовете сред аргументите, по ред; f-string интерполацията е `{}`: f"/tickets/{id}" → /tickets/{}
+function literalStrings(args: Node | null): string[] {
+  return (args?.namedChildren ?? []).flatMap((a) => {
+    const v = a.type === 'keyword_argument' ? a.childForFieldName('value') : a;
+    if (v?.type !== 'string') return [];
+    return [
+      v.namedChildren
+        .map((c) => (c.type === 'interpolation' ? '{}' : c.type === 'string_content' ? c.text : ''))
+        .join(''),
+    ];
   });
 }
 
@@ -610,6 +628,9 @@ function readCalls(fn: Node, member: Member, b: Body) {
       case 'call': {
         innerCall(n, ctx);
         const callee = n.childForFieldName('function');
+        const strings = literalStrings(n.childForFieldName('arguments'));
+        if (strings.some((s) => PATH_LIKE.test(s)))
+          ctx.paths.push({ from, line: lineOf(n), name: callee?.text.split('.').at(-1) ?? '', strings });
         if (callee?.type === 'identifier' && !vars.has(callee.text)) {
           const ref = named(callee.text, ctx);
           if (ref.kind === 'named') ctx.calls.push({ from, line: lineOf(callee), kind: 'function', id: ref.id });
