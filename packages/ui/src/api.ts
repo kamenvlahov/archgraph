@@ -126,6 +126,12 @@ export async function saveDesign(design: Design): Promise<void> {
   if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? `${res.status}`);
 }
 
+// Чертеж от написания код: стекът по framework-а, ендпойнтите от route-овете, стилът най-близкият.
+export async function draftDesign(): Promise<void> {
+  const res = await fetch(`${BASE}/api/design/draft`, { method: 'POST' });
+  if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? `${res.status}`);
+}
+
 export async function designPlan(): Promise<string> {
   const res = await fetch(`${BASE}/api/design/plan`);
   return res.text();

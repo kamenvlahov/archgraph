@@ -6,6 +6,7 @@ import {
   DEFAULT_EXCLUDES,
   designEntities,
   designWarnings,
+  draftDesign,
   GraphQuery,
   layers,
   layerView,
@@ -49,6 +50,7 @@ import {
 //   POST /api/patterns {example, to, from?}  „като този“: ghost нодове, регистрации и план
 //   GET  /api/design                   чертежът (етап 11), стековете и стиловете за избор
 //   PUT  /api/design {stack, style, auth?, resources?, endpoints}  записва .archgraph/design.yaml
+//   POST /api/design/draft             чертеж от написания код (проект отпреди archgraph)
 //   GET  /api/design/plan              Markdown план: какво още да се напише по чертежа
 //   GET  /api/design/skeleton?file=    скелетът на файл от чертежа (при „Създай файла“)
 //   GET  /api/design/status?style=&stack=&levels=User:1  кодът срещу чертежа, и незаписан: проба
@@ -242,6 +244,15 @@ export async function serve(path: string, port: number, options: ScanOptions, ho
       await project.update(['.archgraph/design.yaml']);
       changed(['.archgraph/design.yaml']);
       return send(res, 200, { design: loadDesign(graph.root), progress: project.report.design ?? null });
+    }
+    if (route === 'POST /api/design/draft') {
+      if (loadDesign(graph.root)) return send(res, 409, { error: 'проектът вече има чертеж' });
+      const draft = draftDesign(graph, project.report.frameworks);
+      if (typeof draft === 'string') return send(res, 400, { error: draft });
+      saveDesign(graph.root, draft.design);
+      await project.update(['.archgraph/design.yaml']);
+      changed(['.archgraph/design.yaml']);
+      return send(res, 201, draft);
     }
     if (route === 'GET /api/design/plan') {
       const design = loadDesign(graph.root);

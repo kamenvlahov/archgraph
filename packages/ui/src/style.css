@@ -618,6 +618,16 @@ aside .scroll {
 nav input {
   margin-top: 12px;
 }
+nav input.search {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 7px 10px;
+  border-radius: 0;
+  border-width: 0 0 1px;
+  background: var(--panel);
+}
 nav ul {
   flex: none;
 }
@@ -1559,4 +1569,15 @@ nav li .counts .extra {
 }
 nav li .counts.ok {
   color: var(--t-dto);
+}
+
+header .draft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 16px;
+}
+header .draft .error {
+  color: var(--bad);
+  font-size: 12px;
 }

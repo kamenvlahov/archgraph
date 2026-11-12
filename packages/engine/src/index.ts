@@ -33,4 +33,5 @@ export {
   type Blueprint,
   type Reading,
 } from './design.ts';
+export { draftDesign, type Draft } from './draft.ts';
 export { skeleton } from './skeleton.ts';

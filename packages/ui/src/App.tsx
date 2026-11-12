@@ -18,6 +18,7 @@ import {
   createPattern,
   createPlan,
   designStatus,
+  draftDesign,
   get,
   inEditor,
   onChange,
@@ -238,7 +239,11 @@ export function App() {
     return () => clearTimeout(timer);
   }, [filter]);
 
-  const shown = (project?.entries ?? []).filter((e) => e.label.toLowerCase().includes(filter.toLowerCase()));
+  // всяка дума от търсенето да е в ендпойнта или файла му: `post tickets`
+  const words = filter.toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = (project?.entries ?? []).filter((e) =>
+    words.every((w) => `${e.label} ${e.file}`.toLowerCase().includes(w)),
+  );
   // Празна папка без чертеж: изборът на стек и архитектура.
   if (project && design && !design.design && Object.keys(project.files).length === 0)
     return (
@@ -262,6 +267,7 @@ export function App() {
           arch<b>graph</b>
         </div>
         <div className="proj">{project?.name}</div>
+        {design && !design.design && <DraftButton onDone={() => setArch(true)} />}
         {design?.design && <Pickers info={design} trial={trial} version={version} onTrial={startTrial} />}
         {design?.design && (
           <div className="tabs">
@@ -305,7 +311,14 @@ export function App() {
         )}
       </header>
       <nav>
-        {design?.design && (
+        <input
+          className="search"
+          type="search"
+          placeholder="търси: post tickets, клас, метод…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+        {design?.design && !filter && (
           <DesignNav
             info={design}
             onAdded={(m, p) => setPending(routeKey(`${m} ${p}`))}
@@ -313,8 +326,7 @@ export function App() {
             onLevel={(name, level) => startTrial({ ...trial, levels: { ...trial?.levels, [name]: level } })}
           />
         )}
-        <input placeholder="ендпойнт, клас или метод…" value={filter} onChange={(e) => setFilter(e.target.value)} />
-        {layerList.length > 0 && (
+        {layerList.length > 0 && !filter && (
           <>
             <h3>Слоеве</h3>
             <ul>
@@ -979,5 +991,26 @@ function PatternPanel({ shape, onBack }: { shape: Shape; onBack: () => void }) {
         </div>
       </div>
     </aside>
+  );
+}
+
+// Проект отпреди archgraph: чертежът се прави от кода, за да има Архитектура и проба.
+function DraftButton({ onDone }: { onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const run = () => {
+    setBusy(true);
+    draftDesign()
+      .then(onDone)
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <div className="draft">
+      <button type="button" className="btn pri" disabled={busy} onClick={run}>
+        {busy ? 'Чета кода…' : 'Направи чертеж от кода'}
+      </button>
+      {error && <span className="error">{error}</span>}
+    </div>
   );
 }

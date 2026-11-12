@@ -3,6 +3,7 @@ import {
   blueprint,
   designStatus,
   designWarnings,
+  draftDesign,
   GraphQuery,
   label,
   pattern,
@@ -132,10 +133,14 @@ const TOOLS = [
   {
     name: 'design_edit',
     description:
-      'Промяна на чертежа: нов чертеж (stack и style), добавяне или промяна на ендпойнт (endpoint; същият метод и път се заменя) или махане (remove: "GET /galleries/{id}"), ресурс (resource: полетата на entity-то и собственикът му; remove_resource) и влезлият (auth: ресурсът на потребителя; тогава ендпойнтите искат вход, освен public). По веригата от собственици до auth се знае чии са данните: съобщенията носят id-то на влезлия, списъците и търсенето са само неговите. Полетата са {име: тип}: string, int, float, bool, date, datetime, клас, [тип] за масив, {поле: тип} за вложен обект. Изходът е какво връщат методите: тип (Gallery, [Gallery]) или полета (става клас за отговора). Не пиши код с това — само чертежа; потребителят го вижда в графа.',
+      'Промяна на чертежа: чертеж от написания код (from_code), нов чертеж (stack и style), добавяне или промяна на ендпойнт (endpoint; същият метод и път се заменя) или махане (remove: "GET /galleries/{id}"), ресурс (resource: полетата на entity-то и собственикът му; remove_resource) и влезлият (auth: ресурсът на потребителя; тогава ендпойнтите искат вход, освен public). По веригата от собственици до auth се знае чии са данните: съобщенията носят id-то на влезлия, списъците и търсенето са само неговите. Полетата са {име: тип}: string, int, float, bool, date, datetime, клас, [тип] за масив, {поле: тип} за вложен обект. Изходът е какво връщат методите: тип (Gallery, [Gallery]) или полета (става клас за отговора). Не пиши код с това — само чертежа; потребителят го вижда в графа.',
     inputSchema: {
       type: 'object',
       properties: {
+        from_code: {
+          type: 'boolean',
+          description: 'чертеж от написания код: ендпойнтите от route-овете, стилът най-близкият до кода',
+        },
         stack: { type: 'string', description: DESIGN_STACKS.map((s) => s.stack).join(' | ') },
         style: { type: 'string', description: DESIGN_STYLES.map((s) => s.style).join(' | ') },
         endpoint: {
@@ -262,6 +267,16 @@ export class Server {
       this.graphs.delete(root);
       return (await this.graph(root)).summary;
     }
+    if (tool === 'design_edit' && args['from_code'] === true) {
+      if (loadDesign(root)) throw new Error('проектът вече има чертеж; промени го с останалите полета');
+      const { query, report } = await this.graph(root);
+      const draft = draftDesign(query.graph, report.frameworks);
+      if (typeof draft === 'string') throw new Error(draft);
+      saveDesign(root, draft.design);
+      this.graphs.delete(root);
+      const fit = draft.styles.map((x) => `${x.style} ${x.done}/${x.total}, ${x.files} файла`).join('\n');
+      return `Чертеж от кода: ${draft.design.stack}, ${draft.design.style}, ${draft.design.endpoints.length} ендпойнта.\nКолко е готово по всеки стил:\n${fit}`;
+    }
     if (tool === 'design_edit') {
       const text = editDesign(root, args);
       this.graphs.delete(root);
@@ -300,7 +315,7 @@ export class Server {
       case 'design': {
         const design = loadDesign(root);
         if (!design)
-          return `Проектът няма чертеж. Започни с design_edit: stack (${DESIGN_STACKS.map((s) => s.stack).join(', ')}) и style (${DESIGN_STYLES.map((s) => s.style).join(', ')}).`;
+          return `Проектът няма чертеж. Ако кодът вече е написан: design_edit from_code. Иначе design_edit: stack (${DESIGN_STACKS.map((s) => s.stack).join(', ')}) и style (${DESIGN_STYLES.map((s) => s.style).join(', ')}).`;
         const warnings = designWarnings(design);
         return [
           ...(design.auth ? [`Влезлият е ${design.auth}: ендпойнтите искат вход, освен публичните.`, ''] : []),
