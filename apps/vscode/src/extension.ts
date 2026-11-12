@@ -38,13 +38,15 @@ async function show(context: vscode.ExtensionContext) {
     (e: Error) => void vscode.window.showErrorMessage(`archgraph: ${e.message}`),
   );
   if (!api) return;
+  // Под WSL/SSH панелът е в Windows, а engine-ът в отдалечената машина: VS Code пренасочва порта.
+  const external = (await vscode.env.asExternalUri(vscode.Uri.parse(api))).toString().replace(/\/$/, '');
 
   panel = vscode.window.createWebviewPanel('archgraph', 'archgraph', vscode.ViewColumn.Beside, {
     enableScripts: true,
     retainContextWhenHidden: true,
     localResourceRoots: [vscode.Uri.file(UI)],
   });
-  panel.webview.html = html(panel.webview, api);
+  panel.webview.html = html(panel.webview, external);
   panel.webview.onDidReceiveMessage(
     async (m: { type?: string; file?: string; line?: number }) => {
       if (m.type !== 'open' || !m.file) return;
