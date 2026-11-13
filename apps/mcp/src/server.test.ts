@@ -164,6 +164,7 @@ test('протокол: initialize, tools/list, известия и непозн
     'plan',
     'pattern',
     'violations',
+    'architecture',
     'design',
     'design_edit',
     'design_status',
@@ -272,4 +273,17 @@ test('чертеж: design_edit, design, skeleton и design_status — цели�
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('architecture: слоевете и модулите по папките', async () => {
+  const server = new Server({ cwd: join(import.meta.dirname, '../../../fixtures/php-mezzio'), scip: false });
+  const res = (await server.handle({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'tools/call',
+    params: { name: 'architecture', arguments: {} },
+  })) as { result: { content: { text: string }[] } };
+  const text = res.result.content[0]?.text ?? '';
+  expect(text).toContain('entry: Handler');
+  expect(text).toMatch(/- Order: .*по слоеве/);
 });

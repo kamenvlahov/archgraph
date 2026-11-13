@@ -1581,3 +1581,41 @@ header .draft .error {
   color: var(--bad);
   font-size: 12px;
 }
+
+.arch.current .summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 0 14px;
+  font-size: 13px;
+}
+.shape {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 9px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.shape.layered {
+  color: var(--r-service);
+  border-color: var(--r-service);
+}
+.shape.direct {
+  color: var(--r-repository);
+  border-color: var(--r-repository);
+}
+.shape.mixed {
+  color: var(--sig);
+  border-color: var(--sig);
+}
+.arch.current .rowhead .shape {
+  margin: 4px 0;
+  align-self: flex-start;
+}
+.arch .cell .more {
+  font-size: 11px;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 2px 4px;
+}

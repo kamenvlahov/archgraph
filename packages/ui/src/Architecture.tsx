@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import {
   designEfforts,
+  draftDesign,
+  get,
   saveDesign,
+  type CurrentArchitecture,
   type Design,
   type DesignInfo,
   type Effort,
@@ -466,6 +469,164 @@ export function ArchitectureAside({
               </p>
             </>
           )}
+        </section>
+      </div>
+    </aside>
+  );
+}
+
+// Без чертеж: текущата архитектура, прочетена от папките. Редовете са модулите (може да са стотици),
+// колоните — слоевете; до модула е как минава заявката от входа му.
+const CURRENT: { layer: keyof CurrentArchitecture['folders']; label: string }[] = [
+  { layer: 'entry', label: 'Вход' },
+  { layer: 'application', label: 'Application' },
+  { layer: 'domain', label: 'Domain' },
+  { layer: 'infrastructure', label: 'Infrastructure' },
+  { layer: 'other', label: 'Друго' },
+];
+const SHAPE: Record<string, { label: string; about: string }> = {
+  layered: { label: 'на слоеве', about: 'входът вика application/domain' },
+  direct: { label: 'направо', about: 'входът вика infrastructure (базата) направо' },
+  mixed: { label: 'смесено', about: 'и през слоевете, и направо' },
+};
+const CHIPS = 12;
+
+export function CurrentView({
+  filter,
+  version,
+  onOpen,
+}: {
+  filter: string;
+  version: number;
+  onOpen: (id: string) => void;
+}) {
+  const [current, setCurrent] = useState<CurrentArchitecture>();
+  const [error, setError] = useState('');
+  const [open, setOpen] = useState(new Set<string>());
+  useEffect(() => {
+    get<CurrentArchitecture>('/api/architecture')
+      .then(setCurrent)
+      .catch((e: Error) => setError(e.message));
+  }, [version]);
+  if (error)
+    return (
+      <div id="stage" className="empty">
+        {error}
+      </div>
+    );
+  if (!current)
+    return (
+      <div id="stage" className="empty">
+        Чета папките…
+      </div>
+    );
+  const layers = CURRENT.filter((l) => current.modules.some((m) => m.cells[l.layer]?.length));
+  const words = filter.toLowerCase().split(/\s+/).filter(Boolean);
+  const modules = current.modules.filter((m) => words.every((w) => m.name.toLowerCase().includes(w)));
+  const shapes = Object.keys(SHAPE).map((k) => [k, current.modules.filter((m) => m.shape === k).length] as const);
+  const columns = { gridTemplateColumns: `200px repeat(${layers.length}, minmax(150px, 1fr))` };
+  return (
+    <div id="stage" className="arch current">
+      <div className="summary">
+        <b>{current.modules.length} модула</b>
+        {shapes.map(([k, n]) => (
+          <span key={k} className={`shape ${k}`} title={SHAPE[k]?.about}>
+            {SHAPE[k]?.label} {n}
+          </span>
+        ))}
+        {words.length > 0 && <span className="muted">· показани {modules.length}</span>}
+      </div>
+      <div className="grid" style={columns}>
+        <div />
+        {layers.map((l) => (
+          <div key={l.layer} className="colhead">
+            <b>{l.label}</b>
+            <span>{(current.folders[l.layer] ?? []).join(', ')}</span>
+          </div>
+        ))}
+        {modules.map((m) => (
+          <Fragment key={m.name}>
+            <div className="rowhead">
+              <b>{m.name}</b>
+              {SHAPE[m.shape] && (
+                <span className={`shape ${m.shape}`} title={SHAPE[m.shape]?.about}>
+                  {SHAPE[m.shape]?.label}
+                </span>
+              )}
+              {Object.keys(m.from).length > 0 && (
+                <span>
+                  вход →{' '}
+                  {CURRENT.filter((l) => m.from[l.layer])
+                    .map((l) => `${l.label} ${m.from[l.layer]}`)
+                    .join(', ')}
+                </span>
+              )}
+            </div>
+            {layers.map((l) => {
+              const units = m.cells[l.layer] ?? [];
+              const key = `${m.name}/${l.layer}`;
+              const shown = open.has(key) ? units : units.slice(0, CHIPS);
+              return (
+                <div key={l.layer} className={units.length ? 'cell' : 'cell empty'}>
+                  {shown.map((u) => (
+                    <span key={u.id} className="c ok link" title={`${u.file}:${u.line}`} onClick={() => onOpen(u.id)}>
+                      <i style={{ background: 'var(--r-class)' }} />
+                      <span className="n">{u.name}</span>
+                    </span>
+                  ))}
+                  {units.length > shown.length && (
+                    <span className="more" onClick={() => setOpen(new Set(open).add(key))}>
+                      още {units.length - shown.length}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function CurrentAside() {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const draft = () => {
+    setBusy(true);
+    draftDesign()
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <aside>
+      <div className="scroll arch-aside">
+        <section>
+          <h3>Чертеж</h3>
+          <p className="muted">
+            Стилът и нивото на всеки модул по това, което се вижда тук. После пробваш друга архитектура и виждаш колко
+            работа е.
+          </p>
+          <button type="button" className="btn pri" disabled={busy} onClick={draft}>
+            {busy ? 'Правя го…' : 'Направи чертеж от кода'}
+          </button>
+          {error && <p className="bad">{error}</p>}
+        </section>
+        <section>
+          <h3>Текущата архитектура</h3>
+          <p className="muted">
+            Прочетена от папките, без шаблон. Слоят е първата папка с позната дума: api, Handler, Controller → вход;
+            Application, Service → application; Domain, Entity, Model → domain; Infrastructure, Repository →
+            infrastructure. Модулът е папката до слоя, иначе името на файла.
+          </p>
+        </section>
+        <section>
+          <h3>Как минава заявката</h3>
+          {Object.entries(SHAPE).map(([k, v]) => (
+            <p key={k}>
+              <span className={`shape ${k}`}>{v.label}</span> {v.about}
+            </p>
+          ))}
         </section>
       </div>
     </aside>

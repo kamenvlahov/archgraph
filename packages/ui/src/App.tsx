@@ -18,7 +18,6 @@ import {
   createPattern,
   createPlan,
   designStatus,
-  draftDesign,
   get,
   inEditor,
   onChange,
@@ -29,7 +28,15 @@ import {
   type StatusReport,
   type Trial,
 } from './api.ts';
-import { ArchitectureAside, ArchitectureView, cleanTrial, Pickers, TrialBanner } from './Architecture.tsx';
+import {
+  ArchitectureAside,
+  ArchitectureView,
+  cleanTrial,
+  CurrentAside,
+  CurrentView,
+  Pickers,
+  TrialBanner,
+} from './Architecture.tsx';
 import { DesignNav, DesignStart, EndpointEditor, Layers, removeEndpoint, routeKey } from './Design.tsx';
 import { layout, NODE_WIDTH, type Lane } from './layout.ts';
 import { LayerView } from './LayerView.tsx';
@@ -267,9 +274,8 @@ export function App() {
           arch<b>graph</b>
         </div>
         <div className="proj">{project?.name}</div>
-        {design && !design.design && <DraftButton onDone={() => setArch(true)} />}
         {design?.design && <Pickers info={design} trial={trial} version={version} onTrial={startTrial} />}
-        {design?.design && (
+        {design && (
           <div className="tabs">
             <button type="button" className={arch ? 'on' : ''} onClick={() => setArch(true)}>
               Архитектура
@@ -375,7 +381,12 @@ export function App() {
           </>
         )}
       </nav>
-      {arch && design?.design ? (
+      {arch && design && !design.design ? (
+        <>
+          <CurrentView filter={filter} version={version} onOpen={openProcess} />
+          <CurrentAside />
+        </>
+      ) : arch && design?.design ? (
         <>
           <ArchitectureView
             info={design}
@@ -991,26 +1002,5 @@ function PatternPanel({ shape, onBack }: { shape: Shape; onBack: () => void }) {
         </div>
       </div>
     </aside>
-  );
-}
-
-// Проект отпреди archgraph: чертежът се прави от кода, за да има Архитектура и проба.
-function DraftButton({ onDone }: { onDone: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const run = () => {
-    setBusy(true);
-    draftDesign()
-      .then(onDone)
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setBusy(false));
-  };
-  return (
-    <div className="draft">
-      <button type="button" className="btn pri" disabled={busy} onClick={run}>
-        {busy ? 'Чета кода…' : 'Направи чертеж от кода'}
-      </button>
-      {error && <span className="error">{error}</span>}
-    </div>
   );
 }

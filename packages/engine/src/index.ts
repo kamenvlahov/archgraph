@@ -34,4 +34,12 @@ export {
   type Reading,
 } from './design.ts';
 export { draftDesign, type Draft } from './draft.ts';
+export {
+  CURRENT_LAYERS,
+  currentArchitecture,
+  type CurrentArchitecture,
+  type CurrentLayer,
+  type CurrentModule,
+  type CurrentUnit,
+} from './current.ts';
 export { skeleton } from './skeleton.ts';

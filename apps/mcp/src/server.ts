@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import {
   blueprint,
   designStatus,
+  currentArchitecture,
   designWarnings,
   draftDesign,
   GraphQuery,
@@ -10,6 +11,7 @@ import {
   scan,
   skeleton,
   where,
+  type CurrentArchitecture,
   type ScanReport,
   type Target,
 } from '@archgraph/engine';
@@ -123,6 +125,12 @@ const TOOLS = [
     description:
       'Нарушенията на архитектурата: зависимост извън позволените посоки между слоеве (presentation → infrastructure) или контексти, цикли между класове, имплементация без метод на интерфейса. С target — само за този клас.',
     inputSchema: { type: 'object', properties: { target, project } },
+  },
+  {
+    name: 'architecture',
+    description:
+      'Текущата архитектура, прочетена от папките (без чертеж): кои папки са кой слой, модулите и как минава заявката от входа им — през application/domain или направо в infrastructure. Ако чете грешно, запиши слоевете (path_glob) и модулите (contexts) в .archgraph/architecture.yaml и пусни rescan: изричното печели.',
+    inputSchema: { type: 'object', properties: { project } },
   },
   {
     name: 'design',
@@ -274,8 +282,10 @@ export class Server {
       if (typeof draft === 'string') throw new Error(draft);
       saveDesign(root, draft.design);
       this.graphs.delete(root);
-      const fit = draft.styles.map((x) => `${x.style} ${x.done}/${x.total}, ${x.files} файла`).join('\n');
-      return `Чертеж от кода: ${draft.design.stack}, ${draft.design.style}, ${draft.design.endpoints.length} ендпойнта.\nКолко е готово по всеки стил:\n${fit}`;
+      return [
+        `Чертеж от кода: ${draft.design.stack}, ${draft.design.style}, ${draft.design.endpoints.length} ендпойнта.`,
+        ...draft.why,
+      ].join('\n');
     }
     if (tool === 'design_edit') {
       const text = editDesign(root, args);
@@ -340,6 +350,8 @@ export class Server {
         const design = { ...saved, style, stack };
         return designStatus(query.graph, design, blueprint(design));
       }
+      case 'architecture':
+        return architectureText(currentArchitecture(query.graph));
       case 'violations':
         return query.violations(args['target'] === undefined ? undefined : one(query, args['target']).node);
       case 'find_by_role': {
@@ -512,5 +524,22 @@ function one(query: GraphQuery, value: unknown): Target {
             .join('\n')}`
         : ''
     }`,
+  );
+}
+
+function architectureText(c: CurrentArchitecture): string {
+  const shape = { layered: 'по слоеве', direct: 'направо в infrastructure', mixed: 'смесено', none: '' };
+  const layers = Object.entries(c.folders).map(([layer, names]) => `${layer}: ${(names ?? []).join(', ')}`);
+  const modules = c.modules.map((m) => {
+    const cells = Object.entries(m.cells)
+      .map(([layer, units]) => `${layer} ${units?.length ?? 0}`)
+      .join(', ');
+    const from = Object.entries(m.from)
+      .map(([layer, n]) => `${layer} ${n}`)
+      .join(', ');
+    return `- ${m.name}: ${cells}${m.shape !== 'none' ? ` · ${shape[m.shape]}${from ? ` (вход → ${from})` : ''}` : ''}`;
+  });
+  return [`Слоеве по папките:`, ...layers.map((l) => `- ${l}`), '', `Модули (${c.modules.length}):`, ...modules].join(
+    '\n',
   );
 }

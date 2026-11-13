@@ -1,4 +1,6 @@
-import type { PatternResult, StatusReport } from '@archgraph/engine';
+import type { CurrentArchitecture, PatternResult, StatusReport } from '@archgraph/engine';
+
+export type { CurrentArchitecture };
 
 export type { StatusReport };
 
@@ -126,7 +128,7 @@ export async function saveDesign(design: Design): Promise<void> {
   if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? `${res.status}`);
 }
 
-// Чертеж от написания код: стекът по framework-а, ендпойнтите от route-овете, стилът най-близкият.
+// Чертеж от написания код: стилът и нивата по текущата архитектура (папките).
 export async function draftDesign(): Promise<void> {
   const res = await fetch(`${BASE}/api/design/draft`, { method: 'POST' });
   if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? `${res.status}`);
