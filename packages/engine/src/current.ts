@@ -39,6 +39,13 @@ const WORDS: Record<Exclude<CurrentLayer, 'other'>, string[]> = {
     'action',
     'actions',
     'middleware',
+    'validators',
+    'validator',
+    'transformers',
+    'transformer',
+    'inputfilter',
+    'forms',
+    'form',
   ],
   application: ['application', 'services', 'service', 'usecases', 'usecase', 'use', 'app_services'],
   domain: ['domain', 'entity', 'entities', 'model', 'models', 'aggregate', 'aggregates', 'valueobject', 'valueobjects'],
@@ -140,7 +147,8 @@ function placeOf(file: string): { layer: CurrentLayer; folder: string; module: s
   const parts = file.split('/');
   const dirs = parts.slice(0, -1);
   const stem = (parts.at(-1) ?? '').replace(/\.[^.]+$/, '');
-  const at = dirs.findIndex((d) => tokens(d).some((t) => LAYER_OF.has(t)));
+  // най-дълбоката папка с позната дума: src/Http/Services → Services (application), не Http
+  const at = dirs.findLastIndex((d) => tokens(d).some((t) => LAYER_OF.has(t)));
   const layer =
     at < 0
       ? 'other'
@@ -153,7 +161,7 @@ function placeOf(file: string): { layer: CurrentLayer; folder: string; module: s
       ? dirs
           .slice(0, at)
           .reverse()
-          .find((d) => !ROOTS.has(d.toLowerCase()))
+          .find((d) => !ROOTS.has(d.toLowerCase()) && !tokens(d).some((t) => LAYER_OF.has(t)))
       : undefined;
   const after = dirs.slice(at + 1).find((d) => !tokens(d).every((t) => ROLE_WORDS.has(t)));
   const own = tokens(stem).filter((t) => !ROLE_WORDS.has(t));
@@ -164,6 +172,7 @@ function placeOf(file: string): { layer: CurrentLayer; folder: string; module: s
     : { layer, folder, module: fromName ?? 'общо', byName: true };
 }
 
+const key = (module: string) => tokens(module).join('_');
 const singular = (w: string) => (/ies$/.test(w) ? `${w.slice(0, -3)}y` : /[^s]s$/.test(w) ? w.slice(0, -1) : w);
 
 export function currentArchitecture(graph: GraphModel): CurrentArchitecture {
@@ -195,10 +204,10 @@ export function currentArchitecture(graph: GraphModel): CurrentArchitecture {
 
   // Без папки за модули (api/, domain/, infrastructure/ направо): модулите са тези на входа (routers/tickets.py),
   // а файлът от друг слой отива при входа, чието име се съдържа в неговото (operator_ticket_repository → ticket).
-  const entries = new Set([...place.values()].filter((p) => p.byName && p.layer === 'entry').map((p) => p.module));
+  const entries = new Set([...place.values()].filter((p) => p.layer === 'entry').map((p) => key(p.module)));
   for (const p of place.values()) {
     if (!p.byName || p.layer === 'entry') continue;
-    const own = p.module.split('_');
+    const own = tokens(p.module);
     const host = [...entries].filter((e) => contains(own, e.split('_'))).sort((a, b) => b.length - a.length)[0];
     if (host) p.module = host;
   }
@@ -218,8 +227,9 @@ export function currentArchitecture(graph: GraphModel): CurrentArchitecture {
     const p = place.get(n.id);
     if (!p) continue;
     folders.set(p.layer, (folders.get(p.layer) ?? new Set()).add(p.folder));
-    const m = modules.get(p.module) ?? { name: p.module, cells: {}, from: {}, shape: 'none' as const };
-    modules.set(p.module, m);
+    // Vpp, vpp и promo_code/PromoCode са един модул; името е първото срещнато
+    const m = modules.get(key(p.module)) ?? { name: p.module, cells: {}, from: {}, shape: 'none' as const };
+    modules.set(key(p.module), m);
     const u = unit(n);
     if (u) (m.cells[p.layer] ??= []).push(u);
   }
@@ -229,7 +239,7 @@ export function currentArchitecture(graph: GraphModel): CurrentArchitecture {
     const from = place.get(e.from.node);
     const to = place.get(e.to.node);
     if (!from || !to || from.layer !== 'entry' || to.layer === 'entry' || to.layer === 'other') continue;
-    const m = modules.get(from.module);
+    const m = modules.get(key(from.module));
     if (m) m.from[to.layer] = (m.from[to.layer] ?? 0) + 1;
   }
   for (const m of modules.values()) {

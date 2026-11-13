@@ -29,4 +29,5 @@ wiring:
   routes:
     calls: ['$app->get', '$app->post', '$app->put', '$app->patch', '$app->delete', '$app->any', '$app->route']
     handlerMethods: [handle, process, __invoke]
+    config: { path: path, middleware: middleware, methods: allowed_methods }
   services: { invokables: [invokables], factories: [factories], aliases: [aliases] }

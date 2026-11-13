@@ -117,7 +117,8 @@ function arrayFacts(root: Node, file: string, scope: Scope, out: Out) {
       if (el.type !== 'array_element_initializer' || !v) return [];
       const key = argValue(k, scope);
       const name = key.kind === 'string' ? key.value : key.kind === 'class' ? key.id : undefined;
-      return name === undefined ? [] : [{ ...argValue(v, scope), name, line: el.startPosition.row + 1 }];
+      const line = el.startPosition.row + 1;
+      return name === undefined ? [] : values(v, scope).map((a) => ({ ...a, name, line }));
     });
     if (!args.length) continue;
     // `'invokables' => array(...)`: ключът на масива и масивът, в който е
@@ -145,7 +146,7 @@ function outsideCalls(n: Node, file: string, scope: Scope, out: Out) {
     if (!call) continue;
     const args = (call.childForFieldName('arguments')?.namedChildren ?? [])
       .filter((a) => a.type === 'argument')
-      .map((a) => argValue(a.namedChildren.at(-1), scope));
+      .flatMap((a) => values(a.namedChildren.at(-1), scope));
     if (!args.some((a) => a.kind === 'string')) continue;
     const fn = call.childForFieldName('function');
     const object = call.childForFieldName('object') ?? call.childForFieldName('scope');
@@ -176,6 +177,13 @@ function literalStrings(args: Node | null): string[] {
     const s = text(a.namedChildren.at(-1));
     return s === undefined ? [] : [s];
   });
+}
+
+// Списък без ключове (`[AuthMiddleware::class, Handler::class]`, `['GET', 'POST']`) е по аргумент за елемент.
+function values(v: Node | undefined, scope: Scope): Arg[] {
+  const items = v?.type === 'array_creation_expression' ? v.namedChildren : [];
+  if (!items.length || items.some((el) => el.namedChildren.length !== 1)) return [argValue(v, scope)];
+  return items.map((el) => argValue(el.namedChildren[0], scope));
 }
 
 function argValue(v: Node | undefined, scope: Scope): Arg {

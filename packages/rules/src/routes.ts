@@ -15,7 +15,7 @@ export function routes(
   for (const fw of frameworks) {
     const rules = fw.routes;
     if (!rules) continue;
-    const add = (method: string, path: string, a: Annotation, to: { node: string; member?: string }) => {
+    const add = (method: string, path: string, a: Annotation, to: { node: string; member?: string }): string => {
       const name = `${method} ${path}`;
       let id = `${fw.language}:route:${name}`;
       if (found.has(id)) id = `${id}@${a.location.file}:${a.location.line}`;
@@ -30,7 +30,34 @@ export function routes(
         members: [],
       });
       edges.push(edge('routes-to', { node: id }, to));
+      return id;
     };
+    // Pipeline `[AuthMiddleware::class, Handler::class]`: handler-ът е последният, middleware-ите са преди него.
+    const pipeline = (method: string, path: string, a: Annotation, classes: Node[]) => {
+      const handler = classes.at(-1);
+      if (!handler) return;
+      const member = rules.handlerMethods?.find((m) => handler.members.some((x) => x.name === m));
+      const id = add(method, path, a, member ? { node: handler.id, member } : { node: handler.id });
+      for (const mw of classes.slice(0, -1)) {
+        const step = rules.handlerMethods?.find((m) => mw.members.some((x) => x.name === m));
+        edges.push(edge('routes-to', { node: id }, step ? { node: mw.id, member: step } : { node: mw.id }));
+      }
+    };
+    const classes = (args: Annotation['args'], name?: string) =>
+      args
+        .filter((x) => x.kind === 'class' && (name === undefined || x.name === name))
+        .map((x) => (x.kind === 'class' ? byId.get(x.id) : undefined))
+        .filter((n): n is Node => n !== undefined);
+
+    const config = rules.config;
+    if (config)
+      for (const a of annotations) {
+        const path = a.kind === 'object' ? a.args.find((x) => x.name === config.path) : undefined;
+        if (path?.kind !== 'string' || !path.value.startsWith('/')) continue;
+        const methods = a.args.flatMap((x) => (x.name === config.methods && x.kind === 'string' ? [x.value] : []));
+        for (const method of methods.length ? methods : ['ANY'])
+          pipeline(method.toUpperCase(), join('', path.value), a, classes(a.args, config.middleware));
+      }
 
     const seg = rules.segments;
     if (seg) {
@@ -88,11 +115,7 @@ export function routes(
       if (a.kind === 'decorator' && a.on?.member && rules.decorators?.includes(last(a.name))) {
         add(httpMethod(a.name), join(prefix(a, annotations, rules), path(a)), a, a.on);
       } else if (a.kind === 'call' && rules.calls?.includes(a.name)) {
-        const handler = a.args.find((x) => x.kind === 'class');
-        const node = handler?.kind === 'class' ? byId.get(handler.id) : undefined;
-        if (!node) continue;
-        const member = rules.handlerMethods?.find((m) => node.members.some((x) => x.name === m));
-        add(httpMethod(a.name), join('', path(a)), a, member ? { node: node.id, member } : { node: node.id });
+        pipeline(httpMethod(a.name), join('', path(a)), a, classes(a.args));
       }
     }
   }

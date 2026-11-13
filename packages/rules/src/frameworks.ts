@@ -53,6 +53,8 @@ export interface RouteRules {
   // таблица от обекти: `{ path: 'x', component: X, children: [...] }` (Angular). Пътят на вложения
   // обект започва с пътищата на обектите, в които е; обект без handler само дава префикс.
   objects?: { path: string; handler: string[]; method: string };
+  // route-ове в конфигурация (Mezzio `routes`): път, middleware-ите (handler-ът е последният) и методите
+  config?: { path: string; middleware: string; methods: string };
   // ZF2/Laminas MVC: `'options' => ['route' => '/status[/][:action]', 'defaults' => ['controller' => ...]]`.
   // С `:action` в пътя всеки `…Action` метод на контролера е route; без него — `defaults.action`.
   segments?: { route: string; defaults: string; controller: string; action: string; suffix: string };
