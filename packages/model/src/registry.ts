@@ -1,7 +1,7 @@
 // Видовете нодове, ребра и езици не са затворен списък (D-007).
 // Тук е ядрото. Адаптерите и разширенията (шаблони, събития, таблици...) добавят свои.
 
-export const CORE_LANGUAGES = ['php', 'node', 'python'];
+export const CORE_LANGUAGES = ['php', 'node', 'python', 'go'];
 export const CORE_NODE_KINDS = ['class', 'interface', 'trait', 'enum', 'function', 'module', 'route'];
 export const CORE_EDGE_KINDS = [
   'implements',

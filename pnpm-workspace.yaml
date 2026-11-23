@@ -8,3 +8,4 @@ allowBuilds:
   tree-sitter-typescript: false
   tree-sitter-javascript: false # зависимост на tree-sitter-typescript
   tree-sitter-python: false
+  tree-sitter-go: false

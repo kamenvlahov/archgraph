@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
+import { goAdapter } from '@archgraph/lang-go';
 import { nodeAdapter } from '@archgraph/lang-node';
 import { phpAdapter } from '@archgraph/lang-php';
 import { pythonAdapter } from '@archgraph/lang-python';
@@ -42,7 +43,7 @@ import { violations } from './violations.ts';
 import { exactCalls, findCommand, runIndexer } from './exact.ts';
 import { DEFAULT_EXCLUDES, isExcluded, isTooBig, listFiles, MAX_FILE_SIZE } from './files.ts';
 
-export const ADAPTERS: LanguageAdapter[] = [phpAdapter, nodeAdapter, pythonAdapter];
+export const ADAPTERS: LanguageAdapter[] = [phpAdapter, nodeAdapter, pythonAdapter, goAdapter];
 
 export interface ScanOptions {
   exclude?: string[]; // добавя се към DEFAULT_EXCLUDES
@@ -141,7 +142,7 @@ export class Project {
     }
     const text = readFileSync(join(this.root, file), 'utf8');
     const paths = all.filter((f) => adapterFor(f) === adapter);
-    this.fragments.set(file, { adapter, part: await adapter.read([{ path: file, text }], paths) });
+    this.fragments.set(file, { adapter, part: await adapter.read([{ path: file, text }], paths, this.root) });
   }
 
   private link(scip: boolean) {
@@ -158,6 +159,7 @@ export class Project {
     let calls: CallSite[] = [];
     let annotations: Annotation[] = [];
     let paths: PathCall[] = [];
+    const methods: NonNullable<GraphFragment['methods']> = [];
     for (const { adapter, part } of this.fragments.values()) {
       // concat, а не push(...): голям проект има повече нодове, отколкото стекът побира като аргументи.
       graph.nodes = graph.nodes.concat(part.nodes);
@@ -166,8 +168,10 @@ export class Project {
       calls = calls.concat(part.calls ?? []);
       annotations = annotations.concat(part.annotations ?? []);
       paths = paths.concat(part.paths ?? []);
-      report.files[adapter.language] = (report.files[adapter.language] ?? 0) + 1;
+      for (const m of part.methods ?? []) methods.push(m);
+      if (!part.ignored) report.files[adapter.language] = (report.files[adapter.language] ?? 0) + 1;
     }
+    graph.nodes = attachMethods(graph.nodes, methods);
     const renamed = renameDuplicates(graph.nodes);
     graph.nodes = renamed.nodes;
     report.duplicates = renamed.duplicates;
@@ -301,20 +305,40 @@ function scipCalls(
   return { edges, rest };
 }
 
+// Методите от други файлове отиват в нода на типа си, след неговите. Метод без такъв нод отпада.
+// Нодовете не се променят на място, защото прочетеното по файл се ползва при следващото свързване.
+function attachMethods(nodes: Node[], methods: NonNullable<GraphFragment['methods']>): Node[] {
+  if (methods.length === 0) return nodes;
+  const extra = Map.groupBy(methods, (m) => m.node);
+  return nodes.map((n) => {
+    const more = extra.get(n.id);
+    if (!more) return n;
+    extra.delete(n.id);
+    return { ...n, members: [...n.members, ...more.map((m) => m.member)] };
+  });
+}
+
 // Два класа с едно и също пълно име се срещат (copy-paste между модули, тестови `Foo`).
 // И двата остават в графа с таг `duplicate`. Първият по път пази id-то, останалите получават `@файл`.
 // Нодовете не се променят на място: прочетеното по файл се ползва отново при следващото свързване.
 function renameDuplicates(nodes: Node[]): { nodes: Node[]; duplicates: string[] } {
   const groups = Map.groupBy(nodes, (n) => n.id);
-  const renamed = new Map<Node, Node>();
+  const renamed = new Map<Node, Node | undefined>();
   const duplicates: string[] = [];
   for (const [id, group] of groups) {
     if (group.length < 2) continue;
+    // Модул в няколко файла (пакет в Go) е един нод: остава първият по път.
+    if (group.every((n) => n.kind === 'module')) {
+      group.sort((a, b) => a.location.file.localeCompare(b.location.file));
+      for (const n of group.slice(1)) renamed.set(n, undefined);
+      continue;
+    }
     duplicates.push(id);
     group.sort((a, b) => a.location.file.localeCompare(b.location.file));
     group.forEach((n, i) =>
       renamed.set(n, { ...n, id: i > 0 ? `${id}@${n.location.file}` : id, tags: [...(n.tags ?? []), 'duplicate'] }),
     );
   }
-  return { nodes: duplicates.length ? nodes.map((n) => renamed.get(n) ?? n) : nodes, duplicates };
+  if (renamed.size === 0) return { nodes, duplicates };
+  return { nodes: nodes.flatMap((n) => (renamed.has(n) ? (renamed.get(n) ?? []) : [n])), duplicates };
 }

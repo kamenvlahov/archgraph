@@ -1,9 +1,11 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import type { GraphModel } from '@archgraph/model';
 import { isExcluded } from './files.ts';
+import { layerView } from './layer.ts';
 import { scan } from './scan.ts';
 
 const fixtures = join(import.meta.dirname, '../../../fixtures');
@@ -16,6 +18,99 @@ function project(files: Record<string, string>): string {
   }
   return dir;
 }
+
+test('go-stdlib: същите нодове като expected.json, без route-ове', async () => {
+  const expected = JSON.parse(readFileSync(join(fixtures, 'go-stdlib', 'expected.json'), 'utf8')) as GraphModel;
+  const { graph } = await scan(join(fixtures, 'go-stdlib'));
+  expect(graph.nodes.map((n) => n.id).sort()).toEqual(expected.nodes.map((n) => n.id).sort());
+});
+
+test('go: структурен interface иска всички методи със същия брой параметри', async () => {
+  const dir = project({
+    'go.mod': 'module x\n',
+    'a.go': `package x
+
+type Saver interface {
+	Save(id int) error
+	Close() error
+}
+
+type Full struct{}
+
+func (Full) Save(id int) error { return nil }
+
+type Partial struct{}
+
+func (Partial) Save(id int) error { return nil }
+
+type Wrong struct{}
+
+func (Wrong) Save(id, n int) error { return nil }
+func (Wrong) Close() error       { return nil }
+
+type Embeds struct{ Partial }
+
+func (Embeds) Close() error { return nil }
+`,
+    'b.go': 'package x\n\nfunc (Full) Close() error { return nil }\n',
+  });
+  const { graph, report } = await scan(dir, { scip: false });
+  expect(graph.edges.filter((e) => e.kind === 'implements').map((e) => [e.from.node, e.confidence])).toEqual([
+    ['go:x.Full', 'inferred'],
+    ['go:x.Embeds', 'inferred'],
+  ]);
+  expect(graph.nodes.find((n) => n.id === 'go:x.Full')?.members.map((m) => m.location.file)).toEqual(['a.go', 'b.go']);
+  expect(graph.nodes.filter((n) => n.kind === 'module')).toMatchObject([{ id: 'go:x', location: { file: 'a.go' } }]);
+  expect(report.duplicates).toEqual([]);
+});
+
+test('go: пакет на нод за всеки пакет; testdata/, тестове и вложени модули не се четат', async () => {
+  const dir = project({
+    'go.mod': 'module gate\n',
+    'cmd/gate/main.go': 'package main\n\nfunc main() {}\n',
+    'internal/model/model.go': 'package model\n',
+    'internal/model/model_test.go': 'package model\n\nfunc helper() {}\n',
+    'internal/engine/engine.go': 'package engine\n',
+    'tools/go.mod': 'module gate/tools\n',
+    'tools/tools.go': 'package tools\n',
+    'testdata/rings/bad/go.mod': 'module bad\n',
+    'testdata/rings/bad/internal/model/model.go': 'package model\n\ntype Bad struct{}\n',
+  });
+  const { graph, report } = await scan(dir, { scip: false });
+  expect(graph.nodes.map((n) => n.id).sort()).toEqual([
+    'go:gate/cmd/gate',
+    'go:gate/cmd/gate.main',
+    'go:gate/internal/engine',
+    'go:gate/internal/model',
+  ]);
+  expect(report.files).toEqual({ go: 3 });
+});
+
+test('go: без go.mod в корена модулите в подпапките са проектът', async () => {
+  const dir = project({
+    'api/go.mod': 'module example.com/api\n',
+    'api/orders/orders.go': 'package orders\n',
+    'worker/go.mod': 'module example.com/worker\n',
+    'worker/main.go': 'package main\n',
+  });
+  const { graph } = await scan(dir, { scip: false });
+  expect(graph.nodes.map((n) => n.id).sort()).toEqual(['go:example.com/api/orders', 'go:example.com/worker']);
+});
+
+test('go: празният пакет е отделна единица в слоя, а пакетът с код не е', async () => {
+  const dir = project({
+    'go.mod': 'module gate\n',
+    'internal/model/model.go': 'package model\n',
+    'internal/rules/rules.go': 'package rules\n\nfunc Check() bool { return true }\n',
+    '.archgraph/architecture.yaml': 'layers:\n  - name: core\n    match:\n      path_glob: ["internal/**"]\n',
+  });
+  const { graph } = await scan(dir, { scip: false });
+  const view = layerView(graph, 'core');
+  expect(view.groups.map((g) => [g.name, g.units.map((u) => `${u.label}/${u.role}`)])).toEqual([
+    ['model', ['model/module']],
+    ['rules', ['rules/function']],
+  ]);
+});
 
 describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi'])('%s', (name) => {
   test('същите нодове като expected.json', async () => {
@@ -33,10 +128,10 @@ describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi'])('%s', (name) => {
   });
 });
 
-test('смесен проект с трите езика', async () => {
+test('смесен проект с четирите езика', async () => {
   const { graph, report } = await scan(fixtures);
-  expect(report.files).toEqual({ php: 18, node: 13, python: 10 });
-  expect(graph.nodes.length).toBe(17 + 15 + 17);
+  expect(report.files).toEqual({ php: 18, node: 13, python: 10, go: 7 });
+  expect(graph.nodes.length).toBe(17 + 15 + 17 + 21);
 });
 
 test('изключени папки, бъндъли и собствени шаблони', async () => {
@@ -66,6 +161,15 @@ test('еднакви пълни имена остават и двете, с та
   ]);
 });
 
+test('файл, изтрит от работното дърво, но още в git, не се чете', async () => {
+  const dir = project({ 'a.py': 'class A: ...\n', 'b.py': 'class B: ...\n' });
+  execFileSync('git', ['init', '-q'], { cwd: dir });
+  execFileSync('git', ['add', '.'], { cwd: dir });
+  rmSync(join(dir, 'b.py'));
+  const { graph } = await scan(dir, { scip: false });
+  expect(graph.nodes.map((n) => n.id)).toEqual(['python:a.A']);
+});
+
 test('шаблони за изключване', () => {
   expect(isExcluded('a/vendor/b.php', ['vendor'])).toBe(true);
   expect(isExcluded('a/vendors/b.php', ['vendor'])).toBe(false);
@@ -74,7 +178,7 @@ test('шаблони за изключване', () => {
   expect(isExcluded('lib/src/legacy/b.ts', ['src/legacy/**'])).toBe(false);
 });
 
-describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi'])('types: %s', (name) => {
+describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi', 'go-stdlib'])('types: %s', (name) => {
   test('полетата като expected.json', async () => {
     const expected = JSON.parse(readFileSync(join(fixtures, name, 'expected.json'), 'utf8')) as GraphModel;
     const { graph } = await scan(join(fixtures, name), { scip: false });
@@ -82,7 +186,7 @@ describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi'])('types: %s', (nam
   });
 });
 
-describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi'])('неразрешени: %s', (name) => {
+describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi', 'go-stdlib'])('неразрешени: %s', (name) => {
   test('извикванията без получател като expected.json', async () => {
     const expected = JSON.parse(readFileSync(join(fixtures, name, 'expected.json'), 'utf8')) as GraphModel;
     const { graph } = await scan(join(fixtures, name), { scip: false });
@@ -150,7 +254,7 @@ feature = Feature(router=b.router, prefix="/b")
   expect(plain.graph.nodes.filter((n) => n.kind === 'route')).toEqual([]);
 });
 
-describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi'])('ребра: %s', (name) => {
+describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi', 'go-stdlib'])('ребра: %s', (name) => {
   test('extends, implements, injects, calls, creates и routes-to като expected.json', async () => {
     const kinds = ['extends', 'implements', 'injects', 'calls', 'creates', 'routes-to'];
     const expected = JSON.parse(readFileSync(join(fixtures, name, 'expected.json'), 'utf8')) as GraphModel;

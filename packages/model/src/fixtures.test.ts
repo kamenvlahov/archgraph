@@ -35,6 +35,9 @@ describe.each(fixtures)('%s', (name) => {
       .slice(loc.line - 1, loc.endLine)
       .join('\n');
   const isPython = model.nodes.some((n) => n.language === 'python');
+  // Go: методите са извън декларацията на типа, във всеки файл на пакета; методът на interface е без `}`
+  const isGo = model.nodes.some((n) => n.language === 'go');
+  const folder = (file: string) => file.replace(/\/[^/]*$/, '');
 
   // Декораторите и атрибутите са част от декларацията: не трябва да остават над началото ѝ.
   const startsCleanly = (loc: Location) => {
@@ -62,16 +65,19 @@ describe.each(fixtures)('%s', (name) => {
     if (node.kind === 'route') expect(text(node.location)).toMatch(new RegExp(node.name.split(' ')[0] ?? '', 'i'));
     else expect(text(node.location)).toContain(node.name);
     expect(startsCleanly(node.location)).toBe(true);
-    expect(endsCleanly(node.location)).toBe(true);
+    if (node.kind !== 'module') expect(endsCleanly(node.location)).toBe(true);
     for (const m of node.members) {
-      expect(m.location.file).toBe(node.location.file);
-      expect(m.location.line).toBeGreaterThanOrEqual(node.location.line);
-      expect(m.location.endLine).toBeLessThanOrEqual(node.location.endLine);
+      if (isGo && node.kind !== 'function') expect(folder(m.location.file)).toBe(folder(node.location.file));
+      else {
+        expect(m.location.file).toBe(node.location.file);
+        expect(m.location.line).toBeGreaterThanOrEqual(node.location.line);
+        expect(m.location.endLine).toBeLessThanOrEqual(node.location.endLine);
+      }
       expect(lines(m.location.file)[m.location.line - 1], `${m.name} първи ред`).toMatch(
         new RegExp(`\\b${m.name}\\b|^\\s*(@|#\\[)`),
       );
       expect(startsCleanly(m.location), `${m.name} декоратор над началото`).toBe(true);
-      expect(endsCleanly(m.location), `${m.name} край`).toBe(true);
+      if (!(isGo && node.kind === 'interface')) expect(endsCleanly(m.location), `${m.name} край`).toBe(true);
     }
   });
 });

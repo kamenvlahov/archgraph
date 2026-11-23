@@ -1,0 +1,1322 @@
+{
+  "version": 1,
+  "root": ".",
+  "nodes": [
+    {
+      "id": "go:shop/cmd/shop",
+      "kind": "module",
+      "name": "main",
+      "language": "go",
+      "location": {
+        "file": "cmd/shop/main.go",
+        "line": 1,
+        "endLine": 1
+      },
+      "members": []
+    },
+    {
+      "id": "go:shop/internal/httpapi",
+      "kind": "module",
+      "name": "httpapi",
+      "language": "go",
+      "location": {
+        "file": "internal/httpapi/handler.go",
+        "line": 1,
+        "endLine": 1
+      },
+      "members": []
+    },
+    {
+      "id": "go:shop/internal/order",
+      "kind": "module",
+      "name": "order",
+      "language": "go",
+      "location": {
+        "file": "internal/order/entity.go",
+        "line": 1,
+        "endLine": 1
+      },
+      "members": []
+    },
+    {
+      "id": "go:shop/internal/pricing",
+      "kind": "module",
+      "name": "pricing",
+      "language": "go",
+      "location": {
+        "file": "internal/pricing/discount.go",
+        "line": 1,
+        "endLine": 1
+      },
+      "members": []
+    },
+    {
+      "id": "go:shop/cmd/shop.main",
+      "kind": "function",
+      "name": "main",
+      "language": "go",
+      "location": {
+        "file": "cmd/shop/main.go",
+        "line": 11,
+        "endLine": 17
+      },
+      "members": [
+        {
+          "name": "main",
+          "visibility": "private",
+          "inputs": [],
+          "location": {
+            "file": "cmd/shop/main.go",
+            "line": 11,
+            "endLine": 17
+          }
+        }
+      ]
+    },
+    {
+      "id": "go:shop/internal/httpapi.OrderOut",
+      "kind": "class",
+      "name": "OrderOut",
+      "language": "go",
+      "location": {
+        "file": "internal/httpapi/handler.go",
+        "line": 11,
+        "endLine": 15
+      },
+      "members": []
+    },
+    {
+      "id": "go:shop/internal/httpapi.Handler",
+      "kind": "class",
+      "name": "Handler",
+      "language": "go",
+      "location": {
+        "file": "internal/httpapi/handler.go",
+        "line": 17,
+        "endLine": 19
+      },
+      "members": [
+        {
+          "name": "Routes",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "mux",
+              "type": {
+                "kind": "named",
+                "id": "go:net/http.ServeMux"
+              }
+            }
+          ],
+          "location": {
+            "file": "internal/httpapi/handler.go",
+            "line": 25,
+            "endLine": 28
+          }
+        },
+        {
+          "name": "Place",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "w",
+              "type": {
+                "kind": "named",
+                "id": "go:net/http.ResponseWriter"
+              }
+            },
+            {
+              "name": "r",
+              "type": {
+                "kind": "named",
+                "id": "go:net/http.Request"
+              }
+            }
+          ],
+          "location": {
+            "file": "internal/httpapi/handler.go",
+            "line": 30,
+            "endLine": 42
+          }
+        },
+        {
+          "name": "Get",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "w",
+              "type": {
+                "kind": "named",
+                "id": "go:net/http.ResponseWriter"
+              }
+            },
+            {
+              "name": "r",
+              "type": {
+                "kind": "named",
+                "id": "go:net/http.Request"
+              }
+            }
+          ],
+          "location": {
+            "file": "internal/httpapi/handler.go",
+            "line": 44,
+            "endLine": 52
+          }
+        }
+      ]
+    },
+    {
+      "id": "go:shop/internal/httpapi.NewHandler",
+      "kind": "function",
+      "name": "NewHandler",
+      "language": "go",
+      "location": {
+        "file": "internal/httpapi/handler.go",
+        "line": 21,
+        "endLine": 23
+      },
+      "members": [
+        {
+          "name": "NewHandler",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "orders",
+              "type": {
+                "kind": "named",
+                "id": "go:shop/internal/order.Service"
+              }
+            }
+          ],
+          "location": {
+            "file": "internal/httpapi/handler.go",
+            "line": 21,
+            "endLine": 23
+          },
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "go:shop/internal/httpapi.Handler"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "go:shop/internal/httpapi.toOut",
+      "kind": "function",
+      "name": "toOut",
+      "language": "go",
+      "location": {
+        "file": "internal/httpapi/handler.go",
+        "line": 54,
+        "endLine": 56
+      },
+      "members": [
+        {
+          "name": "toOut",
+          "visibility": "private",
+          "inputs": [
+            {
+              "name": "o",
+              "type": {
+                "kind": "named",
+                "id": "go:shop/internal/order.Order"
+              }
+            }
+          ],
+          "location": {
+            "file": "internal/httpapi/handler.go",
+            "line": 54,
+            "endLine": 56
+          },
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "go:shop/internal/httpapi.OrderOut"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "go:shop/internal/httpapi.writeJSON",
+      "kind": "function",
+      "name": "writeJSON",
+      "language": "go",
+      "location": {
+        "file": "internal/httpapi/handler.go",
+        "line": 58,
+        "endLine": 61
+      },
+      "members": [
+        {
+          "name": "writeJSON",
+          "visibility": "private",
+          "inputs": [
+            {
+              "name": "w",
+              "type": {
+                "kind": "named",
+                "id": "go:net/http.ResponseWriter"
+              }
+            },
+            {
+              "name": "v",
+              "type": {
+                "kind": "primitive",
+                "name": "any"
+              }
+            }
+          ],
+          "location": {
+            "file": "internal/httpapi/handler.go",
+            "line": 58,
+            "endLine": 61
+          }
+        }
+      ]
+    },
+    {
+      "id": "go:shop/internal/order.BaseEntity",
+      "kind": "class",
+      "name": "BaseEntity",
+      "language": "go",
+      "location": {
+        "file": "internal/order/entity.go",
+        "line": 3,
+        "endLine": 5
+      },
+      "members": [
+        {
+          "name": "GetID",
+          "visibility": "public",
+          "inputs": [],
+          "location": {
+            "file": "internal/order/entity.go",
+            "line": 7,
+            "endLine": 9
+          },
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "primitive",
+              "name": "int"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "go:shop/internal/order.Item",
+      "kind": "class",
+      "name": "Item",
+      "language": "go",
+      "location": {
+        "file": "internal/order/entity.go",
+        "line": 11,
+        "endLine": 16
+      },
+      "members": [
+        {
+          "name": "Subtotal",
+          "visibility": "public",
+          "inputs": [],
+          "location": {
+            "file": "internal/order/entity.go",
+            "line": 18,
+            "endLine": 20
+          },
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "primitive",
+              "name": "float64"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "go:shop/internal/order.Order",
+      "kind": "class",
+      "name": "Order",
+      "language": "go",
+      "location": {
+        "file": "internal/order/entity.go",
+        "line": 22,
+        "endLine": 27
+      },
+      "members": [
+        {
+          "name": "AddItem",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "item",
+              "type": {
+                "kind": "named",
+                "id": "go:shop/internal/order.Item"
+              }
+            }
+          ],
+          "location": {
+            "file": "internal/order/order_items.go",
+            "line": 3,
+            "endLine": 5
+          }
+        },
+        {
+          "name": "Total",
+          "visibility": "public",
+          "inputs": [],
+          "location": {
+            "file": "internal/order/order_items.go",
+            "line": 7,
+            "endLine": 13
+          },
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "primitive",
+              "name": "float64"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "go:shop/internal/order.Repository",
+      "kind": "interface",
+      "name": "Repository",
+      "language": "go",
+      "location": {
+        "file": "internal/order/repository.go",
+        "line": 7,
+        "endLine": 10
+      },
+      "members": [
+        {
+          "name": "Find",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "primitive",
+                "name": "int"
+              }
+            }
+          ],
+          "location": {
+            "file": "internal/order/repository.go",
+            "line": 8,
+            "endLine": 8
+          },
+          "throws": [
+            {
+              "kind": "primitive",
+              "name": "error"
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "go:shop/internal/order.Order"
+            }
+          }
+        },
+        {
+          "name": "Save",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "o",
+              "type": {
+                "kind": "named",
+                "id": "go:shop/internal/order.Order"
+              }
+            }
+          ],
+          "location": {
+            "file": "internal/order/repository.go",
+            "line": 9,
+            "endLine": 9
+          },
+          "throws": [
+            {
+              "kind": "primitive",
+              "name": "error"
+            }
+          ]
+        }
+      ],
+      "tags": [
+        "structural"
+      ]
+    },
+    {
+      "id": "go:shop/internal/order.MemoryRepository",
+      "kind": "class",
+      "name": "MemoryRepository",
+      "language": "go",
+      "location": {
+        "file": "internal/order/repository.go",
+        "line": 12,
+        "endLine": 14
+      },
+      "members": [
+        {
+          "name": "Find",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "primitive",
+                "name": "int"
+              }
+            }
+          ],
+          "location": {
+            "file": "internal/order/repository.go",
+            "line": 20,
+            "endLine": 26
+          },
+          "throws": [
+            {
+              "kind": "primitive",
+              "name": "error"
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "go:shop/internal/order.Order"
+            }
+          }
+        },
+        {
+          "name": "Save",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "o",
+              "type": {
+                "kind": "named",
+                "id": "go:shop/internal/order.Order"
+              }
+            }
+          ],
+          "location": {
+            "file": "internal/order/repository.go",
+            "line": 28,
+            "endLine": 34
+          },
+          "throws": [
+            {
+              "kind": "primitive",
+              "name": "error"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "go:shop/internal/order.NewMemoryRepository",
+      "kind": "function",
+      "name": "NewMemoryRepository",
+      "language": "go",
+      "location": {
+        "file": "internal/order/repository.go",
+        "line": 16,
+        "endLine": 18
+      },
+      "members": [
+        {
+          "name": "NewMemoryRepository",
+          "visibility": "public",
+          "inputs": [],
+          "location": {
+            "file": "internal/order/repository.go",
+            "line": 16,
+            "endLine": 18
+          },
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "go:shop/internal/order.MemoryRepository"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "go:shop/internal/order.PlaceInput",
+      "kind": "class",
+      "name": "PlaceInput",
+      "language": "go",
+      "location": {
+        "file": "internal/order/service.go",
+        "line": 10,
+        "endLine": 14
+      },
+      "members": []
+    },
+    {
+      "id": "go:shop/internal/order.ItemInput",
+      "kind": "class",
+      "name": "ItemInput",
+      "language": "go",
+      "location": {
+        "file": "internal/order/service.go",
+        "line": 16,
+        "endLine": 20
+      },
+      "members": []
+    },
+    {
+      "id": "go:shop/internal/order.Service",
+      "kind": "class",
+      "name": "Service",
+      "language": "go",
+      "location": {
+        "file": "internal/order/service.go",
+        "line": 23,
+        "endLine": 25
+      },
+      "members": [
+        {
+          "name": "Place",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "ctx",
+              "type": {
+                "kind": "named",
+                "id": "go:context.Context"
+              }
+            },
+            {
+              "name": "in",
+              "type": {
+                "kind": "named",
+                "id": "go:shop/internal/order.PlaceInput"
+              }
+            }
+          ],
+          "location": {
+            "file": "internal/order/service.go",
+            "line": 31,
+            "endLine": 40
+          },
+          "throws": [
+            {
+              "kind": "primitive",
+              "name": "error"
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "go:shop/internal/order.Order"
+            }
+          }
+        },
+        {
+          "name": "Get",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "ctx",
+              "type": {
+                "kind": "named",
+                "id": "go:context.Context"
+              }
+            },
+            {
+              "name": "id",
+              "type": {
+                "kind": "primitive",
+                "name": "int"
+              }
+            }
+          ],
+          "location": {
+            "file": "internal/order/service.go",
+            "line": 42,
+            "endLine": 44
+          },
+          "throws": [
+            {
+              "kind": "primitive",
+              "name": "error"
+            }
+          ],
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "go:shop/internal/order.Order"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "go:shop/internal/order.NewService",
+      "kind": "function",
+      "name": "NewService",
+      "language": "go",
+      "location": {
+        "file": "internal/order/service.go",
+        "line": 27,
+        "endLine": 29
+      },
+      "members": [
+        {
+          "name": "NewService",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "repo",
+              "type": {
+                "kind": "named",
+                "id": "go:shop/internal/order.Repository"
+              }
+            }
+          ],
+          "location": {
+            "file": "internal/order/service.go",
+            "line": 27,
+            "endLine": 29
+          },
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "go:shop/internal/order.Service"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "go:shop/internal/pricing.Discount",
+      "kind": "function",
+      "name": "Discount",
+      "language": "go",
+      "location": {
+        "file": "internal/pricing/discount.go",
+        "line": 5,
+        "endLine": 10
+      },
+      "members": [
+        {
+          "name": "Discount",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "price",
+              "type": {
+                "kind": "primitive",
+                "name": "float64"
+              }
+            },
+            {
+              "name": "note",
+              "type": {
+                "kind": "primitive",
+                "name": "string"
+              }
+            }
+          ],
+          "location": {
+            "file": "internal/pricing/discount.go",
+            "line": 5,
+            "endLine": 10
+          },
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "primitive",
+              "name": "float64"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "injects:go:shop/internal/order.Service->go:shop/internal/httpapi.NewHandler#NewHandler.orders",
+      "kind": "injects",
+      "from": {
+        "node": "go:shop/internal/order.Service"
+      },
+      "to": {
+        "node": "go:shop/internal/httpapi.NewHandler",
+        "member": "NewHandler",
+        "port": "orders"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "extends:go:shop/internal/order.Item->go:shop/internal/order.BaseEntity",
+      "kind": "extends",
+      "from": {
+        "node": "go:shop/internal/order.Item"
+      },
+      "to": {
+        "node": "go:shop/internal/order.BaseEntity"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "extends:go:shop/internal/order.Order->go:shop/internal/order.BaseEntity",
+      "kind": "extends",
+      "from": {
+        "node": "go:shop/internal/order.Order"
+      },
+      "to": {
+        "node": "go:shop/internal/order.BaseEntity"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "injects:go:shop/internal/order.Repository->go:shop/internal/order.NewService#NewService.repo",
+      "kind": "injects",
+      "from": {
+        "node": "go:shop/internal/order.Repository"
+      },
+      "to": {
+        "node": "go:shop/internal/order.NewService",
+        "member": "NewService",
+        "port": "repo"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "implements:go:shop/internal/order.MemoryRepository->go:shop/internal/order.Repository",
+      "kind": "implements",
+      "from": {
+        "node": "go:shop/internal/order.MemoryRepository"
+      },
+      "to": {
+        "node": "go:shop/internal/order.Repository"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/cmd/shop.main#main->go:shop/internal/order.NewService#NewService",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/cmd/shop.main",
+        "member": "main"
+      },
+      "to": {
+        "node": "go:shop/internal/order.NewService",
+        "member": "NewService"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/cmd/shop.main#main->go:shop/internal/order.NewMemoryRepository#NewMemoryRepository",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/cmd/shop.main",
+        "member": "main"
+      },
+      "to": {
+        "node": "go:shop/internal/order.NewMemoryRepository",
+        "member": "NewMemoryRepository"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/cmd/shop.main#main->go:shop/internal/httpapi.NewHandler#NewHandler",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/cmd/shop.main",
+        "member": "main"
+      },
+      "to": {
+        "node": "go:shop/internal/httpapi.NewHandler",
+        "member": "NewHandler"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/cmd/shop.main#main->go:shop/internal/httpapi.Handler#Routes",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/cmd/shop.main",
+        "member": "main"
+      },
+      "to": {
+        "node": "go:shop/internal/httpapi.Handler",
+        "member": "Routes"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:go:shop/internal/httpapi.NewHandler#NewHandler->go:shop/internal/httpapi.Handler",
+      "kind": "creates",
+      "from": {
+        "node": "go:shop/internal/httpapi.NewHandler",
+        "member": "NewHandler"
+      },
+      "to": {
+        "node": "go:shop/internal/httpapi.Handler"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:go:shop/internal/httpapi.toOut#toOut->go:shop/internal/httpapi.OrderOut",
+      "kind": "creates",
+      "from": {
+        "node": "go:shop/internal/httpapi.toOut",
+        "member": "toOut"
+      },
+      "to": {
+        "node": "go:shop/internal/httpapi.OrderOut"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/internal/httpapi.toOut#toOut->go:shop/internal/order.BaseEntity#GetID",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/internal/httpapi.toOut",
+        "member": "toOut"
+      },
+      "to": {
+        "node": "go:shop/internal/order.BaseEntity",
+        "member": "GetID"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/internal/httpapi.toOut#toOut->go:shop/internal/order.Order#Total",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/internal/httpapi.toOut",
+        "member": "toOut"
+      },
+      "to": {
+        "node": "go:shop/internal/order.Order",
+        "member": "Total"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/internal/httpapi.Handler#Place->go:shop/internal/order.Service#Place",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/internal/httpapi.Handler",
+        "member": "Place"
+      },
+      "to": {
+        "node": "go:shop/internal/order.Service",
+        "member": "Place"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/internal/httpapi.Handler#Place->go:shop/internal/httpapi.writeJSON#writeJSON",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/internal/httpapi.Handler",
+        "member": "Place"
+      },
+      "to": {
+        "node": "go:shop/internal/httpapi.writeJSON",
+        "member": "writeJSON"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/internal/httpapi.Handler#Place->go:shop/internal/httpapi.toOut#toOut",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/internal/httpapi.Handler",
+        "member": "Place"
+      },
+      "to": {
+        "node": "go:shop/internal/httpapi.toOut",
+        "member": "toOut"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/internal/httpapi.Handler#Get->go:shop/internal/order.Service#Get",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/internal/httpapi.Handler",
+        "member": "Get"
+      },
+      "to": {
+        "node": "go:shop/internal/order.Service",
+        "member": "Get"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/internal/httpapi.Handler#Get->go:shop/internal/httpapi.writeJSON#writeJSON",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/internal/httpapi.Handler",
+        "member": "Get"
+      },
+      "to": {
+        "node": "go:shop/internal/httpapi.writeJSON",
+        "member": "writeJSON"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/internal/httpapi.Handler#Get->go:shop/internal/httpapi.toOut#toOut",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/internal/httpapi.Handler",
+        "member": "Get"
+      },
+      "to": {
+        "node": "go:shop/internal/httpapi.toOut",
+        "member": "toOut"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/internal/order.Order#Total->go:shop/internal/order.Item#Subtotal",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/internal/order.Order",
+        "member": "Total"
+      },
+      "to": {
+        "node": "go:shop/internal/order.Item",
+        "member": "Subtotal"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:go:shop/internal/order.NewMemoryRepository#NewMemoryRepository->go:shop/internal/order.MemoryRepository",
+      "kind": "creates",
+      "from": {
+        "node": "go:shop/internal/order.NewMemoryRepository",
+        "member": "NewMemoryRepository"
+      },
+      "to": {
+        "node": "go:shop/internal/order.MemoryRepository"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:go:shop/internal/order.NewService#NewService->go:shop/internal/order.Service",
+      "kind": "creates",
+      "from": {
+        "node": "go:shop/internal/order.NewService",
+        "member": "NewService"
+      },
+      "to": {
+        "node": "go:shop/internal/order.Service"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:go:shop/internal/order.Service#Place->go:shop/internal/order.Order",
+      "kind": "creates",
+      "from": {
+        "node": "go:shop/internal/order.Service",
+        "member": "Place"
+      },
+      "to": {
+        "node": "go:shop/internal/order.Order"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/internal/order.Service#Place->go:shop/internal/order.Order#AddItem",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/internal/order.Service",
+        "member": "Place"
+      },
+      "to": {
+        "node": "go:shop/internal/order.Order",
+        "member": "AddItem"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "creates:go:shop/internal/order.Service#Place->go:shop/internal/order.Item",
+      "kind": "creates",
+      "from": {
+        "node": "go:shop/internal/order.Service",
+        "member": "Place"
+      },
+      "to": {
+        "node": "go:shop/internal/order.Item"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/internal/order.Service#Place->go:shop/internal/pricing.Discount#Discount",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/internal/order.Service",
+        "member": "Place"
+      },
+      "to": {
+        "node": "go:shop/internal/pricing.Discount",
+        "member": "Discount"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/internal/order.Service#Place->go:shop/internal/order.Repository#Save",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/internal/order.Service",
+        "member": "Place"
+      },
+      "to": {
+        "node": "go:shop/internal/order.Repository",
+        "member": "Save"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/internal/order.Service#Get->go:shop/internal/order.Repository#Find",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/internal/order.Service",
+        "member": "Get"
+      },
+      "to": {
+        "node": "go:shop/internal/order.Repository",
+        "member": "Find"
+      },
+      "confidence": "exact"
+    }
+  ],
+  "types": {
+    "go:shop/internal/httpapi.OrderOut": {
+      "id": "go:shop/internal/httpapi.OrderOut",
+      "name": "OrderOut",
+      "nodeId": "go:shop/internal/httpapi.OrderOut",
+      "fields": [
+        {
+          "name": "ID",
+          "type": {
+            "kind": "primitive",
+            "name": "int"
+          }
+        },
+        {
+          "name": "Total",
+          "type": {
+            "kind": "primitive",
+            "name": "float64"
+          }
+        },
+        {
+          "name": "Items",
+          "type": {
+            "kind": "primitive",
+            "name": "int"
+          }
+        }
+      ]
+    },
+    "go:shop/internal/httpapi.Handler": {
+      "id": "go:shop/internal/httpapi.Handler",
+      "name": "Handler",
+      "nodeId": "go:shop/internal/httpapi.Handler",
+      "fields": [
+        {
+          "name": "orders",
+          "type": {
+            "kind": "named",
+            "id": "go:shop/internal/order.Service"
+          }
+        }
+      ]
+    },
+    "go:shop/internal/order.BaseEntity": {
+      "id": "go:shop/internal/order.BaseEntity",
+      "name": "BaseEntity",
+      "nodeId": "go:shop/internal/order.BaseEntity",
+      "fields": [
+        {
+          "name": "ID",
+          "type": {
+            "kind": "primitive",
+            "name": "int"
+          }
+        }
+      ]
+    },
+    "go:shop/internal/order.Item": {
+      "id": "go:shop/internal/order.Item",
+      "name": "Item",
+      "nodeId": "go:shop/internal/order.Item",
+      "fields": [
+        {
+          "name": "SKU",
+          "type": {
+            "kind": "primitive",
+            "name": "string"
+          }
+        },
+        {
+          "name": "Quantity",
+          "type": {
+            "kind": "primitive",
+            "name": "int"
+          }
+        },
+        {
+          "name": "Price",
+          "type": {
+            "kind": "primitive",
+            "name": "float64"
+          }
+        }
+      ]
+    },
+    "go:shop/internal/order.Order": {
+      "id": "go:shop/internal/order.Order",
+      "name": "Order",
+      "nodeId": "go:shop/internal/order.Order",
+      "fields": [
+        {
+          "name": "CustomerID",
+          "type": {
+            "kind": "primitive",
+            "name": "int"
+          }
+        },
+        {
+          "name": "Status",
+          "type": {
+            "kind": "primitive",
+            "name": "string"
+          }
+        },
+        {
+          "name": "Items",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "named",
+              "id": "go:shop/internal/order.Item"
+            }
+          }
+        }
+      ]
+    },
+    "go:shop/internal/order.MemoryRepository": {
+      "id": "go:shop/internal/order.MemoryRepository",
+      "name": "MemoryRepository",
+      "nodeId": "go:shop/internal/order.MemoryRepository",
+      "fields": [
+        {
+          "name": "orders",
+          "type": {
+            "kind": "map",
+            "key": {
+              "kind": "primitive",
+              "name": "int"
+            },
+            "value": {
+              "kind": "named",
+              "id": "go:shop/internal/order.Order"
+            }
+          }
+        }
+      ]
+    },
+    "go:shop/internal/order.PlaceInput": {
+      "id": "go:shop/internal/order.PlaceInput",
+      "name": "PlaceInput",
+      "nodeId": "go:shop/internal/order.PlaceInput",
+      "fields": [
+        {
+          "name": "CustomerID",
+          "type": {
+            "kind": "primitive",
+            "name": "int"
+          }
+        },
+        {
+          "name": "Note",
+          "type": {
+            "kind": "primitive",
+            "name": "string"
+          }
+        },
+        {
+          "name": "Items",
+          "type": {
+            "kind": "array",
+            "of": {
+              "kind": "named",
+              "id": "go:shop/internal/order.ItemInput"
+            }
+          }
+        }
+      ]
+    },
+    "go:shop/internal/order.ItemInput": {
+      "id": "go:shop/internal/order.ItemInput",
+      "name": "ItemInput",
+      "nodeId": "go:shop/internal/order.ItemInput",
+      "fields": [
+        {
+          "name": "SKU",
+          "type": {
+            "kind": "primitive",
+            "name": "string"
+          }
+        },
+        {
+          "name": "Quantity",
+          "type": {
+            "kind": "primitive",
+            "name": "int"
+          }
+        },
+        {
+          "name": "Price",
+          "type": {
+            "kind": "primitive",
+            "name": "float64"
+          }
+        }
+      ]
+    },
+    "go:shop/internal/order.Service": {
+      "id": "go:shop/internal/order.Service",
+      "name": "Service",
+      "nodeId": "go:shop/internal/order.Service",
+      "fields": [
+        {
+          "name": "repo",
+          "type": {
+            "kind": "named",
+            "id": "go:shop/internal/order.Repository"
+          }
+        }
+      ]
+    }
+  }
+}

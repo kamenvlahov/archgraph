@@ -1,4 +1,4 @@
-import type { Edge, Location, Node, TypeId, TypeRef, TypeShape } from './types.ts';
+import type { Edge, Location, Member, Node, TypeId, TypeRef, TypeShape } from './types.ts';
 
 // Договорът между engine-а и езиковите адаптери: типовете и един общ шаблон (PATH_LIKE),
 // без зависимост от tree-sitter или от конкретен език.
@@ -16,6 +16,11 @@ export interface GraphFragment {
   calls?: CallSite[];
   annotations?: Annotation[];
   paths?: PathCall[];
+  // Методи, декларирани извън файла на типа си (Go: методът може да е във всеки файл на пакета).
+  // Engine-ът ги добавя към нода с това id, след като е прочел всички файлове.
+  methods?: { node: string; member: Member }[];
+  // Файлът е на езика, но не е част от проекта (Go: тест, testdata/, вложен модул). Не се брои.
+  ignored?: boolean;
 }
 
 // Извикване в тяло на метод или функция с низ, който прилича на път или адрес (`'/api/tickets'`,
@@ -83,7 +88,8 @@ export interface LanguageAdapter {
   extensions: string[];
   // `all`: пътищата на всички файлове на езика в проекта, когато се препрочитат само някои
   // (импортите към файл, който не е в `files`, пак трябва да се разрешат)
-  read(files: SourceFile[], all?: string[]): Promise<GraphFragment>;
+  // `root`: абсолютният корен на проекта, за манифести, от които зависят имената (go.mod)
+  read(files: SourceFile[], all?: string[], root?: string): Promise<GraphFragment>;
   indexer?: Indexer;
 }
 

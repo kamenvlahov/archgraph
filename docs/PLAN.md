@@ -22,6 +22,8 @@
 - Типове от анотации: type hints, TS типове, Python hints. PHPDoc, JSDoc и docstring се четат на второ ниво.
 - CLI: `archgraph scan <path> --out graph.json`.
 
+- ✅ Go (`lang-go`, fixture `go-stdlib`) за Fenix ([D-015](DECISIONS.md)). Остават route-овете за `net/http` и `scip-go`.
+
 **Готово когато:** трите fixture проекта дават нодове и портове, които съвпадат с `expected.json`. Без ребра.
 
 ## Етап 2 – Връзки ✅

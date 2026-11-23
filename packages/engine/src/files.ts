@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join, matchesGlob, relative, sep } from 'node:path';
 
 // Зависимости, бъндъли и генериран код не са архитектура на проекта.
@@ -39,7 +39,8 @@ function gitFiles(root: string): string[] | undefined {
       stdio: ['ignore', 'pipe', 'ignore'],
       maxBuffer: 256 * 1024 * 1024,
     });
-    return out.split('\0').filter(Boolean);
+    // `-c` дава и файловете, изтрити от работното дърво, но още в индекса
+    return out.split('\0').filter((p) => p && existsSync(join(root, p)));
   } catch {
     return undefined;
   }

@@ -296,7 +296,8 @@ function slotKind(t: TypeRef, kindOf: (id: string) => Slot['kind']): Slot['kind'
 // Роля за проекти без правила за framework: по вида, името и мястото.
 export function roleOf(n: Node, hasFields: boolean): string {
   if (n.role) return n.role;
-  if (n.kind === 'route' || n.kind === 'interface' || n.kind === 'function' || n.kind === 'enum') return n.kind;
+  if (n.kind === 'route' || n.kind === 'interface' || n.kind === 'function' || n.kind === 'enum' || n.kind === 'module')
+    return n.kind;
   // Правилата на framework-а са минали и не са дали роля: без отгатване по име.
   if (n.framework) return 'class';
   const rules: [RegExp, string][] = [

@@ -7,6 +7,7 @@
 | `php-mezzio/`     | Mezzio    | фабрики, `ConfigProvider`, readonly DTO, PHPDoc масив, handler с контейнер без тип |
 | `node-nestjs/`    | NestJS    | декоратори, DI по конструктор, един чист JS с JSDoc    |
 | `python-fastapi/` | FastAPI   | `Depends`, Pydantic схеми, Protocol, функция без hints, импорт във функция |
+| `go-stdlib/`      | net/http  | методи в друг файл на пакета, вграждане, interface без `implements`, `New*` конструктори, тестов файл, който не се чете |
 
 ## Правила за `expected.json`
 
@@ -24,6 +25,7 @@
 | PHP    | `php:` + пълно име с namespace            | `php:App\Order\Service\OrderService`               |
 | Node   | `node:` + файл + `#` + име (експорт или локално) | `node:src/orders/orders.service.ts#OrdersService`  |
 | Python | `python:` + модул с точки + `.` + име     | `python:app.orders.service.OrderService`           |
+| Go     | `go:` + import път на пакета + `.` + име  | `go:shop/internal/order.Service`                   |
 | Route  | `<език>:route:` + метод + пълен път       | `php:route:POST /orders`                           |
 
 - `TypeId` за тип от проекта е **същото** като id-то на нода му. Външните типове ползват същия формат: `php:Psr\Http\Message\ServerRequestInterface`, `node:@nestjs/common#Logger`, `python:sqlalchemy.orm.Session`.
@@ -42,6 +44,8 @@
 - `async: true` значи „връща Promise/корутина“, със или без ключовата дума `async` (вкл. методи в интерфейс). Изходът е `T` от `Promise<T>`.
 - `default` е суровият текст от кода (`'new'`, `null`, `Depends(get_service)`).
 - `throws` се попълва само от декларации (PHPDoc `@throws`) към типове от проекта. В fixtures няма такива.
+
+Go ([D-015](../docs/DECISIONS.md)): методите са членове на типа на receiver-а, а `location.file` им е файлът, в който са написани. Receiver-ът не е порт. Безименните параметри са `_0`, `_1`… `*T` е `T`. `(T, error)` е изход `T` и `throws: [error]`. Няколко резултата без грешка са `shape` (полетата са с имената на резултатите или с номера). Interface-ът има таг `structural`, а `implements` към него се извежда по методите. Вграденият тип е `extends`. `New<Тип>` функцията получава `injects`. Всеки пакет е нод `module` с id `go:<import път>`, името от `package` и мястото на `package` реда в първия му файл по път.
 
 **Типове (`types`)**
 

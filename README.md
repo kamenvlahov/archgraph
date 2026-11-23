@@ -16,7 +16,7 @@
 
 ## Какво прави
 
-- **Чете** PHP, Node (JS/TS) и Python.
+- **Чете** PHP, Node (JS/TS), Python и Go.
 - **Разпознава роли и патерни** по framework: Controller, Service, Repository, Factory, Interface, DTO и Entity.
 - **Показва нодове с портове.** Методите са редове, параметрите са входове, а типът, който връщат, е изход. Типовете са оцветени като в ComfyUI.
 - **Подрежда графа сам** и показва само процеса, който те интересува: route → controller → service → repository.

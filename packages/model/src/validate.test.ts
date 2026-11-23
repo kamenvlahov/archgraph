@@ -199,9 +199,9 @@ describe('регистър', () => {
 
   test('нов език е само регистрация', () => {
     const m = sample();
-    m.nodes[0]!.language = 'go';
+    m.nodes[0]!.language = 'rust';
     expect(errorsOf(m).map((e) => e.path)).toEqual(['$.nodes[0].language']);
-    expect(validate(m, extendRegistry(CORE_REGISTRY, { name: 'lang-go', languages: ['go'] })).ok).toBe(true);
+    expect(validate(m, extendRegistry(CORE_REGISTRY, { name: 'lang-rust', languages: ['rust'] })).ok).toBe(true);
   });
 
   test('конфликт и невалидно име са грешка', () => {

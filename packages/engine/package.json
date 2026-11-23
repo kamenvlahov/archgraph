@@ -7,6 +7,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@archgraph/lang-go": "workspace:*",
     "@archgraph/lang-node": "workspace:*",
     "@archgraph/lang-php": "workspace:*",
     "@archgraph/lang-python": "workspace:*",

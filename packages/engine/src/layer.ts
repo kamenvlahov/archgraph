@@ -99,6 +99,10 @@ export function layerView(graph: GraphModel, layer: string): LayerView {
     unit.down = down.get(id)?.size ?? 0;
   }
 
+  // Пакетът е отделна единица само когато е празен: иначе го представят класовете и функциите му.
+  for (const n of inLayer)
+    if (n.kind === 'module' && [...units.keys()].some((id) => id !== n.id && group.get(id) === group.get(n.id)))
+      units.delete(n.id);
   const groups = Map.groupBy([...units.values()], (u) => group.get(u.id) ?? '');
   return {
     layer,
