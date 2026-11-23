@@ -90,7 +90,12 @@ export function callEdges(
     if (memberNames.has(name) && !CONSTRUCTORS.has(name)) unresolved.push({ from: c.from, name, line: c.line });
   };
   for (const c of calls) {
-    if (c.kind === 'new') {
+    if (c.kind === 'reference') {
+      // Само към функция от проекта; име, което не е функция (константа, променлива), не е пропуск.
+      const n = byId.get(c.id);
+      if (n?.kind === 'function' && n.members[0])
+        result.push(edge('calls', c.from, { node: n.id, member: n.members[0].name }, 'inferred'));
+    } else if (c.kind === 'new') {
       if (byId.get(c.id)?.kind === 'class')
         result.push(edge('creates', { node: c.from.node, member: c.from.member }, { node: c.id }));
     } else if (c.kind === 'function') {

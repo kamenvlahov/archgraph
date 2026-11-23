@@ -97,6 +97,52 @@ test('go: без go.mod в корена модулите в подпапките
   expect(graph.nodes.map((n) => n.id).sort()).toEqual(['go:example.com/api/orders', 'go:example.com/worker']);
 });
 
+test('go: тип в сигнатурата е зависимост; параметър, който конструкторът не пази, не е инжекция', async () => {
+  const dir = project({
+    'go.mod': 'module gate\n',
+    'internal/model/event.go': 'package model\n\ntype Event struct{ Seq int }\n\ntype Workflow struct{ Steps []int }\n',
+    'internal/port/store.go': `package port
+
+import "gate/internal/model"
+
+type EventStore interface {
+	Append(event model.Event) error
+}
+`,
+    'internal/rules/state.go': `package rules
+
+import "gate/internal/model"
+
+type derivation struct{ steps int }
+
+func (d *derivation) failed() bool { return d.steps < 0 }
+
+func (d *derivation) apply() { start(d) }
+
+func start(d *derivation) bool { return d.failed() }
+
+func newDerivation(wf model.Workflow) *derivation {
+	return &derivation{steps: len(wf.Steps)}
+}
+`,
+    'internal/model/bad.go': 'package model\n\nimport "gate/internal/port"\n\nfunc Use(s port.EventStore) {}\n',
+    '.archgraph/architecture.yaml': `style: onion
+layers:
+  - name: domain-services
+    match: { path_glob: ["internal/port/**", "internal/rules/**"] }
+  - name: domain-model
+    match: { path_glob: ["internal/model/**"] }
+`,
+  });
+  const { graph } = await scan(dir, { scip: false });
+  const ids = graph.edges.map((e) => e.id);
+  expect(ids).toContain('uses-type:go:gate/internal/port.EventStore#Append->go:gate/internal/model.Event');
+  expect(ids.filter((id) => id.startsWith('injects:'))).toEqual([]);
+  expect((graph.violations ?? []).map((v) => v.message)).toEqual([
+    'Use (domain-model) uses-type EventStore (domain-services): domain-model не може да зависи от domain-services',
+  ]);
+});
+
 test('go: празният пакет е отделна единица в слоя, а пакетът с код не е', async () => {
   const dir = project({
     'go.mod': 'module gate\n',
@@ -131,7 +177,7 @@ describe.each(['php-mezzio', 'node-nestjs', 'python-fastapi'])('%s', (name) => {
 test('смесен проект с четирите езика', async () => {
   const { graph, report } = await scan(fixtures);
   expect(report.files).toEqual({ php: 18, node: 13, python: 10, go: 7 });
-  expect(graph.nodes.length).toBe(17 + 15 + 17 + 21);
+  expect(graph.nodes.length).toBe(17 + 15 + 17 + 25);
 });
 
 test('изключени папки, бъндъли и собствени шаблони', async () => {
@@ -286,7 +332,12 @@ class Svc extends \\Vendor\\Base implements Repo {
 }`,
   });
   const { graph } = await scan(dir);
-  expect(graph.edges.map((e) => e.id).sort()).toEqual([
+  expect(
+    graph.edges
+      .filter((e) => e.kind !== 'uses-type')
+      .map((e) => e.id)
+      .sort(),
+  ).toEqual([
     'implements:php:Svc->php:Repo',
     'injects:php:Item->php:Svc#__construct.log',
     'injects:php:Log->php:Svc#__construct.log',
@@ -310,7 +361,12 @@ class Repo {
 }`,
   });
   const { graph } = await scan(dir);
-  expect(graph.edges.map((e) => e.id).sort()).toEqual([
+  expect(
+    graph.edges
+      .filter((e) => e.kind !== 'uses-type')
+      .map((e) => e.id)
+      .sort(),
+  ).toEqual([
     'calls:php:App\\Repo#run->php:App\\Order#total',
     'calls:php:App\\Repo#run->php:App\\Repo#find',
     'calls:php:App\\Repo#run->php:App\\Repo#make',
@@ -347,7 +403,12 @@ class Cart:
 `,
   });
   const { graph } = await scan(dir);
-  expect(graph.edges.map((e) => e.id).sort()).toEqual([
+  expect(
+    graph.edges
+      .filter((e) => e.kind !== 'uses-type')
+      .map((e) => e.id)
+      .sort(),
+  ).toEqual([
     'calls:python:shop.models.Cart#total->python:shop.models.Item#sub',
     'calls:python:shop.models.Item#sub->python:shop.pricing.apply#apply',
     'creates:python:shop.models.Cart#empty->python:shop.models.Cart',
@@ -370,7 +431,7 @@ export class Cart {
   const { graph } = await scan(dir);
   expect(
     graph.edges
-      .filter((e) => e.kind !== 'extends')
+      .filter((e) => e.kind !== 'extends' && e.kind !== 'uses-type')
       .map((e) => e.id)
       .sort(),
   ).toEqual([
@@ -392,7 +453,12 @@ export class Page {
 }`,
   });
   const { graph } = await scan(dir);
-  expect(graph.edges.map((e) => e.id).sort()).toEqual(['calls:node:src/page.ts#Page#open->node:src/api.ts#Api#load']);
+  expect(
+    graph.edges
+      .filter((e) => e.kind !== 'uses-type')
+      .map((e) => e.id)
+      .sort(),
+  ).toEqual(['calls:node:src/page.ts#Page#open->node:src/api.ts#Api#load']);
 });
 
 test('calls през поле на друг клас', async () => {

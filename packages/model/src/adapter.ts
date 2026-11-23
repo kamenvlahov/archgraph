@@ -67,7 +67,9 @@ export type Arg = { name?: string; line?: number } & (
 export type CallSite =
   | { from: Caller; line: number; kind: 'method'; on: Expr; name: string } // x.name()
   | { from: Caller; line: number; kind: 'function'; id: TypeId } // f(): функция или клас (в Python `X()` създава)
-  | { from: Caller; line: number; kind: 'new'; id: TypeId }; // new X()
+  | { from: Caller; line: number; kind: 'new'; id: TypeId } // new X()
+  // функция, подадена като стойност (таблица от функции, callback): извиква се оттам, където отиде
+  | { from: Caller; line: number; kind: 'reference'; id: TypeId };
 
 // `line` е редът на името (`name` в `x->name(`), където SCIP слага референцията.
 export interface Caller {

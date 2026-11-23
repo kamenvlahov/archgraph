@@ -11,3 +11,12 @@ func (o *Order) Total() float64 {
 	}
 	return total
 }
+
+type Summary struct {
+	Items int
+	Total float64
+}
+
+func NewSummary(o *Order) *Summary {
+	return &Summary{Items: len(o.Items), Total: o.Total()}
+}

@@ -15,42 +15,6 @@
       "members": []
     },
     {
-      "id": "go:shop/internal/httpapi",
-      "kind": "module",
-      "name": "httpapi",
-      "language": "go",
-      "location": {
-        "file": "internal/httpapi/handler.go",
-        "line": 1,
-        "endLine": 1
-      },
-      "members": []
-    },
-    {
-      "id": "go:shop/internal/order",
-      "kind": "module",
-      "name": "order",
-      "language": "go",
-      "location": {
-        "file": "internal/order/entity.go",
-        "line": 1,
-        "endLine": 1
-      },
-      "members": []
-    },
-    {
-      "id": "go:shop/internal/pricing",
-      "kind": "module",
-      "name": "pricing",
-      "language": "go",
-      "location": {
-        "file": "internal/pricing/discount.go",
-        "line": 1,
-        "endLine": 1
-      },
-      "members": []
-    },
-    {
       "id": "go:shop/cmd/shop.main",
       "kind": "function",
       "name": "main",
@@ -72,6 +36,18 @@
           }
         }
       ]
+    },
+    {
+      "id": "go:shop/internal/httpapi",
+      "kind": "module",
+      "name": "httpapi",
+      "language": "go",
+      "location": {
+        "file": "internal/httpapi/handler.go",
+        "line": 1,
+        "endLine": 1
+      },
+      "members": []
     },
     {
       "id": "go:shop/internal/httpapi.OrderOut",
@@ -281,6 +257,18 @@
       ]
     },
     {
+      "id": "go:shop/internal/order",
+      "kind": "module",
+      "name": "order",
+      "language": "go",
+      "location": {
+        "file": "internal/order/entity.go",
+        "line": 1,
+        "endLine": 1
+      },
+      "members": []
+    },
+    {
       "id": "go:shop/internal/order.BaseEntity",
       "kind": "class",
       "name": "BaseEntity",
@@ -383,6 +371,56 @@
             "type": {
               "kind": "primitive",
               "name": "float64"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "go:shop/internal/order.Summary",
+      "kind": "class",
+      "name": "Summary",
+      "language": "go",
+      "location": {
+        "file": "internal/order/order_items.go",
+        "line": 15,
+        "endLine": 18
+      },
+      "members": []
+    },
+    {
+      "id": "go:shop/internal/order.NewSummary",
+      "kind": "function",
+      "name": "NewSummary",
+      "language": "go",
+      "location": {
+        "file": "internal/order/order_items.go",
+        "line": 20,
+        "endLine": 22
+      },
+      "members": [
+        {
+          "name": "NewSummary",
+          "visibility": "public",
+          "inputs": [
+            {
+              "name": "o",
+              "type": {
+                "kind": "named",
+                "id": "go:shop/internal/order.Order"
+              }
+            }
+          ],
+          "location": {
+            "file": "internal/order/order_items.go",
+            "line": 20,
+            "endLine": 22
+          },
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "named",
+              "id": "go:shop/internal/order.Summary"
             }
           }
         }
@@ -709,14 +747,26 @@
       ]
     },
     {
+      "id": "go:shop/internal/pricing",
+      "kind": "module",
+      "name": "pricing",
+      "language": "go",
+      "location": {
+        "file": "internal/pricing/discount.go",
+        "line": 1,
+        "endLine": 1
+      },
+      "members": []
+    },
+    {
       "id": "go:shop/internal/pricing.Discount",
       "kind": "function",
       "name": "Discount",
       "language": "go",
       "location": {
         "file": "internal/pricing/discount.go",
-        "line": 5,
-        "endLine": 10
+        "line": 8,
+        "endLine": 13
       },
       "members": [
         {
@@ -740,8 +790,84 @@
           ],
           "location": {
             "file": "internal/pricing/discount.go",
-            "line": 5,
-            "endLine": 10
+            "line": 8,
+            "endLine": 13
+          },
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "primitive",
+              "name": "float64"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "go:shop/internal/pricing.vip",
+      "kind": "function",
+      "name": "vip",
+      "language": "go",
+      "location": {
+        "file": "internal/pricing/discount.go",
+        "line": 15,
+        "endLine": 15
+      },
+      "members": [
+        {
+          "name": "vip",
+          "visibility": "private",
+          "inputs": [
+            {
+              "name": "price",
+              "type": {
+                "kind": "primitive",
+                "name": "float64"
+              }
+            }
+          ],
+          "location": {
+            "file": "internal/pricing/discount.go",
+            "line": 15,
+            "endLine": 15
+          },
+          "output": {
+            "name": "return",
+            "type": {
+              "kind": "primitive",
+              "name": "float64"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "go:shop/internal/pricing.staff",
+      "kind": "function",
+      "name": "staff",
+      "language": "go",
+      "location": {
+        "file": "internal/pricing/discount.go",
+        "line": 17,
+        "endLine": 17
+      },
+      "members": [
+        {
+          "name": "staff",
+          "visibility": "private",
+          "inputs": [
+            {
+              "name": "price",
+              "type": {
+                "kind": "primitive",
+                "name": "float64"
+              }
+            }
+          ],
+          "location": {
+            "file": "internal/pricing/discount.go",
+            "line": 17,
+            "endLine": 17
           },
           "output": {
             "name": "return",
@@ -995,6 +1121,31 @@
       "confidence": "exact"
     },
     {
+      "id": "creates:go:shop/internal/order.NewSummary#NewSummary->go:shop/internal/order.Summary",
+      "kind": "creates",
+      "from": {
+        "node": "go:shop/internal/order.NewSummary",
+        "member": "NewSummary"
+      },
+      "to": {
+        "node": "go:shop/internal/order.Summary"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/internal/order.NewSummary#NewSummary->go:shop/internal/order.Order#Total",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/internal/order.NewSummary",
+        "member": "NewSummary"
+      },
+      "to": {
+        "node": "go:shop/internal/order.Order",
+        "member": "Total"
+      },
+      "confidence": "exact"
+    },
+    {
       "id": "calls:go:shop/internal/order.Order#Total->go:shop/internal/order.Item#Subtotal",
       "kind": "calls",
       "from": {
@@ -1104,6 +1255,32 @@
       "to": {
         "node": "go:shop/internal/order.Repository",
         "member": "Find"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/internal/pricing.Discount#Discount->go:shop/internal/pricing.vip#vip",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/internal/pricing.Discount",
+        "member": "Discount"
+      },
+      "to": {
+        "node": "go:shop/internal/pricing.vip",
+        "member": "vip"
+      },
+      "confidence": "exact"
+    },
+    {
+      "id": "calls:go:shop/internal/pricing.Discount#Discount->go:shop/internal/pricing.staff#staff",
+      "kind": "calls",
+      "from": {
+        "node": "go:shop/internal/pricing.Discount",
+        "member": "Discount"
+      },
+      "to": {
+        "node": "go:shop/internal/pricing.staff",
+        "member": "staff"
       },
       "confidence": "exact"
     }
@@ -1220,6 +1397,27 @@
               "kind": "named",
               "id": "go:shop/internal/order.Item"
             }
+          }
+        }
+      ]
+    },
+    "go:shop/internal/order.Summary": {
+      "id": "go:shop/internal/order.Summary",
+      "name": "Summary",
+      "nodeId": "go:shop/internal/order.Summary",
+      "fields": [
+        {
+          "name": "Items",
+          "type": {
+            "kind": "primitive",
+            "name": "int"
+          }
+        },
+        {
+          "name": "Total",
+          "type": {
+            "kind": "primitive",
+            "name": "float64"
           }
         }
       ]

@@ -15,6 +15,7 @@ const DEPENDS: Record<string, 'forward' | 'back'> = {
   extends: 'forward',
   implements: 'forward',
   injects: 'back',
+  'uses-type': 'forward',
 };
 
 export function violations(nodes: Node[], edges: Edge[], arch: Architecture | undefined): Violation[] {
@@ -31,7 +32,11 @@ export function violations(nodes: Node[], edges: Edge[], arch: Architecture | un
   return [
     ...layerViolations(deps, arch),
     ...contextViolations(deps, arch),
-    ...cycles(deps),
+    // типове, които се споменават взаимно (Order ↔ Item), са нормални; цикъл е само по поведение
+    ...cycles(
+      deps.filter((d) => d.edge.kind !== 'uses-type'),
+      nodes.filter((n) => n.kind === 'module').map((n) => n.id),
+    ),
     ...contracts(nodes, edges, byId),
   ];
 }
@@ -41,8 +46,11 @@ type Dep = { edge: Edge; from: Node; to: Node };
 function layerViolations(deps: Dep[], arch: Architecture | undefined): Violation[] {
   const allow = allowOf(arch);
   const found = new Map<string, Violation>();
+  // тип в сигнатурата е нарушение само ако между двата нода няма друга зависимост, която вече го казва
+  const behaviour = new Set(deps.filter((d) => d.edge.kind !== 'uses-type').map((d) => `${d.from.id} ${d.to.id}`));
   for (const { edge, from, to } of deps) {
     if (!from.layer || !to.layer || from.layer === to.layer) continue;
+    if (edge.kind === 'uses-type' && behaviour.has(`${from.id} ${to.id}`)) continue;
     // слой, който правилата не познават, не се проверява
     if (!(from.layer in allow) || (allow[from.layer] ?? []).includes(to.layer)) continue;
     const key = `${from.id} ${to.id} ${edge.kind}`;
@@ -76,7 +84,9 @@ function contextViolations(deps: Dep[], arch: Architecture | undefined): Violati
 }
 
 // Силно свързаните компоненти (Tarjan, без рекурсия): всеки с повече от един клас е цикъл.
-function cycles(deps: Dep[]): Violation[] {
+// Цикъл вътре в един модул с нод (пакет в Go: тип и помощните му функции) е работа на модула.
+function cycles(deps: Dep[], modules: string[] = []): Violation[] {
+  const moduleOf = (id: string) => modules.find((m) => id.startsWith(`${m}.`));
   const next = new Map<string, Set<string>>();
   const names = new Map<string, string>();
   for (const { from, to } of deps) {
@@ -120,7 +130,8 @@ function cycles(deps: Dep[]): Violation[] {
         scc.push(x);
         if (x === v) break;
       }
-      if (scc.length > 1) {
+      const home = moduleOf(scc[0] ?? '');
+      if (scc.length > 1 && !(home && scc.every((id) => moduleOf(id) === home))) {
         const members = scc.sort((a, b) => (names.get(a) ?? a).localeCompare(names.get(b) ?? b));
         result.push({
           kind: 'cycle',

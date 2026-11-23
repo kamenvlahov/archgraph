@@ -13,6 +13,7 @@ import {
   type Member,
   type Node as GraphNode,
   type PathCall,
+  type TypeId,
   type Port,
   type SourceFile,
   type TypeRef,
@@ -74,6 +75,8 @@ interface Ctx {
   file: string;
   imports: Map<string, string>; // локално име → import път
   generics: Set<string>; // параметрите на типа в текущата декларация
+  // променливите на пакета от този файл → функциите, които стоят в стойността им (таблица от функции)
+  tables: Map<string, TypeId[]>;
   edges: Edge[];
   calls: CallSite[];
   paths: PathCall[];
@@ -100,6 +103,7 @@ export const goAdapter: LanguageAdapter = {
         file: file.path,
         imports: new Map(),
         generics: new Set(),
+        tables: new Map(),
         edges,
         calls,
         paths,
@@ -178,6 +182,11 @@ function readFile(root: Node, ctx: Ctx, methods: { node: string; member: Member 
       location: location(clause, ctx.file),
       members: [],
     });
+  for (const decl of root.namedChildren.filter((c) => c.type === 'var_declaration'))
+    for (const spec of decl.descendantsOfType('var_spec')) {
+      const refs = references(spec.childForFieldName('value'), ctx);
+      if (refs.length > 0) for (const n of spec.childrenForFieldName('name')) ctx.tables.set(n.text, refs);
+    }
   for (const decl of root.namedChildren) {
     if (decl.type === 'type_declaration') {
       const specs = decl.namedChildren.filter((c) => c.type === 'type_spec');
@@ -273,13 +282,69 @@ function readFunction(decl: Node, ctx: Ctx): GraphNode {
   const id = nodeId(ctx.pkg, name);
   const scoped = { ...ctx, generics: new Set(typeParams(decl)) };
   const member = readMember(decl, scoped);
-  // `NewService(repo Repository) *Service` е конструкторът на Go: параметрите му са зависимостите.
-  if (/^[Nn]ew[A-Z_]?/.test(name) && returnsOwn(member, ctx.pkg))
-    for (const port of member.inputs)
+  // `NewService(repo Repository) *Service` е конструкторът на Go. Зависимост е параметърът, който
+  // остава в резултата (`&Service{repo: repo}`); `newDerivation(wf)`, който само чете wf, не инжектира.
+  if (/^[Nn]ew[A-Z_]?/.test(name) && returnsOwn(member, ctx.pkg)) {
+    const kept = stored(decl);
+    for (const port of member.inputs.filter((p) => kept.has(p.name)))
       for (const from of namedIds(port.type))
         ctx.edges.push(edge('injects', { node: from }, { node: id, member: name, port: port.name }));
+  }
   readCalls(decl, member, id, scoped);
   return { id, kind: 'function', name, language: 'go', location: location(decl, ctx.file), members: [member] };
+}
+
+// Параметрите, записани в поле: `T{x: x}` или `t.x = x`.
+function stored(fn: Node): Set<string> {
+  const names = new Set<string>();
+  for (const el of fn.descendantsOfType('keyed_element')) {
+    const value = el.namedChildren[1];
+    const inner = value?.type === 'literal_element' ? value.namedChildren[0] : value;
+    if (inner?.type === 'identifier') names.add(inner.text);
+  }
+  for (const a of fn.descendantsOfType('assignment_statement')) {
+    const left = a.childForFieldName('left')?.namedChildren ?? [];
+    const right = a.childForFieldName('right')?.namedChildren ?? [];
+    left.forEach((l, i) => {
+      const r = right[i];
+      if (l.type === 'selector_expression' && r?.type === 'identifier') names.add(r.text);
+    });
+  }
+  return names;
+}
+
+// Функциите на пакета, споменати като стойност: `startStep`, `other.Run` (без извикване)
+function references(value: Node | null, ctx: Ctx): TypeId[] {
+  if (!value) return [];
+  const ids = new Set<TypeId>();
+  const walk = (n: Node) => {
+    if (n.type === 'func_literal') return;
+    const id = valueRef(n, ctx);
+    if (id) ids.add(id);
+    else for (const c of n.namedChildren) walk(c);
+  };
+  walk(value);
+  return [...ids];
+}
+
+// Идентификатор или `pkg.Name`, който не е извикан, не е ключ и не е тип: възможна препратка към функция.
+// Дали наистина е функция, решава engine-ът по нодовете.
+function valueRef(n: Node, ctx: Ctx): TypeId | undefined {
+  const parent = n.parent;
+  if (parent?.type === 'call_expression' && parent.childForFieldName('function')?.startIndex === n.startIndex)
+    return undefined;
+  if (n.type === 'identifier') {
+    if (isBuiltin(n.text) || ctx.imports.has(n.text) || ['nil', 'true', 'false', 'iota'].includes(n.text))
+      return undefined;
+    if (parent?.type === 'selector_expression' || parent?.type === 'keyed_element') return undefined;
+    return nodeId(ctx.pkg, n.text);
+  }
+  if (n.type === 'selector_expression') {
+    const operand = n.childForFieldName('operand');
+    if (operand?.type === 'identifier' && ctx.imports.has(operand.text))
+      return `go:${ctx.imports.get(operand.text)}.${n.childForFieldName('field')?.text ?? ''}`;
+  }
+  return undefined;
 }
 
 function returnsOwn(m: Member, pkg: string): boolean {
@@ -487,6 +552,15 @@ function readCalls(fn: Node, member: Member, node: string, ctx: Ctx, self?: stri
   };
 
   const visit = (n: Node) => {
+    if (
+      (n.type === 'identifier' || n.type === 'selector_expression') &&
+      !(n.type === 'identifier' && vars.has(n.text))
+    ) {
+      const table = n.type === 'identifier' ? ctx.tables.get(n.text) : undefined;
+      for (const id of table ?? []) ctx.calls.push({ from, line: lineOf(n), kind: 'reference', id });
+      const id = table ? undefined : valueRef(n, ctx);
+      if (id) ctx.calls.push({ from, line: lineOf(n), kind: 'reference', id });
+    }
     switch (n.type) {
       case 'short_var_declaration':
       case 'assignment_statement':

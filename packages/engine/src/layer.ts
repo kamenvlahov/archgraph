@@ -36,6 +36,7 @@ const DEPENDS: Record<string, 'forward' | 'back'> = {
   extends: 'forward',
   implements: 'forward',
   injects: 'back',
+  'uses-type': 'forward',
 };
 
 export function layers(graph: GraphModel, order: string[]): LayerSummary[] {

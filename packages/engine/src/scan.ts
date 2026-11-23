@@ -184,7 +184,7 @@ export class Project {
     const registered = services(annotations, frameworks, graph.nodes);
     const routed = routes(annotations, frameworks, graph.nodes, registered.services);
     graph.nodes = graph.nodes.concat(routed.nodes);
-    graph.edges = linkEdges(graph.nodes, graph.edges);
+    graph.edges = linkEdges(graph.nodes, graph.edges, graph.types);
     const adapters = [...new Set([...this.fragments.values()].map((f) => f.adapter))];
     const exact = scip ? scipCalls(root, graph.nodes, adapters, calls, report) : { edges: [], rest: calls };
     const inferred = callEdges(graph.nodes, graph.edges, graph.types, exact.rest, registered.services);

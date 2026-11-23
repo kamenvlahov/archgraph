@@ -98,8 +98,11 @@ test('изглед на слой: модули, единици, стрелки �
   const unit = v.groups[1]?.units.find((u) => u.label === 'OrderService');
   // ↑ фабриката (composition); ↓ OrderRepositoryInterface, Order, OrderItem
   expect([unit?.up, unit?.down, unit?.members.map((m) => m.name)]).toEqual([1, 3, ['__construct', 'place', 'get']]);
+  // `uses-type`: DTO-то в сигнатурата на услугата и на договора ѝ
   expect(v.edges.map((e) => e.id).sort()).toEqual([
+    'php:App\\Order\\Service\\OrderService->php:App\\Order\\Dto\\PlaceOrderDto',
     'php:App\\Order\\Service\\OrderService->php:App\\Order\\Service\\OrderServiceInterface',
     'php:App\\Order\\Service\\OrderService->php:App\\Order\\Service\\PriceCalculator',
+    'php:App\\Order\\Service\\OrderServiceInterface->php:App\\Order\\Dto\\PlaceOrderDto',
   ]);
 });
